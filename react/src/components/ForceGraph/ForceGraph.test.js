@@ -114,7 +114,9 @@ describe("ForceGraph", () => {
       return mockGraphInstance;
     });
     // Reset mock call counts
-    Object.values(mockGraphInstance).forEach((fn) => fn.mockReset && fn.mockReset());
+    Object.values(mockGraphInstance).forEach((fn) => {
+      if (fn.mockReset) fn.mockReset();
+    });
     mockGraphInstance.getCurrentGraph.mockReturnValue(null);
     mockGraphInstance.isDragging.mockReturnValue(false);
     // Default return values for service mocks

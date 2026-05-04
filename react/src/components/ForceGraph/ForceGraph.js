@@ -844,38 +844,37 @@ const ForceGraph = ({
             Expand by Collection {collectionMenu.open ? "▴" : "▾"}
           </button>
           {collectionMenu.open && (
-            // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: submenu pattern requires role="menu" on ul
             // biome-ignore lint/correctness/useUniqueElementIds: single popup instance; id referenced by aria-controls
-            <ul
+            <div
               id="expand-by-collection-submenu"
               role="menu"
               className="document-popup-submenu"
               onKeyDown={handleCollectionSubmenuKeyDown}
             >
               {collectionMenu.loading && (
-                <li className="document-popup-submenu-status" aria-live="polite">
+                <div className="document-popup-submenu-status" aria-live="polite">
                   Loading…
-                </li>
+                </div>
               )}
               {!collectionMenu.loading && collectionMenu.error && (
-                <li
+                <div
                   className="document-popup-submenu-status document-popup-submenu-error"
                   role="alert"
                 >
                   {collectionMenu.error}
-                </li>
+                </div>
               )}
               {!collectionMenu.loading &&
                 !collectionMenu.error &&
                 collectionMenu.collections.length === 0 && (
-                  <li className="document-popup-submenu-status">
+                  <div className="document-popup-submenu-status">
                     No neighbors in other collections
-                  </li>
+                  </div>
                 )}
               {!collectionMenu.loading &&
                 !collectionMenu.error &&
                 collectionMenu.collections.map((name) => (
-                  <li role="none" key={name}>
+                  <div role="none" key={name}>
                     <button
                       type="button"
                       role="menuitem"
@@ -884,9 +883,9 @@ const ForceGraph = ({
                     >
                       {collectionMaps.get(name)?.display_name ?? name}
                     </button>
-                  </li>
+                  </div>
                 ))}
-            </ul>
+            </div>
           )}
           <button
             type="button"
