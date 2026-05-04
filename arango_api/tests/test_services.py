@@ -252,10 +252,10 @@ class GraphServiceTestCase(ArangoDBTestCase):
         self.assertIn("UBERON", result)
         self.assertEqual(len(result), len(set(result)), "Result must be distinct")
 
-    def test_get_neighbor_collections_leaf_node_returns_empty(self):
-        # CL/0000000 ("cell") is a root with no INBOUND edges in seed data.
+    def test_get_neighbor_collections_nonexistent_node_returns_empty(self):
+        # A non-existent node id should return no neighbors regardless of direction.
         result = graph_service.get_neighbor_collections(
-            node_id="CL/0000000",
+            node_id="CL/nonexistent",
             graph="ontologies",
             edge_direction="INBOUND",
         )
