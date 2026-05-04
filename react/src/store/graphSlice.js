@@ -102,8 +102,8 @@ export const expandNode = createAsyncThunk(
       settings.includeInterNodeEdges ?? true,
     );
     return {
-      newNodes: expansionData?.[nodeId].nodes || [],
-      newLinks: expansionData?.[nodeId].links || [],
+      newNodes: expansionData?.[nodeId]?.nodes || [],
+      newLinks: expansionData?.[nodeId]?.links || [],
       centerNodeId: nodeId,
     };
   },

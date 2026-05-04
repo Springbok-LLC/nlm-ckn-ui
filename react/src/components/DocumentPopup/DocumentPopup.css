@@ -19,10 +19,14 @@
   border-radius: 3px;
 }
 
-.document-popup-submenu-item:hover,
+.document-popup-submenu-item:hover {
+  background-color: #e8f4fd;
+}
+
 .document-popup-submenu-item:focus-visible {
   background-color: #e8f4fd;
-  outline: none;
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
 }
 
 .document-popup-submenu-status {

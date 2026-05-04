@@ -290,6 +290,7 @@ const ForceGraph = ({
 
   const handlePopupClose = () => {
     abortRef.current?.abort();
+    abortRef.current = null;
     setCollectionMenu({ open: false, loading: false, collections: [], error: null });
     setPopup({ ...popup, visible: false });
   };
@@ -676,6 +677,8 @@ const ForceGraph = ({
 
   const handleOpenCollectionMenu = async () => {
     if (collectionMenu.open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setCollectionMenu((s) => ({ ...s, open: false }));
       return;
     }
@@ -690,6 +693,7 @@ const ForceGraph = ({
         "ANY",
         controller.signal,
       );
+      if (abortRef.current !== controller) return;
       setCollectionMenu({
         open: true,
         loading: false,
@@ -698,6 +702,7 @@ const ForceGraph = ({
       });
     } catch (err) {
       if (err.name === "AbortError") return;
+      if (abortRef.current !== controller) return;
       setCollectionMenu((s) => ({ ...s, loading: false, error: "Failed to load collections" }));
     }
   };

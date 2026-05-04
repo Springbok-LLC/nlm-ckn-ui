@@ -277,7 +277,7 @@ def get_neighbor_collections(node_id, graph="ontologies", edge_direction="ANY"):
 
     bind_vars = {"node_id": node_id, "graph": graph_name}
     cursor = db.aql.execute(aql_query, bind_vars=bind_vars)
-    return sorted(list(cursor))
+    return sorted(x for x in cursor if x is not None)
 
 
 def find_inter_node_edges(node_ids, graph="ontologies", edge_filters=None):
