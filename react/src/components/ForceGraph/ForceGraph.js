@@ -657,7 +657,7 @@ const ForceGraph = ({
       );
     }
     dispatch(uncollapseNode(popup.nodeId));
-    dispatch(expandNode(popup.nodeId));
+    dispatch(expandNode({ nodeId: popup.nodeId }));
     handlePopupClose();
   };
 
