@@ -141,10 +141,18 @@ function SunburstConstructor(
   const svg = d3
     .create("svg")
     .attr("viewBox", [-width / 2, -width / 2, width, width])
+    .attr("role", "img")
+    .attr("aria-labelledby", "sunburst-title sunburst-desc")
     .style("font", "12px sans-serif")
     .style("max-height", "80vh")
     .style("display", "block")
     .style("margin", "auto");
+
+  svg.append("title").attr("id", "sunburst-title").text("Sunburst chart");
+  svg
+    .append("desc")
+    .attr("id", "sunburst-desc")
+    .text("Hierarchical sunburst visualization of cell type and gene set relationships");
 
   const g = svg.append("g");
 
