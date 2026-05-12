@@ -45,7 +45,7 @@
       {
         "abbreviated_name": "TEST_EDGE_COLLECTION",
         "display_name": "Test edge collection",
-        "color": "#999999",
+        "color": "#949494",
         "individual_labels": [
           {
             "field_to_use": "Label",
@@ -88,7 +88,7 @@
       {
         "abbreviated_name": "BGS",
         "display_name": "Binary gene set",
-        "color": "#FF6B6B",
+        "color": "#FF5C5C",
         "individual_labels": [
           {
             "field_to_use": "markers",
@@ -174,7 +174,7 @@
       {
         "abbreviated_name": "CHEMBL",
         "display_name": "Bioactive molecule",
-        "color": "#ffe119",
+        "color": "#AA9400",
         "individual_labels": [
           {
             "field_to_use": "label",
@@ -320,7 +320,7 @@
       {
         "abbreviated_name": "CS",
         "display_name": "Cell set",
-        "color": "#f58231",
+        "color": "#F36C0D",
         "individual_labels": [
           {
             "field_to_use": "author_cell_term",
@@ -384,7 +384,7 @@
       {
         "abbreviated_name": "CSD",
         "display_name": "Cell set dataset",
-        "color": "#ffd8b1",
+        "color": "#E77300",
         "individual_labels": [
           {
             "field_to_use": "Citation",
@@ -612,7 +612,7 @@
       {
         "abbreviated_name": "HsapDv",
         "display_name": "Life cycle stage",
-        "color": "#fabed4",
+        "color": "#F35F95",
         "individual_labels": [
           {
             "field_to_use": "label",
@@ -676,7 +676,7 @@
       {
         "abbreviated_name": "HP",
         "display_name": "Human Phenotype",
-        "color": "#fabed4",
+        "color": "#F35F95",
         "individual_labels": [
           {
             "field_to_use": "label",
@@ -780,7 +780,7 @@
       {
         "abbreviated_name": "NCBITaxon",
         "display_name": "Taxonomy",
-        "color": "#a9a9a9",
+        "color": "#939393",
         "individual_labels": [
           {
             "field_to_use": "label",
@@ -853,7 +853,7 @@
       {
         "abbreviated_name": "PATO",
         "display_name": "Phenotype",
-        "color": "#42d4f4",
+        "color": "#0BA1C2",
         "individual_labels": [
           {
             "field_to_use": "label",
@@ -905,7 +905,7 @@
       {
         "abbreviated_name": "PR",
         "display_name": "Protein",
-        "color": "#aaffc3",
+        "color": "#00AA32",
         "individual_labels": [
           {
             "field_to_use": "gene_symbol",
@@ -1134,7 +1134,7 @@
       {
         "abbreviated_name": "edges",
         "display_name": "Relationship",
-        "color": "#cccccc",
+        "color": "#949494",
         "individual_labels": [
           {
             "field_to_use": "Label",
