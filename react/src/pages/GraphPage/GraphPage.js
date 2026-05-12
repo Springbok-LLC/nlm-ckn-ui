@@ -5,17 +5,26 @@ import SelectedItemsTable from "components/SelectedItemsTable";
 import { GraphContext } from "contexts";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { fetchNodeDetailsByIds } from "services";
-import { clearNodesSlice, initializeGraph, loadGraphFromJson, removeNodeFromSlice } from "store";
+import {
+  clearNodesSlice,
+  initializeGraph,
+  loadGraphFromJson,
+  removeNodeFromSlice,
+  setNodesSlice,
+  updateSetting,
+} from "store";
 
 const GraphPage = () => {
   const dispatch = useDispatch();
   const graphDisplayAreaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // State and Context
   const nodeIds = useSelector((state) => state.nodesSlice.originNodeIds);
-  const { lastAppliedOriginNodeIds } = useSelector((state) => state.graph.present);
+  const { lastAppliedOriginNodeIds, settings } = useSelector((state) => state.graph.present);
 
   const [selectedItemObjects, setSelectedItemObjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,13 +40,48 @@ const GraphPage = () => {
 
   // Init graph on component load.
   // Ref prevents StrictMode from dispatching initializeGraph twice.
+  // When URL params are present, URL wins over redux-persist rehydrated state.
   const hasInitializedRef = useRef(false);
   useEffect(() => {
     if (!hasInitializedRef.current) {
-      dispatch(initializeGraph({ nodeIds: [] }));
       hasInitializedRef.current = true;
+
+      const urlNodes = searchParams.get("nodes");
+      const urlDepth = searchParams.get("depth");
+      const urlDir = searchParams.get("dir");
+
+      if (urlNodes) {
+        // Parse URL params -- all values are strings.
+        const parsedIds = urlNodes
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+
+        if (parsedIds.length > 0) {
+          // URL wins over persisted redux-persist state.
+          dispatch(setNodesSlice(parsedIds));
+
+          if (urlDepth !== null) {
+            const depthNum = Number(urlDepth);
+            if (!Number.isNaN(depthNum)) {
+              dispatch(updateSetting({ setting: "depth", value: depthNum }));
+            }
+          }
+
+          if (urlDir !== null) {
+            dispatch(updateSetting({ setting: "edgeDirection", value: urlDir }));
+          }
+
+          dispatch(initializeGraph({ nodeIds: parsedIds }));
+          setShowGraph(true);
+          return;
+        }
+      }
+
+      // No URL params -- fall through to default empty init.
+      dispatch(initializeGraph({ nodeIds: [] }));
     }
-  }, [dispatch]);
+  }, [dispatch, searchParams]);
 
   // Effect to synchronize local objects with global node IDs.
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedItemObjects read for diff, nodeIds triggers effect
@@ -110,6 +154,12 @@ const GraphPage = () => {
       // This dispatches the action to trigger a new graph build.
       dispatch(initializeGraph({ nodeIds: nodeIds }));
       setShowGraph(true);
+      // Encode graph configuration into URL for sharing/bookmarking.
+      setSearchParams({
+        nodes: nodeIds.join(","),
+        depth: String(settings.depth),
+        dir: settings.edgeDirection,
+      });
     } else {
       setShowGraph(false);
     }
@@ -182,7 +232,10 @@ const GraphPage = () => {
         {nodeIds.length > 0 && (
           <button
             type="button"
-            onClick={() => dispatch(clearNodesSlice())}
+            onClick={() => {
+              dispatch(clearNodesSlice());
+              setSearchParams({});
+            }}
             className="secondary-action-button"
           >
             Clear All Nodes
