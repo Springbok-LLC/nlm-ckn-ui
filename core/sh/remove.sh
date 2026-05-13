@@ -4,7 +4,7 @@ usage() {
     cat << EOF
 
 NAME
-    remove - Remove a specified configuration of the Cell KN MVP
+    remove - Remove a specified configuration of the NLM-CKN
 
 SYNOPSIS
     remove [OPTIONS]]
@@ -14,7 +14,7 @@ DESCRIPTION
 
 OPTIONS 
     -c    CONF
-          The Cell KN configuration to remove
+          The NLM-CKN configuration to remove
 
     -h    Help
 
@@ -98,9 +98,9 @@ port=$(ls -al | grep "\->.*$subdomain" | cut -d "-" -f 2 | sed "s/[[:space:]]*$/
 # Stop the corresponding ArangoDB container
 ARANGO_DB_PORT=$port ./stop-arangodb.sh
 
-# Remove Cell KN MVP versioned directory
-mvp_directory="cell-kn-mvp-ui-$CELL_KN_MVP_UI_VERSION-$subdomain"
-rm -rf $mvp_directory
+# Remove nlm-ckn-ui versioned directory
+ckn_directory="nlm-ckn-ui-$NLM_CKN_UI_VERSION-$subdomain"
+rm -rf $ckn_directory
 
 # Remove ArangoDB archive file and symbolic link
 arangodb_file="$(echo $archive | sed s/.tar.gz//)-$subdomain"

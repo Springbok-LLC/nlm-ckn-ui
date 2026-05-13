@@ -4,15 +4,15 @@ usage() {
     cat << EOF
 
 NAME
-    deploy - Deploy a specified configuration of the Cell KN MVP
+    deploy - Deploy a specified configuration of the NLM-CKN
 
 SYNOPSIS
     deploy [OPTIONS]
 
 DESCRIPTION
-    Deploy the Cell KN MVP by deploying the specified configuration in
+    Deploy the NLM-CKN by deploying the specified configuration in
     the conf directory. The corresponding site is first disabled, and
-    ArangoDB container stopped. The Cell KN MVP repository is cloned
+    ArangoDB container stopped. The nlm-ckn-ui repository is cloned
     into a versioned directory, Python and JavaScript dependencies
     installed, the Django application migrated, and the React
     application built. Then the configured ArangoDB archive is
@@ -22,7 +22,7 @@ DESCRIPTION
 
 OPTIONS 
     -c    CONF
-          The Cell KN configuration to deploy
+          The NLM-CKN configuration to deploy
 
     -h    Help
 
@@ -34,11 +34,11 @@ EOF
 }
 
 # Parse command line options
-while getopts ":c:hex" opt; do
+while getopts ":c:s:hex" opt; do
     case $opt in
 	c)
 	    CONF="${OPTARG}"
-            ;;
+        ;;
 	h)
 	    usage
 	    exit 0
@@ -114,17 +114,17 @@ sleep 1
 # Stop the corresponding ArangoDB container
 ARANGO_DB_PORT=$port ~/stop-arangodb.sh
 
-# Clone Cell KN MVP repository into a versioned directory
-mvp_directory="cell-kn-mvp-ui-$CELL_KN_MVP_UI_VERSION-$subdomain"
-rm -rf ~/$mvp_directory
-git clone git@github.com:NIH-NLM/cell-kn-mvp-ui.git ~/$mvp_directory
+# Clone the nlm-ckn-ui repository into a versioned directory
+ckn_directory="nlm-ckn-ui-$NLM_CKN_UI_VERSION-$subdomain"
+rm -rf ~/$ckn_directory
+git clone git@github.com:NIH-NLM/nlm-ckn-ui.git ~/$ckn_directory
 
 # Copy in the application environment
-cp ../../.env.production ~/$mvp_directory/.env
+cp ../../.env.production ~/$ckn_directory/.env
 
-# Checkout the specified CELL KN MVP version
-pushd ~/$mvp_directory
-git checkout $CELL_KN_MVP_UI_VERSION
+# Checkout the specified nlm-ckn-ui version
+pushd ~/$ckn_directory
+git checkout $NLM_CKN_UI_VERSION
 
 # Install Python dependencies
 python3.13 -m venv .venv
@@ -177,7 +177,7 @@ npm install
 # Build React application
 npm run build
 deactivate
-popd  # into ~/$mvp_directory
+popd  # into ~/$ckn_directory
 popd  # into script directory
 
 # Extract, rename, and symbolically link the ArangoDB archive
@@ -197,7 +197,7 @@ cat default-ssl.conf | \
     sed s/{subdomain}/$subdomain/ | \
     sed s/{fqdn}/$fqdn/ | \
     sed s/{server_admin}/$SERVER_ADMIN/ | \
-    sed s/{cell_kn_mvp_ui_version}/$CELL_KN_MVP_UI_VERSION/ \
+    sed s/{nlm_ckn_ui_version}/$NLM_CKN_UI_VERSION/ \
 	> $site
 sudo cp $site /etc/apache2/sites-available
 rm $site

@@ -4,7 +4,7 @@ usage() {
     cat << EOF
 
 NAME
-    select - Select a default configuration of the Cell KN MVP
+    select - Select a default configuration of the NLM-CKN
 
 SYNOPSIS
     select [OPTIONS]
@@ -17,7 +17,7 @@ OPTIONS
     -l    List enabled configurations, indicating default, if any
 
     -c    CONF
-          The Cell KN configuration to deploy
+          The NLM-CKN configuration to deploy
 
     -h    Help
 
@@ -127,11 +127,11 @@ for conf in $confs; do
     fi
 
     # Update allowed hosts ensuring backwards compatibility
-    mvp_directory="cell-kn-mvp-ui-$CELL_KN_MVP_UI_VERSION-$subdomain"
+    ckn_directory="nlm-ckn-ui-$NLM_CKN_UI_VERSION-$subdomain"
     if [[ $conf == $CONF ]]; then
-	allowed_host="$fqdn"
+	    allowed_host="$fqdn"
     else
-	allowed_host="$subdomain.$fqdn"
+	    allowed_host="$subdomain.$fqdn"
     fi
     curr_conf="$(printf "%s\\n%s\\n" "$last_conf" "$conf" | sort -V | tail -n 1)"
     if [[ "$curr_conf" == "$last_conf" ]]; then
@@ -139,14 +139,14 @@ for conf in $confs; do
         # Update allowed hosts in settings file
         sed -i \
 	    "s/.*ALLOWED_HOSTS.*/ALLOWED_HOSTS = [[\"$allowed_host\"]]/" \
-	    ~/$mvp_directory/core/settings.py
+	    ~/$ckn_directory/core/settings.py
 
     else
 
         # Update allowed hosts in environment file
         sed -i \
 	    "s/.*ALLOWED_HOSTS.*/ALLOWED_HOSTS=localhost,$allowed_host/" \
-	    ~/$mvp_directory/.env
+	    ~/$ckn_directory/.env
 
     fi
 
