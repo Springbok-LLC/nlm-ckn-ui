@@ -43,12 +43,12 @@ while getopts ":c:hex" opt; do
 	    usage
 	    exit 0
 	    ;;
-        e)
-            set -e
-            ;;
-        x)
-            set -x
-            ;;
+    e)
+        set -e
+        ;;
+    x)
+        set -x
+        ;;
 	\?)
 	    echo "Invalid option: -${OPTARG}" >&2
 	    usage
