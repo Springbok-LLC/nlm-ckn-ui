@@ -66,8 +66,9 @@ Parameters:
   # passes the first private subnet from the infra stack exports.
   ArangoDbSubnetId:
     Type: AWS::EC2::Subnet::Id
-    Default: subnet-0031722a
-    Description: Subnet ID for the ArangoDB EC2 instance
+    Description: >
+      Subnet ID for the ArangoDB EC2 instance.
+      Must be supplied by deploy-environment.sh (resolved from infra stack exports).
 
 Metadata:
   AWS::CloudFormation::Interface:

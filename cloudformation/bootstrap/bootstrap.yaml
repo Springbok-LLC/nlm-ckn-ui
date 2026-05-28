@@ -202,6 +202,16 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-*'
+              # IAM instance profiles (for arangodb.yaml IsSelfManaged EC2 instances)
+              - Effect: Allow
+                Action:
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:GetInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:instance-profile/${ProjectName}-*'
               - Effect: Allow
                 Action:
                   - iam:CreateServiceLinkedRole

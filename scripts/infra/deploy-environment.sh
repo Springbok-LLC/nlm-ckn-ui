@@ -477,6 +477,15 @@ if [ "$DEPLOY_MODE" != "--infra-only" ]; then
     --query "Exports[?Name=='${PROJECT_NAME}-${ENVIRONMENT}-private-subnet-ids'].Value" \
     --output text | cut -d',' -f1)
 
+  if [ -z "$ARANGO_SUBNET" ] || [ "$ARANGO_SUBNET" = "None" ]; then
+    echo -e "${RED}Error: Could not resolve ArangoDbSubnetId from infra stack exports.${NC}"
+    echo "  Export '${PROJECT_NAME}-${ENVIRONMENT}-private-subnet-ids' not found."
+    echo "  Make sure the infra stack (Phase 1) is deployed first."
+    exit 1
+  fi
+
+  echo "  arango-subnet: $ARANGO_SUBNET"
+
   # Read ArangoDbUser from parameters file
   ARANGO_USER=$(python3 -c "
 import json

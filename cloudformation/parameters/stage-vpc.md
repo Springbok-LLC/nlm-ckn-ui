@@ -27,7 +27,7 @@ After deploying, copy the stack outputs (`VpcId`, `PublicSubnetIds`, `PrivateSub
 
 ## Layout rationale
 
-```
+```text
 10.10.0.0/16   Staging VPC
   10.10.0.0/24   public  AZ-a  (ALB)
   10.10.1.0/24   public  AZ-b  (ALB)
