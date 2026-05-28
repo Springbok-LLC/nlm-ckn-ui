@@ -52,17 +52,17 @@ Parameters:
     MaxValue: 500
     Description: EBS volume size (GB) for ArangoDB data
 
-  # IAM instance profile ARN - empty in dev/Staging (created by this template).
+  # IAM instance profile ARN - empty in dev/stage (created by this template).
   # In sandbox/prod this must be a pre-created ARN passed in from deploy script.
   InstanceProfileArn:
     Type: String
     Default: ''
     Description: >
       Pre-existing IAM instance profile ARN (sandbox/prod only).
-      Leave empty in dev/Staging - the profile will be created by this template.
+      Leave empty in dev/stage˙ - the profile will be created by this template.
 
   # Subnet for the ArangoDB EC2 instance.
-  # In dev, defaults to the existing dev subnet. In Staging, the deploy script
+  # In dev, defaults to the existing dev subnet. In stage, the deploy script
   # passes the first private subnet from the infra stack exports.
   ArangoDbSubnetId:
     Type: AWS::EC2::Subnet::Id
@@ -93,12 +93,12 @@ Metadata:
           - InstanceType
           - EbsVolumeSize
       - Label:
-          default: Pre-existing IAM (sandbox/prod only - leave empty in dev/Staging)
+          default: Pre-existing IAM (sandbox/prod only - leave empty in dev/stage)
         Parameters:
           - InstanceProfileArn
 
 Conditions:
-  # dev + Staging own their full stack; sandbox/prod use NIH-pre-created IAM
+  # dev + stage own their full stack; sandbox/prod use NIH-pre-created IAM
   IsSelfManaged: !Or
     - !Equals [!Ref Environment, 'dev']
     - !Equals [!Ref Environment, 'stage']
@@ -146,7 +146,7 @@ Resources:
       RetentionInDays: 7
 
   # ============================================================================
-  # IAM Role + Instance Profile (dev and Staging)
+  # IAM Role + Instance Profile (dev and stage)
   # In sandbox/prod these are pre-created and passed in as InstanceProfileArn.
   # ============================================================================
   InstanceRole:
