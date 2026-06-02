@@ -87,8 +87,8 @@ AWS_REGION=${AWS_REGION:-us-east-1}
 STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}-arangodb"
 
 # Validate environment
-if [[ ! "$ENVIRONMENT" =~ ^(dev|sandbox|prod)$ ]]; then
-  echo -e "${RED}Error: Environment must be dev, sandbox, or prod${NC}"
+if [[ ! "$ENVIRONMENT" =~ ^(dev|sandbox|prod|stage)$ ]]; then
+  echo -e "${RED}Error: Environment must be dev, sandbox, prod, or stage${NC}"
   exit 1
 fi
 
@@ -337,13 +337,11 @@ _import_graphs_and_analyzers() {
   local ANALYZER_FILE="$DUMP_DIR/$DB/ckn-analyzers.ndjson"
   if [ -f "$ANALYZER_FILE" ]; then
     echo "  [$DB] Importing analyzers from $ANALYZER_FILE"
-    # Use jq to iterate; each element is a single analyzer object.
-    local COUNT
-    COUNT=$(jq 'length' "$ANALYZER_FILE")
-    for i in $(seq 0 $((COUNT - 1))); do
+    # File is NDJSON — read one JSON object per line.
+    while IFS= read -r OBJ; do
+      [ -z "$OBJ" ] && continue
       # Strip the "DB::" prefix from the analyzer name — ArangoDB re-adds it.
-      local OBJ NAME STRIPPED
-      OBJ=$(jq -c ".[$i]" "$ANALYZER_FILE")
+      local NAME STRIPPED
       NAME=$(jq -r '.name' <<<"$OBJ")
       STRIPPED="${NAME##*::}"
       BODY=$(jq -c --arg n "$STRIPPED" '.name = $n' <<<"$OBJ")
@@ -358,20 +356,20 @@ _import_graphs_and_analyzers() {
       elif [ "$HTTP_CODE" = "409" ]; then
         echo "    [analyzer] $STRIPPED already exists — skipped"
       else
-        echo "    [analyzer] WARNING: $STRIPPED returned HTTP $HTTP_CODE"
+        echo "    [analyzer] ERROR: $STRIPPED returned HTTP $HTTP_CODE"
+        exit 1
       fi
-    done
+    done < "$ANALYZER_FILE"
   fi
 
   # ── Named graphs ────────────────────────────────────────────────────────────
   local GRAPH_FILE="$DUMP_DIR/$DB/ckn-graphs.ndjson"
   if [ -f "$GRAPH_FILE" ]; then
     echo "  [$DB] Importing named graphs from $GRAPH_FILE"
-    local COUNT
-    COUNT=$(jq 'length' "$GRAPH_FILE")
-    for i in $(seq 0 $((COUNT - 1))); do
-      local OBJ GNAME
-      OBJ=$(jq -c ".[$i]" "$GRAPH_FILE")
+    # File is NDJSON — read one JSON object per line.
+    while IFS= read -r OBJ; do
+      [ -z "$OBJ" ] && continue
+      local GNAME
       GNAME=$(jq -r '.name' <<<"$OBJ")
       HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
         -X POST \
@@ -384,9 +382,10 @@ _import_graphs_and_analyzers() {
       elif [ "$HTTP_CODE" = "409" ]; then
         echo "    [graph] $GNAME already exists — skipped"
       else
-        echo "    [graph] WARNING: $GNAME returned HTTP $HTTP_CODE"
+        echo "    [graph] ERROR: $GNAME returned HTTP $HTTP_CODE"
+        exit 1
       fi
-    done
+    done < "$GRAPH_FILE"
   fi
 }
 
