@@ -12,8 +12,9 @@
 #   environment   Environment name: dev, sandbox, or prod (default: dev)
 #
 # PREREQUISITES:
-#   - AWS CLI configured with springbok profile
-#   - AWS Session Manager plugin installed
+#   - AWS CLI configured with credentials for the target account. Uses your
+#     default profile; export AWS_PROFILE=<name> to select a different one.
+#   - AWS Session Manager plugin installed (required to open the SSM tunnel)
 #     https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
 #   - CloudFormation arangodb stack deployed for the environment
 #
@@ -71,8 +72,7 @@ ARANGO_PASSWORD=$(aws secretsmanager get-secret-value \
   --secret-id "$SECRET_ID" \
   --query 'SecretString' \
   --output text \
-  --region "$AWS_REGION" \
-  --profile "$AWS_PROFILE" 2>/dev/null) || {
+  --region "$AWS_REGION" 2>/dev/null) || {
   echo -e "${RED}Error: Could not fetch secret '${SECRET_ID}'.${NC}"
   exit 1
 }
@@ -85,7 +85,7 @@ echo ""
 echo -e "${CYAN}  ArangoDB password: ${ARANGO_PASSWORD}${NC}"
 echo ""
 echo "  Web UI:  http://localhost:${LOCAL_PORT}"
-echo "  API:     curl -u \"root:\$ARANGO_PASS\" http://localhost:${LOCAL_PORT}/_api/version"
+echo "  API:     curl -u \"root:${ARANGO_PASSWORD}\" http://localhost:${LOCAL_PORT}/_api/version"
 echo ""
 echo -e "${YELLOW}Starting SSM port-forwarding session... (Ctrl+C to stop)${NC}"
 echo ""
@@ -93,6 +93,5 @@ echo ""
 aws ssm start-session \
   --target "$INSTANCE_ID" \
   --region "$AWS_REGION" \
-  --profile "$AWS_PROFILE" \
   --document-name AWS-StartPortForwardingSession \
   --parameters "{\"portNumber\":[\"${REMOTE_PORT}\"],\"localPortNumber\":[\"${LOCAL_PORT}\"]}"
