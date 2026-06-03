@@ -417,6 +417,37 @@ class SearchByTermQueryTestCase(TestCase):
         self.assertIn("LEVENSHTEIN_MATCH", query)
         self.assertIn('"n-gram"', query)
 
+    def test_projection_does_not_exclude_matches_on_non_label_fields(self):
+        # Regression guard for the concern that the projection might drop docs
+        # that matched on a field which is not one of the getLabel() label
+        # fields. A doc matching on any searched field must still be returned.
+        #
+        # "title" / "journal" (PUB) are searchable but NOT in LABEL_FIELDS.
+        non_label_fields = ["title", "journal"]
+        for field in non_label_fields:
+            self.assertNotIn(field, search_service.LABEL_FIELDS)
+
+        query, bind_vars = self._run(non_label_fields)
+        projection = bind_vars["projection_fields"]
+
+        # 1. The matched field's VALUE is preserved: every searched field is in
+        #    the KEEP projection (projection = search_fields | LABEL_FIELDS), so
+        #    a doc matched via "title" comes back with its title populated.
+        for field in non_label_fields:
+            self.assertIn(field, projection)
+
+        # 2. The ROW is never filtered out: the projection lives in the RETURN
+        #    (after LIMIT) as MERGE(_id, KEEP(...)), and there is no FILTER that
+        #    could drop a matched doc based on which fields it has. KEEP only
+        #    reshapes each row, it cannot remove rows.
+        self.assertNotIn("FILTER", query)
+        return_idx = query.index("RETURN MERGE(")
+        self.assertLess(query.index("LIMIT @limit"), return_idx)
+
+        # 3. Even if a doc has ONLY the matched non-label field, _id is still
+        #    returned because it is merged in independently of KEEP.
+        self.assertIn('MERGE({"_id": doc._id}', query)
+
 
 class SunburstServiceTestCase(ArangoDBTestCase):
     """Tests for sunburst_service functions."""
