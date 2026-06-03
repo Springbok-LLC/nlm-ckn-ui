@@ -20,6 +20,18 @@ import { getAllSearchableFields } from "./collections";
  *
  * NOTE: This is the real coverage gate. It does NOT involve LABEL_FIELDS in the
  * backend -- those only shape the RETURN projection, not what is searched.
+ *
+ * FIXTURE PROVENANCE: __fixtures__/indexed.json is a static snapshot of the
+ * deployed ArangoSearch view, so it can drift from the live view. Regenerate it
+ * after any view change by dumping the live definition, e.g.:
+ *
+ *   arangosh --server.database Cell-KN-Ontologies \
+ *     --javascript.execute-string \
+ *     'print(JSON.stringify(db._view("indexed").properties(), null, 2))' \
+ *     > react/src/utils/__fixtures__/indexed.json
+ *
+ * (or via the _api/view/indexed/properties REST endpoint). A stale snapshot can
+ * hide real drift, so refresh it whenever the view's indexed fields change.
  */
 describe("search field coverage", () => {
   // Read the view definition straight from disk so the test tracks the real
