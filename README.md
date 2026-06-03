@@ -159,10 +159,10 @@ graph TD
 The ArangoDB EC2 instance has no public IP and no SSH access. To reach it from your machine, use the SSM port-forwarding helper, which opens a tunnel from `localhost:8530` to the instance's ArangoDB port:
 
 ```bash
-./scripts/arango-tunnel.sh [environment]   # default: dev
+./scripts/arango-tunnel.sh [environment]   # default: dev (dev|stage|sandbox|prod)
 ```
 
-The script looks up the instance from CloudFormation, prints the root password from Secrets Manager, and keeps the tunnel open (Ctrl+C to stop). While it's running:
+The script looks up the instance from CloudFormation, fetches the root password from Secrets Manager (masked by default — pass `--show-password` or set `SHOW_PASSWORD=1` to reveal it), and keeps the tunnel open (Ctrl+C to stop). While it's running:
 
 ```bash
 open http://localhost:8530   # Web UI
