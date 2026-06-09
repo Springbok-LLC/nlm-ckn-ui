@@ -7,10 +7,11 @@
  */
 export function SkeletonWrapper({ children, label = "Loading..." }) {
   return (
-    <output aria-live="polite">
+    // biome-ignore lint/a11y/useSemanticElements: <output> cannot contain block-level children like <table>
+    <div role="status" aria-live="polite">
       <span className="visually-hidden">{label}</span>
       {children}
-    </output>
+    </div>
   );
 }
 

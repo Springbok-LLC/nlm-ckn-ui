@@ -2,14 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { SkeletonCard, SkeletonLine, SkeletonTable, SkeletonWrapper } from "./Skeleton";
 
 describe("SkeletonWrapper", () => {
-  it("renders as an output element with aria-live=polite (implicit role=status)", () => {
+  it("renders as a div with role=status and aria-live=polite", () => {
     const { container } = render(
       <SkeletonWrapper>
         <SkeletonLine />
       </SkeletonWrapper>,
     );
     const wrapper = container.firstChild;
-    expect(wrapper.tagName.toLowerCase()).toBe("output");
+    expect(wrapper.tagName.toLowerCase()).toBe("div");
+    expect(wrapper).toHaveAttribute("role", "status");
     expect(wrapper).toHaveAttribute("aria-live", "polite");
   });
 
