@@ -62,13 +62,14 @@ const GraphPage = () => {
           dispatch(setNodesSlice(parsedIds));
 
           if (urlDepth !== null) {
-            const depthNum = Number(urlDepth);
-            if (!Number.isNaN(depthNum)) {
+            const depthNum = Number.parseInt(urlDepth, 10);
+            if (!Number.isNaN(depthNum) && depthNum >= 1 && depthNum <= 6) {
               dispatch(updateSetting({ setting: "depth", value: depthNum }));
             }
           }
 
-          if (urlDir !== null) {
+          const allowedDirs = ["ANY", "INBOUND", "OUTBOUND"];
+          if (urlDir !== null && allowedDirs.includes(urlDir)) {
             dispatch(updateSetting({ setting: "edgeDirection", value: urlDir }));
           }
 
@@ -81,7 +82,8 @@ const GraphPage = () => {
       // No URL params -- fall through to default empty init.
       dispatch(initializeGraph({ nodeIds: [] }));
     }
-  }, [dispatch, searchParams]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: searchParams read once at mount only; re-running on param changes would loop
+  }, [dispatch]);
 
   // Effect to synchronize local objects with global node IDs.
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedItemObjects read for diff, nodeIds triggers effect
