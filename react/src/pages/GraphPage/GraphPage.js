@@ -73,6 +73,9 @@ const GraphPage = () => {
             dispatch(updateSetting({ setting: "edgeDirection", value: urlDir }));
           }
 
+          // Settings dispatches above are synchronous reducers — the store is
+          // already updated by the time initializeGraph runs. The graph fetch
+          // effect reads settings from the current state, so ordering is safe.
           dispatch(initializeGraph({ nodeIds: parsedIds }));
           setShowGraph(true);
           return;
