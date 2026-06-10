@@ -301,6 +301,41 @@ class SunburstViewsTestCase(ArangoDBViewTestCase):
         data = response.json()
         self.assertEqual(data["_id"], "NCBITaxon/9606")
 
+    def test_sunburst_phenotypes_drilldown_uberon(self):
+        # Expanding a seeded organ exercises the heavy aggregation path end to
+        # end through the view: UBERON/0002048 -> CL/0000066 (with GS chain).
+        response = self.client.post(
+            reverse("get_sunburst"),
+            data={"graph": "phenotypes", "parent_id": "UBERON/0002048"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertIn("CL/0000066", [node["_id"] for node in data])
+
+    def test_sunburst_phenotypes_drilldown_cl(self):
+        response = self.client.post(
+            reverse("get_sunburst"),
+            data={"graph": "phenotypes", "parent_id": "CL/0000066"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertIn("GS/test_gs_1", [node["_id"] for node in data])
+
+    def test_sunburst_phenotypes_drilldown_gs(self):
+        response = self.client.post(
+            reverse("get_sunburst"),
+            data={"graph": "phenotypes", "parent_id": "GS/test_gs_1"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertIn("MONDO/0000001", [node["_id"] for node in data])
+
 
 class DocumentViewsTestCase(ArangoDBViewTestCase):
     """Tests for document-related API endpoints."""
