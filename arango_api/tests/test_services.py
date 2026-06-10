@@ -272,6 +272,48 @@ class GraphServiceTestCase(ArangoDBTestCase):
             )
 
 
+class AntiEdgeTraversalTestCase(ArangoDBTestCase):
+    """Path-aware anti-edge (NAC) filter on disease->gene->protein->drug paths."""
+
+    def _genes_from_diseases(self, exclude):
+        results = graph_service.traverse_graph(
+            node_ids=["MONDO/nac_d1", "MONDO/nac_d2", "MONDO/nac_d3"],
+            depth=3,
+            edge_direction="ANY",
+            allowed_collections=["GS", "PR", "CHEMBL"],
+            graph="phenotypes",
+            edge_filters={
+                "Label": [
+                    "IS_GENETIC_BASIS_FOR_CONDITION",
+                    "PRODUCES",
+                    "MOLECULARLY_INTERACTS_WITH",
+                ]
+            },
+            include_inter_node_edges=False,
+            exclude_closing_edges=exclude,
+        )
+        gene_ids = set()
+        for data in results.values():
+            for node in data["nodes"]:
+                if node["_id"].startswith("GS/"):
+                    gene_ids.add(node["_id"])
+        return gene_ids
+
+    def test_anti_edge_excludes_only_fully_closed_genes(self):
+        genes = self._genes_from_diseases(
+            exclude={"Label": ["IS_SUBSTANCE_THAT_TREATS"]}
+        )
+        self.assertIn("GS/nac_g1", genes)
+        self.assertIn("GS/nac_g3", genes)
+        self.assertNotIn("GS/nac_g2", genes)
+
+    def test_without_anti_edge_all_genes_present(self):
+        genes = self._genes_from_diseases(exclude=None)
+        self.assertIn("GS/nac_g1", genes)
+        self.assertIn("GS/nac_g2", genes)
+        self.assertIn("GS/nac_g3", genes)
+
+
 class WorkflowServiceTestCase(ArangoDBTestCase):
     """Tests for workflow_service functions, focused on edge_filters propagation."""
 

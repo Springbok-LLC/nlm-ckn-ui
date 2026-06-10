@@ -91,6 +91,7 @@ def traverse_graph(
     graph,
     edge_filters,
     include_inter_node_edges=True,
+    exclude_closing_edges=None,
 ):
     """
     Constructs and executes a graph traversal AQL query.
@@ -133,6 +134,55 @@ def traverse_graph(
     if positive_conditions:
         filter_string = f"FILTER {' AND '.join(positive_conditions)}"
         prune_string = f"PRUNE {' OR '.join(negative_conditions)}"
+
+    closing_labels = (exclude_closing_edges or {}).get("Label") or []
+    if closing_labels:
+        # Build a dedicated bind-var set; the edge-filter clause helper may have
+        # registered bind vars that this query does not reference, and ArangoDB
+        # rejects declared-but-unused bind parameters.
+        anti_bind_vars = {
+            "node_ids": node_ids,
+            "depth": depth,
+            "graph": graph_name,
+            "allowed_collections": allowed_collections,
+            "closing_labels": closing_labels,
+        }
+        positive_labels = (edge_filters or {}).get("Label") or []
+        path_label_filter = ""
+        if positive_labels:
+            anti_bind_vars["positive_labels"] = positive_labels
+            path_label_filter = (
+                "FILTER LENGTH(p.edges[* FILTER CURRENT.Label "
+                "NOT IN @positive_labels]) == 0"
+            )
+        aql_query = f"""
+         FOR start_node_id IN @node_ids
+             LET start_node_doc = DOCUMENT(start_node_id)
+             LET surviving = (
+                 FOR v, e, p IN @depth..@depth {edge_direction} start_node_id GRAPH @graph
+                     OPTIONS {{ vertexCollections: @allowed_collections }}
+                     {path_label_filter}
+                     LET closing = (
+                         FOR cv, ce IN 1..1 ANY v._id GRAPH @graph
+                             FILTER ce.Label IN @closing_labels
+                             FILTER cv._id == start_node_id
+                             LIMIT 1
+                             RETURN 1
+                     )
+                     FILTER LENGTH(closing) == 0
+                     RETURN p
+             )
+             LET all_nodes = UNION_DISTINCT(
+                 FLATTEN(surviving[*].vertices), [start_node_doc]
+             )
+             LET all_links = UNIQUE(FLATTEN(surviving[*].edges))
+             RETURN {{
+                 "start_node_id": start_node_id,
+                 "data": {{ "nodes": all_nodes, "links": all_links }}
+             }}
+         """
+        cursor = db.aql.execute(aql_query, bind_vars=anti_bind_vars)
+        return {item["start_node_id"]: item["data"] for item in cursor}
 
     aql_query = f"""
      FOR start_node_id IN @node_ids
