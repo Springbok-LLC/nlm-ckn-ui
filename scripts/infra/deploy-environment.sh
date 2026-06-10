@@ -486,6 +486,23 @@ if [ "$DEPLOY_MODE" != "--infra-only" ]; then
 
   echo "  arango-subnet: $ARANGO_SUBNET"
 
+  # Availability Zone of the ArangoDB subnet. The standalone data volume
+  # (AWS::EC2::Volume in arangodb.yaml) requires an explicit AZ that matches the
+  # instance's subnet — CloudFormation cannot derive it from a Subnet::Id param,
+  # so we resolve it here and pass it as the AvailabilityZone parameter.
+  ARANGO_AZ=$(aws ec2 describe-subnets \
+    --subnet-ids "$ARANGO_SUBNET" \
+    --region $AWS_REGION \
+    --query 'Subnets[0].AvailabilityZone' \
+    --output text)
+
+  if [ -z "$ARANGO_AZ" ] || [ "$ARANGO_AZ" = "None" ]; then
+    echo -e "${RED}Error: Could not resolve the Availability Zone for subnet ${ARANGO_SUBNET}.${NC}"
+    exit 1
+  fi
+
+  echo "  arango-az:     $ARANGO_AZ"
+
   # Read ArangoDbUser from parameters file
   ARANGO_USER=$(python3 -c "
 import json
@@ -524,7 +541,8 @@ print(match[0] if match else 'root')
     ArangoDbSecurityGroupId "$SG_ARANGODB" \
     ArangoDbUser "$ARANGO_USER" \
     InstanceProfileArn "$ARANGO_INSTANCE_PROFILE_ARN" \
-    ArangoDbSubnetId "$ARANGO_SUBNET")
+    ArangoDbSubnetId "$ARANGO_SUBNET" \
+    AvailabilityZone "$ARANGO_AZ")
 
   deploy_stack \
     "${PROJECT_NAME}-${ENVIRONMENT}-arangodb" \

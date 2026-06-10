@@ -70,6 +70,17 @@ Parameters:
       Subnet ID for the ArangoDB EC2 instance.
       Must be supplied by deploy-environment.sh (resolved from infra stack exports).
 
+  # Availability Zone for the standalone data volume. A standalone AWS::EC2::Volume
+  # requires an explicit AZ, and it must match the AZ of ArangoDbSubnetId (an EBS
+  # volume can only attach to an instance in the same AZ). We cannot Fn::GetAtt the
+  # AZ of a subnet passed as a parameter, so deploy-environment.sh resolves it from
+  # the subnet (aws ec2 describe-subnets) and passes it here.
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: >
+      Availability Zone for the ArangoDB data volume.
+      Must match the AZ of ArangoDbSubnetId. Resolved by deploy-environment.sh.
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -83,6 +94,7 @@ Metadata:
         Parameters:
           - ArangoDbSecurityGroupId
           - ArangoDbSubnetId
+          - AvailabilityZone
       - Label:
           default: ArangoDB Configuration
         Parameters:
@@ -271,6 +283,38 @@ Resources:
         FailureThreshold: 1
 
   # ============================================================================
+  # ArangoDB Data Volume (standalone, retained)
+  #
+  # Defined as a standalone AWS::EC2::Volume (NOT inline in the instance's
+  # BlockDeviceMappings) so it is NOT replaced when the EC2 instance is replaced.
+  # An InstanceType resize forces instance replacement; with the volume inline,
+  # CloudFormation would provision a brand-new EMPTY data volume and ArangoDB
+  # would come up blank. As a standalone resource with Retain policies, the SAME
+  # volume detaches from the old instance and re-attaches to the new one.
+  #
+  # DeletionPolicy/UpdateReplacePolicy Retain guard against accidental data loss
+  # if the resource is ever deleted or replaced.
+  # ============================================================================
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      Size: !Ref EbsVolumeSize
+      VolumeType: gp3
+      Encrypted: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-arangodb-data'
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================================
   # EC2 Instance
   #
   # Uses the latest Amazon Linux 2023 AMI (resolved at deploy time via SSM).
@@ -308,19 +352,14 @@ Resources:
         - !Ref InstanceProfile
         - !Ref InstanceProfileArn
       BlockDeviceMappings:
-        # Root volume — OS only
+        # Root volume — OS only. The ArangoDB data volume is a standalone
+        # AWS::EC2::Volume (see DataVolume / DataVolumeAttachment below) so it
+        # survives instance replacement (e.g. an InstanceType resize).
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 20
             VolumeType: gp3
             DeleteOnTermination: true
-            Encrypted: true
-        # Data volume — ArangoDB data, persisted independently
-        - DeviceName: /dev/xvdb
-          Ebs:
-            VolumeSize: !Ref EbsVolumeSize
-            VolumeType: gp3
-            DeleteOnTermination: false
             Encrypted: true
       UserData:
         Fn::Base64: !Sub |
@@ -371,26 +410,61 @@ Resources:
           echo "==> Starting ArangoDB setup $(date)"
 
           # ── 2. Mount EBS data volume ─────────────────────────────────────────
-          DATA_DEVICE=/dev/xvdb
+          # The data volume is a standalone, RETAINED EBS volume attached as
+          # /dev/sdf (see DataVolume / DataVolumeAttachment in the template). It
+          # persists across instance replacement, so on every boot after the very
+          # first it ALREADY contains an XFS filesystem + ArangoDB data. We must
+          # mount it WITHOUT reformatting — a stray mkfs here would wipe the DB.
           DATA_DIR=/var/lib/arangodb3
           APPS_DIR=/var/lib/arangodb3-apps
 
           mkdir -p "$DATA_DIR" "$APPS_DIR"
 
-          # Only format if the device has no filesystem yet (preserves data on restart)
-          if ! blkid "$DATA_DEVICE" | grep -q TYPE; then
-            echo "==> Formatting data volume..."
-            mkfs.xfs "$DATA_DEVICE"
-          else
-            echo "==> Data volume already formatted, skipping mkfs"
+          # Resolve the data device by elimination. On Nitro/Graviton the volume
+          # may present as NVMe (/dev/nvme1n1) regardless of the /dev/sdf request,
+          # so we don't hard-code a name. The root disk is whatever backs "/";
+          # the data volume is the other whole disk. The attachment can lag the
+          # instance boot, so we poll for it.
+          ROOT_DISK=$(lsblk -no pkname "$(findmnt -no SOURCE /)")
+          echo "==> Root disk: $ROOT_DISK; waiting for data volume to attach..."
+          DATA_DEVICE=""
+          for i in $(seq 1 30); do
+            DATA_DEVICE=$(lsblk -dpno NAME | grep -v "^/dev/${!ROOT_DISK}$" | head -1)
+            if [ -n "$DATA_DEVICE" ]; then
+              echo "==> Data device found: $DATA_DEVICE (attempt $i)"
+              break
+            fi
+            echo "  waiting for data volume... attempt $i/30"
+            sleep 5
+          done
+
+          if [ -z "$DATA_DEVICE" ]; then
+            echo "ERROR: data volume never appeared as a block device"
+            /opt/aws/bin/cfn-signal -e 1 \
+              --stack "${AWS::StackName}" \
+              --resource ArangoDbInstance \
+              --region "${AWS::Region}"
+            exit 1
           fi
 
-          # Mount (idempotent via fstab)
-          if ! grep -q "$DATA_DEVICE" /etc/fstab; then
-            echo "$DATA_DEVICE $DATA_DIR xfs defaults,nofail 0 2" >> /etc/fstab
+          # Only format if the device has NO filesystem yet. blkid prints a TYPE=
+          # field only when a filesystem (or other signature) is present, so this
+          # guard ensures a populated volume from a prior instance is never wiped.
+          if blkid "$DATA_DEVICE" | grep -q 'TYPE='; then
+            echo "==> Data volume already has a filesystem, skipping mkfs (preserving data)"
+          else
+            echo "==> Data volume is blank (first boot), formatting with XFS..."
+            mkfs.xfs "$DATA_DEVICE"
+          fi
+
+          # Mount by filesystem UUID (stable across reboots / device renaming),
+          # idempotent via fstab.
+          DATA_UUID=$(blkid -s UUID -o value "$DATA_DEVICE")
+          if ! grep -q "$DATA_UUID" /etc/fstab; then
+            echo "UUID=$DATA_UUID $DATA_DIR xfs defaults,nofail 0 2" >> /etc/fstab
           fi
           mount -a
-          echo "==> Data volume mounted at $DATA_DIR"
+          echo "==> Data volume ($DATA_DEVICE, UUID=$DATA_UUID) mounted at $DATA_DIR"
 
           # Set ownership to ArangoDB uid/gid (1000:1000 in official Docker image)
           chown -R 1000:1000 "$DATA_DIR" "$APPS_DIR"
@@ -473,8 +547,16 @@ Resources:
           echo "Dataset bucket:  $ARANGODB_S3_BUCKET"
           echo "Dataset version: $CURRENT_VERSION"
 
+          # On a retained volume that already holds this dataset version (e.g. after
+          # an instance replacement), skip the restore so we don't clobber the live
+          # data — the volume already carries it.
+          RESTORED_MARKER=""
+          [ -f "$DATA_DIR/.dataset-version" ] && RESTORED_MARKER=$(cat "$DATA_DIR/.dataset-version")
+
           if [ "$CURRENT_VERSION" = "none" ] || [ -z "$CURRENT_VERSION" ]; then
             echo "No dataset version configured, skipping restore"
+          elif [ "$CURRENT_VERSION" = "$RESTORED_MARKER" ]; then
+            echo "Dataset version $CURRENT_VERSION already present on volume, skipping restore"
           else
             echo "==> Downloading s3://$ARANGODB_S3_BUCKET/$CURRENT_VERSION"
             aws s3 cp "s3://$ARANGODB_S3_BUCKET/$CURRENT_VERSION" /tmp/restore.tar.gz
@@ -563,6 +645,24 @@ Resources:
           Value: !Sub '${ProjectName}-${Environment}-arangodb'
         - Key: ManagedBy
           Value: CloudFormation
+
+  # ============================================================================
+  # Data Volume Attachment
+  #
+  # Attaches the standalone DataVolume to the instance at /dev/sdf. On Nitro/
+  # Graviton instances this presents inside the OS as an NVMe device
+  # (e.g. /dev/nvme1n1); the UserData resolves the real device path by elimination
+  # (the non-root block device) rather than relying on a fixed name.
+  #
+  # When the instance is replaced, CloudFormation detaches this volume from the
+  # old instance and re-attaches the SAME volume to the new one.
+  # ============================================================================
+  DataVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      InstanceId: !Ref ArangoDbInstance
+      VolumeId: !Ref DataVolume
+      Device: /dev/sdf
 
 Outputs:
   InstanceId:

@@ -606,6 +606,11 @@ while [ "$ELAPSED" -lt "$SSM_TIMEOUT_SECONDS" ]; do
         --query 'Parameter.Value' \
         --output text \
         --region "$AWS_REGION")${NC}"
+      # Smoke test the deployment (advisory — never fails the deploy).
+      echo ""
+      echo -e "${GREEN}==> Running smoke test...${NC}"
+      "$SCRIPT_DIR/../ops/smoke-test.sh" "$ENVIRONMENT" || \
+        echo -e "${YELLOW}==> Smoke test reported failures (non-blocking).${NC}"
       exit 0
       ;;
     Failed|Cancelled|TimedOut|DeliveryTimedOut|ExecutionTimedOut)
