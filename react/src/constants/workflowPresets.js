@@ -14,6 +14,7 @@ export const QUERY_DEFAULTS = {
   edgeDirection: "ANY",
   allowedCollections: [],
   edgeFilters: { Label: [], Source: [] },
+  excludeClosingEdges: { Label: [] },
   setOperation: "Union",
   graphType: "ontologies",
   returnCollections: [],
