@@ -313,6 +313,36 @@ class AntiEdgeTraversalTestCase(ArangoDBTestCase):
         self.assertIn("GS/nac_g2", genes)
         self.assertIn("GS/nac_g3", genes)
 
+    def test_advanced_settings_passes_exclude_closing_edges(self):
+        node_ids = ["MONDO/nac_d1", "MONDO/nac_d2", "MONDO/nac_d3"]
+        common = {
+            "depth": 3,
+            "edgeDirection": "ANY",
+            "allowedCollections": ["GS", "PR", "CHEMBL"],
+            "edgeFilters": {
+                "Label": [
+                    "IS_GENETIC_BASIS_FOR_CONDITION",
+                    "PRODUCES",
+                    "MOLECULARLY_INTERACTS_WITH",
+                ]
+            },
+            "excludeClosingEdges": {"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+        }
+        results = graph_service.traverse_graph_advanced(
+            node_ids=node_ids,
+            advanced_settings={nid: dict(common) for nid in node_ids},
+            graph="phenotypes",
+            include_inter_node_edges=False,
+        )
+        genes = set()
+        for data in results.values():
+            for node in data["nodes"]:
+                if node["_id"].startswith("GS/"):
+                    genes.add(node["_id"])
+        self.assertIn("GS/nac_g1", genes)
+        self.assertIn("GS/nac_g3", genes)
+        self.assertNotIn("GS/nac_g2", genes)
+
 
 class WorkflowServiceTestCase(ArangoDBTestCase):
     """Tests for workflow_service functions, focused on edge_filters propagation."""

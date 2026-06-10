@@ -301,6 +301,7 @@ def traverse_graph_advanced(
             graph=graph,
             edge_filters=edge_filters,
             include_inter_node_edges=include_inter_node_edges,
+            exclude_closing_edges=settings.get("excludeClosingEdges"),
         )
 
         if result_for_node:
