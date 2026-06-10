@@ -104,7 +104,13 @@ def traverse_graph(
         graph (str): The graph type ("ontologies" or "phenotypes").
         edge_filters (dict): A dictionary for filtering edges.
         include_inter_node_edges (bool): If True, includes edges between nodes
-            in the result set.
+            in the result set. Ignored when exclude_closing_edges is active
+            (the path-aware branch returns complete path links directly).
+        exclude_closing_edges (dict): Optional path-aware anti-edge (NAC) filter,
+            shape {"Label": [...]}. When set, only full-depth paths are kept whose
+            endpoint has NO edge of the given label(s) back to that path's own
+            origin (start node). Used to find "open" motifs, e.g. drug paths that
+            do not close back to the disease via IS_SUBSTANCE_THAT_TREATS.
 
     Returns:
         dict: A dictionary with start node IDs as keys, each containing
@@ -137,6 +143,12 @@ def traverse_graph(
 
     closing_labels = (exclude_closing_edges or {}).get("Label") or []
     if closing_labels:
+        # Path-aware anti-edge (NAC) query. Unlike the default path, this must
+        # traverse complete fixed-depth paths (@depth..@depth) so the closing-edge
+        # check can test the true endpoint — so it deliberately avoids PRUNE
+        # (which would stop traversal early, and is also unsafe at depth 0 where
+        # the edge is null). The negation is a correlated sub-query that survives
+        # only when no closing edge links the endpoint back to its own origin.
         # Build a dedicated bind-var set; the edge-filter clause helper may have
         # registered bind vars that this query does not reference, and ArangoDB
         # rejects declared-but-unused bind parameters.
