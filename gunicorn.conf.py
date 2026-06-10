@@ -14,6 +14,27 @@
 
 import os
 
+
+def _env_int(name, default, minimum, maximum=None):
+    """Parse an int env var with a default and bounds; fail fast on bad input.
+
+    Raises SystemExit (rather than a bare ValueError) so a malformed or
+    out-of-range value surfaces a clear message at gunicorn startup instead of
+    an opaque traceback or undefined behavior (e.g. workers=0).
+    """
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise SystemExit(f"gunicorn.conf.py: {name}={raw!r} is not an integer")
+    if value < minimum or (maximum is not None and value > maximum):
+        bound = f">= {minimum}" if maximum is None else f"in [{minimum}, {maximum}]"
+        raise SystemExit(f"gunicorn.conf.py: {name}={value} out of range ({bound})")
+    return value
+
+
 bind = "0.0.0.0:8000"
 
 # gthread: each worker runs a thread pool; threads blocked on I/O release the
@@ -22,17 +43,17 @@ worker_class = "gthread"
 
 # Keep small on the 0.25 vCPU / 512 MB Fargate task. WEB_CONCURRENCY is the
 # gunicorn-standard override; bump it (and the task memory) together.
-workers = int(os.getenv("WEB_CONCURRENCY", "1"))
-threads = int(os.getenv("GUNICORN_THREADS", "4"))
+workers = _env_int("WEB_CONCURRENCY", 1, minimum=1)
+threads = _env_int("GUNICORN_THREADS", 4, minimum=1)
 
 # Worker silence timeout before the master kills/replaces it.
-timeout = int(os.getenv("GUNICORN_TIMEOUT", "30"))
-graceful_timeout = int(os.getenv("GUNICORN_GRACEFUL_TIMEOUT", "30"))
+timeout = _env_int("GUNICORN_TIMEOUT", 30, minimum=1)
+graceful_timeout = _env_int("GUNICORN_GRACEFUL_TIMEOUT", 30, minimum=1)
 
 # Recycle workers periodically to bound memory creep on the tight 512 MB task;
 # jitter staggers restarts so they don't all recycle at once.
-max_requests = int(os.getenv("GUNICORN_MAX_REQUESTS", "1000"))
-max_requests_jitter = int(os.getenv("GUNICORN_MAX_REQUESTS_JITTER", "100"))
+max_requests = _env_int("GUNICORN_MAX_REQUESTS", 1000, minimum=1)
+max_requests_jitter = _env_int("GUNICORN_MAX_REQUESTS_JITTER", 100, minimum=0)
 
 # Logs to stdout/stderr -> CloudWatch.
 accesslog = "-"
