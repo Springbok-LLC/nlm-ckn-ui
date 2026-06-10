@@ -173,6 +173,18 @@ const PhaseEditor = ({
     [phase.settings.edgeFilters, onUpdateSettings],
   );
 
+  // Toggle an edge label in the anti-edge (exclude-closing-edges) set.
+  const handleExcludeClosingEdgeToggle = useCallback(
+    (value) => {
+      const current = phase.settings.excludeClosingEdges?.Label || [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      onUpdateSettings("excludeClosingEdges", { Label: next });
+    },
+    [phase.settings.excludeClosingEdges, onUpdateSettings],
+  );
+
   // Handle numeric edge filter range change
   const handleNumericEdgeFilterChange = useCallback(
     (field, min, max) => {
@@ -632,6 +644,19 @@ const PhaseEditor = ({
                     />
                   ),
                 )}
+              </div>
+            )}
+
+            {/* Exclude paths that close back to the origin via the chosen edge label(s) */}
+            {(edgeFilterOptions?.Label?.values || []).length > 0 && (
+              <div className="setting-item full-width">
+                <span className="setting-label">Exclude paths closing back to origin</span>
+                <FilterableDropdown
+                  label="closing edge labels"
+                  options={edgeFilterOptions.Label.values || []}
+                  selectedOptions={phase.settings.excludeClosingEdges?.Label || []}
+                  onOptionToggle={handleExcludeClosingEdgeToggle}
+                />
               </div>
             )}
           </>
