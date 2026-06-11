@@ -33,7 +33,7 @@ ARANGO_TG=$(aws elbv2 describe-target-groups --names "${P}-${ENVIRONMENT}-arango
   --query 'TargetGroups[0].TargetGroupArn' --output text | sed 's#.*:##')
 INST=$(aws cloudformation describe-stacks --stack-name "${P}-${ENVIRONMENT}-arangodb" \
   --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
-VOL=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$INST" Name=size,Values=50 \
+VOL=$(aws ec2 describe-volumes --filters Name=tag:Name,Values="${P}-${ENVIRONMENT}-arangodb-data" \
   --query 'Volumes[0].VolumeId' --output text)
 
 for v in LB BACKEND_TG ARANGO_TG INST VOL; do
