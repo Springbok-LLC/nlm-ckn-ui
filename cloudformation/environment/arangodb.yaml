@@ -97,17 +97,15 @@ Mappings:
   # ArangoDB EC2 instance size per environment. ArangoDB is memory-bound: the
   # working set plus ArangoSearch views should fit in the RocksDB block cache,
   # otherwise queries constantly read from EBS (observed on stage at t4g.medium).
-  # t4g (Graviton2/ARM64) is ~20% cheaper than equivalent t3; arangodb:3.12 is
-  # multi-arch. t4g.medium = 2 vCPU / 4 GB, t4g.large = 2 vCPU / 8 GB.
   EnvironmentSizing:
     dev:
       InstanceType: t4g.medium
     stage:
-      InstanceType: t4g.large
+      InstanceType: m7g.large
     sandbox:
-      InstanceType: t4g.large
+      InstanceType: m7g.large
     prod:
-      InstanceType: t4g.large
+      InstanceType: m7g.xlarge
 
 Conditions:
   # dev + stage own their full stack; sandbox/prod use NIH-pre-created IAM
@@ -247,6 +245,30 @@ Resources:
                   - elasticloadbalancing:DescribeTargetGroups
                   - cloudformation:ListExports
                 Resource: '*'
+        # The instance attaches its own standalone data volume from UserData
+        # rather than via a CloudFormation AWS::EC2::VolumeAttachment, which would
+        # deadlock against this instance's CreationPolicy. Describe is account-wide
+        # (the API has no resource-level filter); attach/detach are scoped to the
+        # arangodb data volumes by the Environment tag.
+        - PolicyName: EbsDataVolumeAttach
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:AttachVolume
+                  - ec2:DetachVolume
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+                Condition:
+                  StringEquals:
+                    'aws:ResourceTag/Project': !Ref ProjectName
+                    'aws:ResourceTag/Environment': !Ref Environment
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -353,7 +375,7 @@ Resources:
         - !Ref InstanceProfileArn
       BlockDeviceMappings:
         # Root volume — OS only. The ArangoDB data volume is a standalone
-        # AWS::EC2::Volume (see DataVolume / DataVolumeAttachment below) so it
+        # AWS::EC2::Volume (see DataVolume; attached by UserData) so it
         # survives instance replacement (e.g. an InstanceType resize).
         - DeviceName: /dev/xvda
           Ebs:
@@ -381,6 +403,20 @@ Resources:
           yum install -y amazon-cloudwatch-agent
           cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'CWAGENT'
           {
+            "metrics": {
+              "namespace": "CWAgent",
+              "append_dimensions": {
+                "InstanceId": "${!aws:InstanceId}"
+              },
+              "metrics_collected": {
+                "mem": {
+                  "measurement": [
+                    "mem_used_percent"
+                  ],
+                  "metrics_collection_interval": 60
+                }
+              }
+            },
             "logs": {
               "logs_collected": {
                 "files": {
@@ -411,7 +447,7 @@ Resources:
 
           # ── 2. Mount EBS data volume ─────────────────────────────────────────
           # The data volume is a standalone, RETAINED EBS volume attached as
-          # /dev/sdf (see DataVolume / DataVolumeAttachment in the template). It
+          # /dev/sdf by the self-attach block above (see DataVolume). It
           # persists across instance replacement, so on every boot after the very
           # first it ALREADY contains an XFS filesystem + ArangoDB data. We must
           # mount it WITHOUT reformatting — a stray mkfs here would wipe the DB.
@@ -426,10 +462,48 @@ Resources:
           # the data volume is the other whole disk. The attachment can lag the
           # instance boot, so we poll for it.
           ROOT_DISK=$(lsblk -no pkname "$(findmnt -no SOURCE /)")
-          echo "==> Root disk: $ROOT_DISK; waiting for data volume to attach..."
+          echo "==> Root disk: $ROOT_DISK"
+
+          # Attach the standalone data volume to THIS instance from UserData.
+          # We can't use a CloudFormation AWS::EC2::VolumeAttachment: it depends on
+          # the instance reaching CREATE_COMPLETE, but our CreationPolicy only
+          # signals success after the volume is mounted -> deadlock. Doing the
+          # attach here also lets us force-detach the volume from a prior instance
+          # during an in-place replacement (e.g. an InstanceType resize), which a
+          # static VolumeAttachment can't coordinate within the same stack update.
+          DATA_VOLUME_ID="${DataVolume}"
+          IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+            -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+          SELF_INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+            http://169.254.169.254/latest/meta-data/instance-id)
+          echo "==> Ensuring data volume $DATA_VOLUME_ID is attached to $SELF_INSTANCE_ID..."
+          for i in $(seq 1 30); do
+            VOL_STATE=$(aws ec2 describe-volumes --volume-ids "$DATA_VOLUME_ID" \
+              --query 'Volumes[0].State' --output text --region "$REGION" 2>/dev/null || echo unknown)
+            ATTACHED_TO=$(aws ec2 describe-volumes --volume-ids "$DATA_VOLUME_ID" \
+              --query 'Volumes[0].Attachments[0].InstanceId' --output text --region "$REGION" 2>/dev/null || echo None)
+            if [ "$ATTACHED_TO" = "$SELF_INSTANCE_ID" ]; then
+              echo "==> Volume attached to this instance (state=$VOL_STATE)"
+              break
+            elif [ "$VOL_STATE" = "available" ]; then
+              echo "==> Volume available; issuing attach..."
+              aws ec2 attach-volume --volume-id "$DATA_VOLUME_ID" \
+                --instance-id "$SELF_INSTANCE_ID" --device /dev/sdf --region "$REGION" || true
+            elif [ "$ATTACHED_TO" != "None" ] && [ -n "$ATTACHED_TO" ]; then
+              echo "==> Volume still attached to prior instance $ATTACHED_TO; force-detaching..."
+              aws ec2 detach-volume --volume-id "$DATA_VOLUME_ID" --force --region "$REGION" || true
+            fi
+            echo "  waiting for attach... attempt $i/30 (state=$VOL_STATE attached_to=$ATTACHED_TO)"
+            sleep 10
+          done
+
+          echo "==> Waiting for data volume to surface as a block device..."
           DATA_DEVICE=""
           for i in $(seq 1 30); do
-            DATA_DEVICE=$(lsblk -dpno NAME | grep -v "^/dev/${!ROOT_DISK}$" | head -1)
+            # `|| true`: until the volume attaches, grep -v matches nothing and
+            # exits 1, which under `set -e -o pipefail` would abort the script
+            # before this poll loop can retry. Tolerate it and keep polling.
+            DATA_DEVICE=$(lsblk -dpno NAME | grep -v "^/dev/${!ROOT_DISK}$" | head -1 || true)
             if [ -n "$DATA_DEVICE" ]; then
               echo "==> Data device found: $DATA_DEVICE (attempt $i)"
               break
@@ -646,23 +720,13 @@ Resources:
         - Key: ManagedBy
           Value: CloudFormation
 
-  # ============================================================================
-  # Data Volume Attachment
-  #
-  # Attaches the standalone DataVolume to the instance at /dev/sdf. On Nitro/
-  # Graviton instances this presents inside the OS as an NVMe device
-  # (e.g. /dev/nvme1n1); the UserData resolves the real device path by elimination
-  # (the non-root block device) rather than relying on a fixed name.
-  #
-  # When the instance is replaced, CloudFormation detaches this volume from the
-  # old instance and re-attaches the SAME volume to the new one.
-  # ============================================================================
-  DataVolumeAttachment:
-    Type: AWS::EC2::VolumeAttachment
-    Properties:
-      InstanceId: !Ref ArangoDbInstance
-      VolumeId: !Ref DataVolume
-      Device: /dev/sdf
+# NOTE: the standalone DataVolume is attached by the instance itself from
+# UserData (see the "Attach the standalone data volume" block). We deliberately
+# do NOT use an AWS::EC2::VolumeAttachment resource here: it would depend on the
+# instance reaching CREATE_COMPLETE, but the instance's CreationPolicy only
+# signals success after the volume is mounted -> a deadlock that times out and
+# rolls back (the original UPDATE_FAILED). Self-attach from UserData also lets us
+# force-detach the volume from a prior instance during an in-place replacement.
 
 Outputs:
   InstanceId:
