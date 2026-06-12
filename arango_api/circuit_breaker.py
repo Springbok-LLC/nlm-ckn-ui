@@ -44,26 +44,34 @@ class CircuitBreaker:
         self._failures = 0
         # Monotonic timestamp the breaker opened, or None while closed.
         self._opened_at = None
+        # True while a single trial request is in flight after the cooldown.
+        self._half_open = False
 
     def before_request(self):
         """Gate a request. Raises :class:`CircuitBreakerOpen` if open.
 
-        When the cooldown has elapsed the breaker tentatively closes so a single
-        trial request can probe the DB; that request's outcome is reported back
-        via :meth:`record_success` / :meth:`record_failure`.
+        When the cooldown has elapsed the breaker admits a *single* trial
+        request to probe the DB (half-open); concurrent requests keep failing
+        fast until that trial resolves via :meth:`record_success` /
+        :meth:`record_failure`.
         """
         with self._lock:
             if self._opened_at is None:
                 return
+            # A trial request is already in flight; keep the rest failing fast.
+            if self._half_open:
+                raise CircuitBreakerOpen(
+                    f"{self._name} circuit half-open; trial request in flight"
+                )
             elapsed = time.monotonic() - self._opened_at
             if elapsed < self._reset_timeout:
                 raise CircuitBreakerOpen(
                     f"{self._name} circuit open; failing fast "
                     f"({elapsed:.1f}s into {self._reset_timeout:.0f}s cooldown)"
                 )
-            # Cooldown elapsed: allow a trial request (half-open).
+            # Cooldown elapsed: admit one trial request (half-open).
             logger.info("%s circuit half-open; allowing trial request", self._name)
-            self._opened_at = None
+            self._half_open = True
 
     def record_success(self):
         with self._lock:
@@ -71,9 +79,21 @@ class CircuitBreaker:
                 logger.info("%s circuit closed after success", self._name)
             self._failures = 0
             self._opened_at = None
+            self._half_open = False
 
     def record_failure(self):
         with self._lock:
+            # A failed trial request re-opens the breaker for another cooldown.
+            if self._half_open:
+                self._half_open = False
+                self._opened_at = time.monotonic()
+                logger.warning(
+                    "%s circuit re-opened after failed trial request; "
+                    "failing fast for %.0fs",
+                    self._name,
+                    self._reset_timeout,
+                )
+                return
             self._failures += 1
             if self._failures >= self._failure_threshold and self._opened_at is None:
                 self._opened_at = time.monotonic()

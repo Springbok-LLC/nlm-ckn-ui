@@ -519,10 +519,11 @@ print(match[0] if match else 'root')
     ProjectName "$PROJECT_NAME" \
     Environment "$ENVIRONMENT")
 
-  if ! deploy_stack \
+  FRONTEND_RESULT=0
+  deploy_stack \
     "${PROJECT_NAME}-${ENVIRONMENT}-frontend" \
     "cloudformation/environment/frontend.yaml" \
-    "$FRONTEND_PARAMS_FILE"; then FRONTEND_RESULT=$?; else FRONTEND_RESULT=0; fi
+    "$FRONTEND_PARAMS_FILE" || FRONTEND_RESULT=$?
 
   if [ "$FRONTEND_RESULT" = "1" ]; then
     echo -e "${RED}Frontend stack deployment failed or was aborted.${NC}"
@@ -543,10 +544,11 @@ print(match[0] if match else 'root')
     ArangoDbSubnetId "$ARANGO_SUBNET" \
     AvailabilityZone "$ARANGO_AZ")
 
-  if ! deploy_stack \
+  ARANGO_RESULT=0
+  deploy_stack \
     "${PROJECT_NAME}-${ENVIRONMENT}-arangodb" \
     "cloudformation/environment/arangodb.yaml" \
-    "$ARANGO_PARAMS_FILE"; then ARANGO_RESULT=$?; else ARANGO_RESULT=0; fi
+    "$ARANGO_PARAMS_FILE" || ARANGO_RESULT=$?
 
   if [ "$ARANGO_RESULT" = "1" ]; then
     echo -e "${RED}ArangoDB stack deployment failed or was aborted.${NC}"
@@ -587,10 +589,11 @@ print(match[0] if match else 'root')
     TaskExecutionRoleArn   "$BACKEND_EXEC_ARN" \
     TaskRoleArn            "$BACKEND_TASK_ARN")
 
-  if ! deploy_stack \
+  BACKEND_RESULT=0
+  deploy_stack \
     "${PROJECT_NAME}-${ENVIRONMENT}-backend" \
     "cloudformation/environment/backend.yaml" \
-    "$BACKEND_PARAMS_FILE"; then BACKEND_RESULT=$?; else BACKEND_RESULT=0; fi
+    "$BACKEND_PARAMS_FILE" || BACKEND_RESULT=$?
 
   if [ "$BACKEND_RESULT" = "1" ]; then
     echo -e "${RED}Backend stack deployment failed or was aborted.${NC}"

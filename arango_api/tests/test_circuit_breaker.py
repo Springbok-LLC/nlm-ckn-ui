@@ -118,6 +118,33 @@ class CircuitBreakerTestCase(SimpleTestCase):
         monotonic.return_value = 122.0
         breaker.before_request()  # 11s after re-open -> half-open again
 
+    @mock.patch("arango_api.circuit_breaker.time.monotonic")
+    def test_half_open_admits_only_a_single_trial_request(self, monotonic):
+        # After the cooldown the breaker should let exactly one request probe the
+        # DB; concurrent callers keep failing fast until that trial resolves.
+        breaker = self._breaker(failure_threshold=1, reset_timeout=10.0)
+        monotonic.return_value = 100.0
+        breaker.record_failure()  # opens at t=100
+
+        monotonic.return_value = 111.0
+        breaker.before_request()  # first caller: trial admitted
+
+        # Second concurrent caller while the trial is in flight: still fails fast.
+        with self.assertRaises(CircuitBreakerOpen):
+            breaker.before_request()
+
+        # Once the trial reports success the breaker is fully closed again.
+        breaker.record_success()
+        breaker.before_request()
+
+    def test_open_exception_is_not_a_requests_connection_error(self):
+        # python-arango's send_request retry loop only catches requests'
+        # ConnectionError; CircuitBreakerOpen must not subclass it, or an open
+        # breaker would be retried (and amplified) against retry_attempts.
+        from requests import ConnectionError as RequestsConnectionError
+
+        self.assertFalse(issubclass(CircuitBreakerOpen, RequestsConnectionError))
+
     def test_concurrent_failures_open_breaker_once(self):
         # Exercise the lock under contention: many threads recording failures
         # and probing the breaker must not raise unexpectedly or corrupt state.

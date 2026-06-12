@@ -411,3 +411,33 @@ class VersionViewTestCase(SimpleTestCase):
             response = self.client.get(reverse("get_version"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["ui_version"], "v9.9.9")
+
+
+class CircuitBreakerOpenResponseTestCase(SimpleTestCase):
+    """Documents how an open ArangoDB circuit breaker surfaces to API clients.
+
+    The breaker (see arango_api.circuit_breaker) raises ``CircuitBreakerOpen``
+    from the HTTP-client layer when the DB is down. No live DB is needed here:
+    we patch the service the view calls to raise it exactly as the hardened
+    client would, then pin the resulting response so the behavior can't change
+    silently.
+    """
+
+    def test_aql_view_open_breaker_surfaces_as_500(self):
+        from unittest import mock
+
+        from arango_api.circuit_breaker import CircuitBreakerOpen
+
+        with mock.patch(
+            "arango_api.services.search_service.run_aql_query",
+            side_effect=CircuitBreakerOpen("arango circuit open; failing fast"),
+        ):
+            response = self.client.post(
+                reverse("run_aql_query"),
+                data={"query": "RETURN 1"},
+                content_type="application/json",
+            )
+
+        # The view's `except Exception` maps it to a 500 with an error body.
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("error", response.json())
