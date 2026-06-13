@@ -147,6 +147,12 @@ def _execute_phase(phase, all_phases, phase_results, phase_origin_ids, graph):
             "edgeFilters": node_overrides.get(
                 "edgeFilters", settings.get("edgeFilters", {})
             ),
+            # Path-aware anti-edge (NAC) filter — forward it so preset
+            # execution via /workflow/execute matches the frontend's
+            # per-phase /graph/ path. Absent => unchanged behavior.
+            "excludeClosingEdges": node_overrides.get(
+                "excludeClosingEdges", settings.get("excludeClosingEdges")
+            ),
         }
 
     # --- Execute query ---

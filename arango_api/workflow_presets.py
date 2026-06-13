@@ -1282,6 +1282,93 @@ WORKFLOW_PRESETS = [
             },
         ],
     },
+    {
+        "id": "broken-big-dipper",
+        "name": "Broken Big Dipper: drug-repurposing candidates",
+        "description": (
+            "Surfaces drug-repurposing candidates via the 'broken Big "
+            "Dipper' pattern: disease -> gene -> protein -> drug paths "
+            "where a drug targets a protein produced by a gene that is the "
+            "genetic basis of the disease, but the drug does NOT already "
+            "treat that disease (the dipper's closing 4th side is missing). "
+            "Phase 1 scans all diseases and returns the genes that sit on "
+            "at least one broken dipper, using a path-aware anti-edge (NAC) "
+            "filter that excludes paths whose drug connects back to the "
+            "disease via IS_SUBSTANCE_THAT_TREATS. Phase 2 drills into one "
+            "gene to render its dipper graph — re-point its origin to any "
+            "gene from the Phase 1 list."
+        ),
+        "category": "Disease Analysis",
+        "layoutMode": "force",
+        "phases": [
+            {
+                "id": "preset-bbd-phase-1",
+                "name": "Discovery: genes on a broken dipper (all diseases)",
+                "originSource": "collection",
+                "originCollection": "MONDO",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "originFilter": "all",
+                "settings": {
+                    "depth": 3,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["GS", "PR", "CHEMBL"],
+                    "edgeFilters": {
+                        "Label": [
+                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "PRODUCES",
+                            "MOLECULARLY_INTERACTS_WITH",
+                        ],
+                        "Source": [],
+                    },
+                    # Anti-edge (NAC): drop paths whose drug treats the
+                    # origin disease — keep only the "broken" dippers.
+                    "excludeClosingEdges": {
+                        "Label": ["IS_SUBSTANCE_THAT_TREATS"]
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": False,
+                    "returnCollections": ["GS"],
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-bbd-phase-2",
+                "name": "Drill-in: dipper for a chosen gene",
+                "originSource": "manual",
+                # Default to a broken-dipper gene (BMPR2 / pulmonary
+                # hypertension); re-point to any gene from Phase 1.
+                "originNodeIds": ["GS/BMPR2"],
+                "previousPhaseId": None,
+                "originFilter": "all",
+                "settings": {
+                    # Depth 2 keeps the dipper readable: gene -> disease(s),
+                    # gene -> protein -> drug(s). includeInterNodeEdges draws
+                    # the IS_SUBSTANCE_THAT_TREATS edges among the result so
+                    # the broken side (a drug with no treats edge to the
+                    # gene's disease) is visible. Excludes GS so it can't
+                    # wander to other diseases' genes.
+                    "depth": 2,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["MONDO", "PR", "CHEMBL"],
+                    "edgeFilters": {
+                        "Label": [
+                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "PRODUCES",
+                            "MOLECULARLY_INTERACTS_WITH",
+                            "IS_SUBSTANCE_THAT_TREATS",
+                        ],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+        ],
+    },
     # -------------------------------------------------------------------------
     # Example: Pulmonary Hypertension
     #
