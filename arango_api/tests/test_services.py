@@ -26,7 +26,10 @@ from arango_api.services import (
     sunburst_service,
     workflow_service,
 )
-from arango_api.services.workflow_service import _find_post_merge_inter_node_edges
+from arango_api.services.workflow_service import (
+    _drop_null_nodes,
+    _find_post_merge_inter_node_edges,
+)
 from arango_api.tests.seed_test_db import seed_test_databases
 
 
@@ -420,6 +423,28 @@ class WorkflowServiceTestCase(ArangoDBTestCase):
         # included by the combine post-merge scan, but the filter excludes it.
         for link in combine_links:
             self.assertEqual(link["label"], "subClassOf")
+
+
+class DropNullNodesTestCase(TestCase):
+    """Unit tests for _drop_null_nodes (no DB required).
+
+    Dangling edges in the graph cause ArangoDB traversals to return ``None``
+    vertices, which previously crashed downstream phase processing.
+    """
+
+    def test_removes_none_and_idless_entries(self):
+        result = {
+            "nodes": [None, {"_id": "CL/1"}, {"no_id": True}, {"_id": "CS/2"}],
+            "links": [None, {"_id": "CL-CL/1", "_from": "CL/1", "_to": "CL/1"}],
+        }
+        cleaned = _drop_null_nodes(result)
+        self.assertEqual(cleaned["nodes"], [{"_id": "CL/1"}, {"_id": "CS/2"}])
+        self.assertEqual(
+            cleaned["links"], [{"_id": "CL-CL/1", "_from": "CL/1", "_to": "CL/1"}]
+        )
+
+    def test_non_dict_passthrough(self):
+        self.assertIsNone(_drop_null_nodes(None))
 
 
 class SearchServiceTestCase(ArangoDBTestCase):

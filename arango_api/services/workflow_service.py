@@ -185,6 +185,9 @@ def _execute_phase(phase, all_phases, phase_results, phase_origin_ids, graph):
         if set_operation == "Intersection with Origins":
             merged_result = _add_origin_nodes(merged_result, raw_data, origin_node_ids)
 
+    # Strip dangling-edge nulls before any code that assumes well-formed nodes.
+    merged_result = _drop_null_nodes(merged_result)
+
     # --- Find inter-node edges on the final merged node set ---
     if include_inter_node_edges:
         merged_result = _find_post_merge_inter_node_edges(
@@ -356,6 +359,24 @@ def _filter_nodes_for_next_phase(nodes, filter_type, origin_node_ids=None):
 
     # "all" and any other value
     return [n["_id"] for n in nodes if n.get("_id")]
+
+
+def _drop_null_nodes(result):
+    """Remove null / id-less vertices and edges from a phase result.
+
+    ArangoDB traversals return ``None`` for dangling edges (an edge whose
+    endpoint vertex no longer exists). Downstream code assumes every node is a
+    dict with an ``_id``, so we strip nulls and id-less entries defensively.
+    """
+    if not isinstance(result, dict):
+        return result
+    result["nodes"] = [
+        n for n in result.get("nodes", []) if isinstance(n, dict) and n.get("_id")
+    ]
+    result["links"] = [
+        e for e in result.get("links", []) if isinstance(e, dict) and e.get("_id")
+    ]
+    return result
 
 
 def _find_post_merge_inter_node_edges(merged_result, graph, edge_filters=None):
