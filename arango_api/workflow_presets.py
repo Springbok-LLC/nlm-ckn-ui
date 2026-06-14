@@ -1295,8 +1295,12 @@ WORKFLOW_PRESETS = [
             "at least one broken dipper, using a path-aware anti-edge (NAC) "
             "filter that excludes paths whose drug connects back to the "
             "disease via IS_SUBSTANCE_THAT_TREATS. Phase 2 drills into one "
-            "gene to render its dipper graph — re-point its origin to any "
-            "gene from the Phase 1 list."
+            "gene (default FLT1; re-point to any Phase 1 gene) to render its "
+            "Big Dipper — disease, gene, protein, candidate drugs, plus the "
+            "cell types that express the gene (gene <- cell set -> cell "
+            "type). Phase 3 adds the candidate drugs' treatment edges, so a "
+            "candidate linked to the gene's disease is a complete dipper and "
+            "one with no such edge is the broken (repurposing) candidate."
         ),
         "category": "Disease Analysis",
         "layoutMode": "force",
@@ -1335,30 +1339,66 @@ WORKFLOW_PRESETS = [
             },
             {
                 "id": "preset-bbd-phase-2",
-                "name": "Drill-in: dipper for a chosen gene",
+                "name": "Drill-in: dipper + cell types for a chosen gene",
                 "originSource": "manual",
-                # Default to a broken-dipper gene (BMPR2 / pulmonary
-                # hypertension); re-point to any gene from Phase 1.
-                "originNodeIds": ["GS/BMPR2"],
+                # Default to a broken-dipper gene that shows the full picture
+                # (FLT1 / VEGFR1 reaches cell types); re-point to any gene
+                # from Phase 1.
+                "originNodeIds": ["GS/FLT1"],
                 "previousPhaseId": None,
                 "originFilter": "all",
                 "settings": {
-                    # Depth 2 keeps the dipper readable: gene -> disease(s),
-                    # gene -> protein -> drug(s). includeInterNodeEdges draws
-                    # the IS_SUBSTANCE_THAT_TREATS edges among the result so
-                    # the broken side (a drug with no treats edge to the
-                    # gene's disease) is visible. Excludes GS so it can't
-                    # wander to other diseases' genes.
+                    # The dipper + cell legs (no treats edges here):
+                    # gene -> disease(s) (IS_GENETIC_BASIS_FOR_CONDITION);
+                    # gene -> protein -> candidate drug(s) (PRODUCES,
+                    # MOLECULARLY_INTERACTS_WITH); and the cell leg, gene
+                    # <-EXPRESSES- cell set -COMPOSED_PRIMARILY_OF-> cell type
+                    # (GS-CS-CL). Excludes GS so it can't wander to other
+                    # diseases' genes. Treats edges are added in phase 3,
+                    # scoped to the candidate drugs, to avoid pulling in every
+                    # drug that treats the gene's diseases.
                     "depth": 2,
                     "edgeDirection": "ANY",
-                    "allowedCollections": ["MONDO", "PR", "CHEMBL"],
+                    "allowedCollections": [
+                        "MONDO",
+                        "PR",
+                        "CHEMBL",
+                        "CS",
+                        "CL",
+                    ],
                     "edgeFilters": {
                         "Label": [
                             "IS_GENETIC_BASIS_FOR_CONDITION",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
-                            "IS_SUBSTANCE_THAT_TREATS",
+                            "EXPRESSES",
+                            "COMPOSED_PRIMARILY_OF",
                         ],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-bbd-phase-3",
+                "name": "Candidate-drug treatments (complete vs broken)",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-bbd-phase-2",
+                "originFilter": "all",
+                "settings": {
+                    # From the candidate drugs, draw their
+                    # IS_SUBSTANCE_THAT_TREATS edges: a candidate linked to
+                    # the gene's disease = a complete dipper; a candidate with
+                    # no such edge = the broken dipper (the repurposing lead).
+                    "depth": 1,
+                    "edgeDirection": "OUTBOUND",
+                    "allowedCollections": ["MONDO"],
+                    "edgeFilters": {
+                        "Label": ["IS_SUBSTANCE_THAT_TREATS"],
                         "Source": [],
                     },
                     "setOperation": "Union",
