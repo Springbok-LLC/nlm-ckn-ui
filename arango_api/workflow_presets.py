@@ -1295,9 +1295,9 @@ WORKFLOW_PRESETS = [
             "anti-edge (NAC) filter that excludes paths whose drug connects "
             "back to the disease via IS_SUBSTANCE_THAT_TREATS. Then pick a "
             "gene and run 'Big Dipper: explore a candidate' to see its "
-            "full dipper. (Note: collection origins are capped at "
-            "MAX_COLLECTION_ORIGIN_NODES, so this samples diseases rather "
-            "than scanning all of them.)"
+            "full dipper. (Note: phase 1 uses a default sample of the disease "
+            "collection; raise the collection-origin count on that phase — up "
+            "to All — to scan more diseases.)"
         ),
         "category": "Disease Analysis",
         "layoutMode": "force",
@@ -1347,9 +1347,10 @@ WORKFLOW_PRESETS = [
             "complete dipper, using a path-aware require-closing filter that "
             "keeps only paths whose drug connects back to the disease via "
             "IS_SUBSTANCE_THAT_TREATS. Useful as a validation/positive-control "
-            "set against the broken (repurposing) candidates. (Note: "
-            "collection origins are capped at MAX_COLLECTION_ORIGIN_NODES, so "
-            "this samples diseases rather than scanning all of them.)"
+            "set against the broken (repurposing) candidates. (Note: phase 1 "
+            "uses a default sample of the disease collection; raise the "
+            "collection-origin count on that phase — up to All — to scan more "
+            "diseases.)"
         ),
         "category": "Disease Analysis",
         "layoutMode": "force",

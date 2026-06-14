@@ -194,10 +194,15 @@ export const executePhase = createAsyncThunk(
         throw new Error(`No nodes found in collection "${phase.originCollection}".`);
       }
       // Cap how many of the collection's nodes are used as origins. The
-      // collection-origin selector sets `originLimit`; absent => the default.
-      // Must match the backend cap so the builder's /graph/ path and the
-      // /workflow/execute path agree.
-      const originLimit = phase.originLimit || DEFAULT_COLLECTION_ORIGIN_LIMIT;
+      // collection-origin selector sets `originLimit`; absent or invalid
+      // (negative / non-numeric, e.g. from a malformed loaded preset) => the
+      // default. Must match the backend cap so the builder's /graph/ path and
+      // the /workflow/execute path agree.
+      const parsedLimit = Number(phase.originLimit);
+      const originLimit =
+        Number.isFinite(parsedLimit) && parsedLimit > 0
+          ? Math.floor(parsedLimit)
+          : DEFAULT_COLLECTION_ORIGIN_LIMIT;
       if (collectionOriginNodeIds.length > originLimit) {
         collectionOriginNodeIds = collectionOriginNodeIds.slice(0, originLimit);
       }

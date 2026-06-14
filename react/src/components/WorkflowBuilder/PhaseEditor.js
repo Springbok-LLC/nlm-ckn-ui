@@ -224,6 +224,15 @@ const PhaseEditor = ({
   // Toggle an edge label in the anti-edge (exclude-closing-edges) set.
   const handleExcludeClosingEdgeToggle = useCallback(
     (value) => {
+      // Mutual exclusivity: the service rejects a phase that sets both
+      // closing-edge filters, so enabling the anti-edge clears any
+      // require-closing filter a loaded preset may already carry.
+      if ((phase.settings.requireClosingEdges?.Label || []).length > 0) {
+        onUpdateSettings("requireClosingEdges", {
+          ...phase.settings.requireClosingEdges,
+          Label: [],
+        });
+      }
       const current = phase.settings.excludeClosingEdges?.Label || [];
       const next = current.includes(value)
         ? current.filter((v) => v !== value)
@@ -233,7 +242,7 @@ const PhaseEditor = ({
         Label: next,
       });
     },
-    [phase.settings.excludeClosingEdges, onUpdateSettings],
+    [phase.settings.excludeClosingEdges, phase.settings.requireClosingEdges, onUpdateSettings],
   );
 
   // Handle numeric edge filter range change
