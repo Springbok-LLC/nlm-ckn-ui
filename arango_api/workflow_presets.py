@@ -1283,24 +1283,21 @@ WORKFLOW_PRESETS = [
         ],
     },
     {
-        "id": "broken-big-dipper",
-        "name": "Broken Big Dipper: drug-repurposing candidates",
+        "id": "broken-dipper-candidates",
+        "name": "Broken Big Dipper: candidate genes",
         "description": (
-            "Surfaces drug-repurposing candidates via the 'broken Big "
-            "Dipper' pattern: disease -> gene -> protein -> drug paths "
-            "where a drug targets a protein produced by a gene that is the "
-            "genetic basis of the disease, but the drug does NOT already "
-            "treat that disease (the dipper's closing 4th side is missing). "
-            "Phase 1 scans all diseases and returns the genes that sit on "
-            "at least one broken dipper, using a path-aware anti-edge (NAC) "
-            "filter that excludes paths whose drug connects back to the "
-            "disease via IS_SUBSTANCE_THAT_TREATS. Phase 2 drills into one "
-            "gene (default FLT1; re-point to any Phase 1 gene) to render its "
-            "Big Dipper — disease, gene, protein, candidate drugs, plus the "
-            "cell types that express the gene (gene <- cell set -> cell "
-            "type). Phase 3 adds the candidate drugs' treatment edges, so a "
-            "candidate linked to the gene's disease is a complete dipper and "
-            "one with no such edge is the broken (repurposing) candidate."
+            "Step 1 of the Broken Big Dipper. Surfaces drug-repurposing "
+            "candidate genes: disease -> gene -> protein -> drug paths where "
+            "a drug targets a protein produced by a gene that is the genetic "
+            "basis of the disease, but the drug does NOT already treat that "
+            "disease (the dipper's closing 4th side is missing). Returns the "
+            "genes that sit on at least one broken dipper, using a path-aware "
+            "anti-edge (NAC) filter that excludes paths whose drug connects "
+            "back to the disease via IS_SUBSTANCE_THAT_TREATS. Then pick a "
+            "gene and run 'Broken Big Dipper: explore a candidate' to see its "
+            "full dipper. (Note: collection origins are capped at "
+            "MAX_COLLECTION_ORIGIN_NODES, so this samples diseases rather "
+            "than scanning all of them.)"
         ),
         "category": "Disease Analysis",
         "layoutMode": "force",
@@ -1337,26 +1334,40 @@ WORKFLOW_PRESETS = [
                 },
                 "perNodeSettings": {},
             },
+        ],
+    },
+    {
+        "id": "broken-dipper-explorer",
+        "name": "Broken Big Dipper: explore a candidate",
+        "description": (
+            "Step 2 of the Broken Big Dipper — a Big Dipper builder for one "
+            "candidate. Pick a gene by name (default FLT1; use any gene from "
+            "'Broken Big Dipper: candidate genes') and this renders its full "
+            "Big Dipper: the gene's diseases "
+            "(IS_GENETIC_BASIS_FOR_CONDITION), the gene's protein and the "
+            "candidate drugs that target it (PRODUCES, "
+            "MOLECULARLY_INTERACTS_WITH), the cell types that express the "
+            "gene (gene <- cell set -> cell type, GS-CS-CL), and the "
+            "candidate drugs' treatment edges. A candidate linked to the "
+            "gene's disease is a complete dipper; one with no such edge is "
+            "the broken (repurposing) candidate."
+        ),
+        "category": "Disease Analysis",
+        "layoutMode": "force",
+        "phases": [
             {
-                "id": "preset-bbd-phase-2",
-                "name": "Drill-in: dipper + cell types for a chosen gene",
+                "id": "preset-bbd-explore-phase-1",
+                "name": "Dipper + cell types for the chosen gene",
                 "originSource": "manual",
-                # Default to a broken-dipper gene that shows the full picture
-                # (FLT1 / VEGFR1 reaches cell types); re-point to any gene
-                # from Phase 1.
                 "originNodeIds": ["GS/FLT1"],
                 "previousPhaseId": None,
                 "originFilter": "all",
                 "settings": {
-                    # The dipper + cell legs (no treats edges here):
-                    # gene -> disease(s) (IS_GENETIC_BASIS_FOR_CONDITION);
-                    # gene -> protein -> candidate drug(s) (PRODUCES,
-                    # MOLECULARLY_INTERACTS_WITH); and the cell leg, gene
-                    # <-EXPRESSES- cell set -COMPOSED_PRIMARILY_OF-> cell type
-                    # (GS-CS-CL). Excludes GS so it can't wander to other
-                    # diseases' genes. Treats edges are added in phase 3,
-                    # scoped to the candidate drugs, to avoid pulling in every
-                    # drug that treats the gene's diseases.
+                    # gene -> disease(s); gene -> protein -> candidate
+                    # drug(s); cell leg gene <-EXPRESSES- cell set
+                    # -COMPOSED_PRIMARILY_OF-> cell type (GS-CS-CL). Excludes
+                    # GS so it can't wander to other diseases' genes; treats
+                    # edges come in phase 2, scoped to the candidate drugs.
                     "depth": 2,
                     "edgeDirection": "ANY",
                     "allowedCollections": [
@@ -1383,11 +1394,11 @@ WORKFLOW_PRESETS = [
                 "perNodeSettings": {},
             },
             {
-                "id": "preset-bbd-phase-3",
+                "id": "preset-bbd-explore-phase-2",
                 "name": "Candidate-drug treatments (complete vs broken)",
                 "originSource": "previousPhase",
                 "originNodeIds": [],
-                "previousPhaseId": "preset-bbd-phase-2",
+                "previousPhaseId": "preset-bbd-explore-phase-1",
                 "originFilter": "all",
                 "settings": {
                     # From the candidate drugs, draw their
