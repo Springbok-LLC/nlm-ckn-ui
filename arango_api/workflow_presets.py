@@ -1346,48 +1346,46 @@ WORKFLOW_PRESETS = [
             "Big Dipper: the gene's diseases "
             "(IS_GENETIC_BASIS_FOR_CONDITION), the gene's protein and the "
             "candidate drugs that target it (PRODUCES, "
-            "MOLECULARLY_INTERACTS_WITH), the cell types that express the "
-            "gene (gene <- cell set -> cell type, GS-CS-CL), and the "
-            "candidate drugs' treatment edges. A candidate linked to the "
-            "gene's disease is a complete dipper; one with no such edge is "
-            "the broken (repurposing) candidate."
+            "MOLECULARLY_INTERACTS_WITH), and the cell types that express the "
+            "gene (gene <- cell set -> cell type, GS-CS-CL). The cell leg "
+            "keeps only the cell sets that bridge the gene to a cell type — "
+            "the many cell sets that express the gene but map to no cell type "
+            "are dropped as noise."
         ),
         "category": "Disease Analysis",
         "layoutMode": "force",
         "phases": [
+            # The cell leg is built FIRST and cleaned, so the final phase
+            # (what the viewer shows) carries only bridging cell sets. A plain
+            # gene -> cell set -> cell type traversal would pull in every cell
+            # set that expresses the gene (dozens), most of which never reach
+            # a cell type — pure clutter. Instead:
+            #   phase 1: gene -> cell types, returning ONLY the gene + cell
+            #            types (every cell set dropped via returnCollections).
+            #   phase 2: Connected Paths between the gene and those cell types
+            #            over CS — reintroduces ONLY the cell sets that lie on
+            #            a complete gene -> cell set -> cell type path.
+            #   phase 3: expand the dipper (diseases, protein, drugs) outward
+            #            from that clean cell scaffold.
             {
                 "id": "preset-bbd-explore-phase-1",
-                "name": "Dipper + cell types for the chosen gene",
+                "name": "Cell types that express the gene",
                 "originSource": "manual",
                 "originNodeIds": ["GS/FLT1"],
                 "previousPhaseId": None,
                 "originFilter": "all",
                 "settings": {
-                    # gene -> disease(s); gene -> protein -> candidate
-                    # drug(s); cell leg gene <-EXPRESSES- cell set
-                    # -COMPOSED_PRIMARILY_OF-> cell type (GS-CS-CL). Excludes
-                    # GS so it can't wander to other diseases' genes; treats
-                    # edges come in phase 2, scoped to the candidate drugs.
                     "depth": 2,
                     "edgeDirection": "ANY",
-                    "allowedCollections": [
-                        "MONDO",
-                        "PR",
-                        "CHEMBL",
-                        "CS",
-                        "CL",
-                    ],
+                    "allowedCollections": ["CS", "CL"],
                     "edgeFilters": {
-                        "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
-                            "PRODUCES",
-                            "MOLECULARLY_INTERACTS_WITH",
-                            "EXPRESSES",
-                            "COMPOSED_PRIMARILY_OF",
-                        ],
+                        "Label": ["EXPRESSES", "COMPOSED_PRIMARILY_OF"],
                         "Source": [],
                     },
                     "setOperation": "Union",
+                    # Drop the cell sets here; phase 2 brings back only the
+                    # bridging ones.
+                    "returnCollections": ["GS", "CL"],
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
                 },
@@ -1395,21 +1393,45 @@ WORKFLOW_PRESETS = [
             },
             {
                 "id": "preset-bbd-explore-phase-2",
-                "name": "Candidate-drug treatments (complete vs broken)",
+                "name": "Bridging cell sets (drop dangling ones)",
                 "originSource": "previousPhase",
                 "originNodeIds": [],
                 "previousPhaseId": "preset-bbd-explore-phase-1",
                 "originFilter": "all",
                 "settings": {
-                    # From the candidate drugs, draw their
-                    # IS_SUBSTANCE_THAT_TREATS edges: a candidate linked to
-                    # the gene's disease = a complete dipper; a candidate with
-                    # no such edge = the broken dipper (the repurposing lead).
-                    "depth": 1,
-                    "edgeDirection": "OUTBOUND",
-                    "allowedCollections": ["MONDO"],
+                    # Connected Paths keeps only nodes on a path between the
+                    # origins (gene + cell types), so cell sets that dangle off
+                    # the gene without reaching a cell type are excluded.
+                    "depth": 2,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["CS", "GS", "CL"],
+                    "setOperation": "Connected Paths",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-bbd-explore-phase-3",
+                "name": "Dipper: diseases, protein, candidate drugs",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-bbd-explore-phase-2",
+                "originFilter": "all",
+                "settings": {
+                    # Expand the dipper outward from the clean cell scaffold.
+                    # Only the gene carries these edges, so cell sets / cell
+                    # types contribute nothing new — they just ride along into
+                    # the final, displayed graph.
+                    "depth": 2,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["MONDO", "PR", "CHEMBL"],
                     "edgeFilters": {
-                        "Label": ["IS_SUBSTANCE_THAT_TREATS"],
+                        "Label": [
+                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "PRODUCES",
+                            "MOLECULARLY_INTERACTS_WITH",
+                        ],
                         "Source": [],
                     },
                     "setOperation": "Union",
