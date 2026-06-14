@@ -1324,9 +1324,7 @@ WORKFLOW_PRESETS = [
                     },
                     # Anti-edge (NAC): drop paths whose drug treats the
                     # origin disease — keep only the "broken" dippers.
-                    "excludeClosingEdges": {
-                        "Label": ["IS_SUBSTANCE_THAT_TREATS"]
-                    },
+                    "excludeClosingEdges": {"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
                     "setOperation": "Union",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": False,
@@ -1421,8 +1419,11 @@ WORKFLOW_PRESETS = [
                 "settings": {
                     # Expand the dipper outward from the clean cell scaffold.
                     # Only the gene carries these edges, so cell sets / cell
-                    # types contribute nothing new — they just ride along into
-                    # the final, displayed graph.
+                    # types contribute nothing new — they ride along as nodes.
+                    # A traversal phase keeps only its own edges, so this phase
+                    # carries the dipper edges but DROPS the cell leg's
+                    # EXPRESSES / COMPOSED_PRIMARILY_OF edges — phase 4 merges
+                    # them back.
                     "depth": 2,
                     "edgeDirection": "ANY",
                     "allowedCollections": ["MONDO", "PR", "CHEMBL"],
@@ -1437,6 +1438,30 @@ WORKFLOW_PRESETS = [
                     "setOperation": "Union",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-bbd-explore-phase-4",
+                "name": "Merge cell leg + dipper",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseIds": [
+                    "preset-bbd-explore-phase-2",
+                    "preset-bbd-explore-phase-3",
+                ],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                "settings": {
+                    # Union the clean cell leg (phase 2: bridging cell sets +
+                    # their EXPRESSES / COMPOSED_PRIMARILY_OF edges) with the
+                    # dipper (phase 3: diseases, protein, drugs + their edges).
+                    # Each source already holds exactly the edges it should, so
+                    # the inter-node scan is OFF — leaving it on would re-discover
+                    # every drug->disease treats edge between the merged nodes,
+                    # re-cluttering the graph the cell-leg rework set out to clean.
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": False,
                 },
                 "perNodeSettings": {},
             },
