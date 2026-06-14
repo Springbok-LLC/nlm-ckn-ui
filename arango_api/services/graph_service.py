@@ -92,6 +92,7 @@ def traverse_graph(
     edge_filters,
     include_inter_node_edges=True,
     exclude_closing_edges=None,
+    require_closing_edges=None,
 ):
     """
     Constructs and executes a graph traversal AQL query.
@@ -111,6 +112,12 @@ def traverse_graph(
             endpoint has NO edge of the given label(s) back to that path's own
             origin (start node). Used to find "open" motifs, e.g. drug paths that
             do not close back to the disease via IS_SUBSTANCE_THAT_TREATS.
+        require_closing_edges (dict): Positive complement of
+            exclude_closing_edges, same shape {"Label": [...]}. When set, only
+            full-depth paths are kept whose endpoint DOES have an edge of the
+            given label(s) back to that path's own origin. Used to find "closed"
+            motifs, e.g. complete drug-repurposing dippers where the drug treats
+            the disease. If both are supplied, exclude_closing_edges wins.
 
     Returns:
         dict: A dictionary with start node IDs as keys, each containing
@@ -141,14 +148,21 @@ def traverse_graph(
         filter_string = f"FILTER {' AND '.join(positive_conditions)}"
         prune_string = f"PRUNE {' OR '.join(negative_conditions)}"
 
-    closing_labels = (exclude_closing_edges or {}).get("Label") or []
+    # exclude wins if both are set (documented). require_mode keeps paths that
+    # DO close; otherwise paths that do NOT close.
+    require_mode = bool((require_closing_edges or {}).get("Label")) and not (
+        exclude_closing_edges or {}
+    ).get("Label")
+    closing_spec = exclude_closing_edges if not require_mode else require_closing_edges
+    closing_labels = (closing_spec or {}).get("Label") or []
     if closing_labels:
-        # Path-aware anti-edge (NAC) query. Unlike the default path, this must
+        # Path-aware closing-edge query. Unlike the default path, this must
         # traverse complete fixed-depth paths (@depth..@depth) so the closing-edge
         # check can test the true endpoint — so it deliberately avoids PRUNE
         # (which would stop traversal early, and is also unsafe at depth 0 where
-        # the edge is null). The negation is a correlated sub-query that survives
-        # only when no closing edge links the endpoint back to its own origin.
+        # the edge is null). The correlated sub-query finds closing edges that
+        # link the endpoint back to its own origin; the path survives when that
+        # set is empty (exclude / anti-edge) or non-empty (require / dipper).
         # Build a dedicated bind-var set; the edge-filter clause helper may have
         # registered bind vars that this query does not reference, and ArangoDB
         # rejects declared-but-unused bind parameters.
@@ -181,7 +195,7 @@ def traverse_graph(
                              LIMIT 1
                              RETURN 1
                      )
-                     FILTER LENGTH(closing) == 0
+                     FILTER LENGTH(closing) {'> 0' if require_mode else '== 0'}
                      RETURN p
              )
              LET all_nodes = UNION_DISTINCT(
@@ -302,6 +316,7 @@ def traverse_graph_advanced(
             edge_filters=edge_filters,
             include_inter_node_edges=include_inter_node_edges,
             exclude_closing_edges=settings.get("excludeClosingEdges"),
+            require_closing_edges=settings.get("requireClosingEdges"),
         )
 
         if result_for_node:

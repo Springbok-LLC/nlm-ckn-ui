@@ -346,6 +346,72 @@ class AntiEdgeTraversalTestCase(ArangoDBTestCase):
         self.assertIn("GS/nac_g3", genes)
         self.assertNotIn("GS/nac_g2", genes)
 
+    def _genes_from_diseases_require(self, require):
+        results = graph_service.traverse_graph(
+            node_ids=["MONDO/nac_d1", "MONDO/nac_d2", "MONDO/nac_d3"],
+            depth=3,
+            edge_direction="ANY",
+            allowed_collections=["GS", "PR", "CHEMBL"],
+            graph="phenotypes",
+            edge_filters={
+                "Label": [
+                    "IS_GENETIC_BASIS_FOR_CONDITION",
+                    "PRODUCES",
+                    "MOLECULARLY_INTERACTS_WITH",
+                ]
+            },
+            include_inter_node_edges=False,
+            require_closing_edges=require,
+        )
+        gene_ids = set()
+        for data in results.values():
+            for node in data["nodes"]:
+                if node["_id"].startswith("GS/"):
+                    gene_ids.add(node["_id"])
+        return gene_ids
+
+    def test_require_closing_keeps_only_fully_closed_genes(self):
+        # Positive complement of the anti-edge (the complete / clean dipper):
+        # keep only genes whose drug treats the SAME origin disease. g2 closes
+        # (dr2 treats d2); g1 has no treat edge; g3's drug treats a DIFFERENT
+        # disease (d4, not its own d3), so its loop never closes.
+        genes = self._genes_from_diseases_require(
+            require={"Label": ["IS_SUBSTANCE_THAT_TREATS"]}
+        )
+        self.assertIn("GS/nac_g2", genes)
+        self.assertNotIn("GS/nac_g1", genes)
+        self.assertNotIn("GS/nac_g3", genes)
+
+    def test_exclude_wins_when_both_closing_filters_set(self):
+        # Documented precedence: when both path-closing filters are supplied,
+        # exclude_closing_edges takes effect and require_closing_edges is
+        # ignored (so the result matches the anti-edge: g1, g3 present, g2 out).
+        results = graph_service.traverse_graph(
+            node_ids=["MONDO/nac_d1", "MONDO/nac_d2", "MONDO/nac_d3"],
+            depth=3,
+            edge_direction="ANY",
+            allowed_collections=["GS", "PR", "CHEMBL"],
+            graph="phenotypes",
+            edge_filters={
+                "Label": [
+                    "IS_GENETIC_BASIS_FOR_CONDITION",
+                    "PRODUCES",
+                    "MOLECULARLY_INTERACTS_WITH",
+                ]
+            },
+            include_inter_node_edges=False,
+            exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+            require_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+        )
+        genes = set()
+        for data in results.values():
+            for node in data["nodes"]:
+                if node["_id"].startswith("GS/"):
+                    genes.add(node["_id"])
+        self.assertIn("GS/nac_g1", genes)
+        self.assertIn("GS/nac_g3", genes)
+        self.assertNotIn("GS/nac_g2", genes)
+
 
 class WorkflowServiceTestCase(ArangoDBTestCase):
     """Tests for workflow_service functions, focused on edge_filters propagation."""
