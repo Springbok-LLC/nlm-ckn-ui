@@ -318,6 +318,10 @@ def _resolve_origin_node_ids(phase, all_phases, phase_results, phase_origin_ids,
         # use as origins). Absent => the safe default. Deterministic head
         # slice so results are stable across runs.
         limit = phase.get("originLimit") or MAX_COLLECTION_ORIGIN_NODES
+        # Guard against a malformed preset: a non-positive limit would slice
+        # from the end (node_ids[:negative]) instead of taking the first N.
+        if limit <= 0:
+            limit = MAX_COLLECTION_ORIGIN_NODES
         if len(node_ids) > limit:
             logger.info(
                 "Collection '%s' has %d nodes, using first %d (originLimit)",

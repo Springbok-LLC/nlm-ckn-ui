@@ -351,8 +351,10 @@ export const executePhase = createAsyncThunk(
         includeInterNodeEdges: phase.settings.includeInterNodeEdges ?? true,
         edgeFilters: nodeOverrides.edgeFilters ??
           phase.settings.edgeFilters ?? { Label: [], Source: [] },
-        excludeClosingEdges:
-          nodeOverrides.excludeClosingEdges ?? phase.settings.excludeClosingEdges,
+        excludeClosingEdges: nodeOverrides.excludeClosingEdges ??
+          phase.settings.excludeClosingEdges ?? { Label: [] },
+        requireClosingEdges: nodeOverrides.requireClosingEdges ??
+          phase.settings.requireClosingEdges ?? { Label: [] },
         lastAppliedOriginNodeIds: [],
         lastAppliedPerNodeSettings: null,
       };

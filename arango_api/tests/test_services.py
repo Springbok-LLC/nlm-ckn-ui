@@ -390,35 +390,21 @@ class AntiEdgeTraversalTestCase(ArangoDBTestCase):
         self.assertNotIn("GS/nac_g1", genes)
         self.assertNotIn("GS/nac_g3", genes)
 
-    def test_exclude_wins_when_both_closing_filters_set(self):
-        # Documented precedence: when both path-closing filters are supplied,
-        # exclude_closing_edges takes effect and require_closing_edges is
-        # ignored (so the result matches the anti-edge: g1, g3 present, g2 out).
-        results = graph_service.traverse_graph(
-            node_ids=["MONDO/nac_d1", "MONDO/nac_d2", "MONDO/nac_d3"],
-            depth=3,
-            edge_direction="ANY",
-            allowed_collections=["GS", "PR", "CHEMBL"],
-            graph="phenotypes",
-            edge_filters={
-                "Label": [
-                    "IS_GENETIC_BASIS_FOR_CONDITION",
-                    "PRODUCES",
-                    "MOLECULARLY_INTERACTS_WITH",
-                ]
-            },
-            include_inter_node_edges=False,
-            exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
-            require_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
-        )
-        genes = set()
-        for data in results.values():
-            for node in data["nodes"]:
-                if node["_id"].startswith("GS/"):
-                    genes.add(node["_id"])
-        self.assertIn("GS/nac_g1", genes)
-        self.assertIn("GS/nac_g3", genes)
-        self.assertNotIn("GS/nac_g2", genes)
+    def test_both_closing_filters_raises(self):
+        # The two path-closing filters cannot compose, so supplying both is a
+        # configuration error that fails loudly rather than dropping one.
+        with self.assertRaises(ValueError):
+            graph_service.traverse_graph(
+                node_ids=["MONDO/nac_d1"],
+                depth=3,
+                edge_direction="ANY",
+                allowed_collections=["GS", "PR", "CHEMBL"],
+                graph="phenotypes",
+                edge_filters={"Label": ["IS_GENETIC_BASIS_FOR_CONDITION"]},
+                include_inter_node_edges=False,
+                exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+                require_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+            )
 
 
 class WorkflowServiceTestCase(ArangoDBTestCase):

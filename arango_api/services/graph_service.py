@@ -117,7 +117,7 @@ def traverse_graph(
             full-depth paths are kept whose endpoint DOES have an edge of the
             given label(s) back to that path's own origin. Used to find "closed"
             motifs, e.g. complete drug-repurposing dippers where the drug treats
-            the disease. If both are supplied, exclude_closing_edges wins.
+            the disease. Supplying both raises ValueError (they cannot compose).
 
     Returns:
         dict: A dictionary with start node IDs as keys, each containing
@@ -148,13 +148,18 @@ def traverse_graph(
         filter_string = f"FILTER {' AND '.join(positive_conditions)}"
         prune_string = f"PRUNE {' OR '.join(negative_conditions)}"
 
-    # exclude wins if both are set (documented). require_mode keeps paths that
-    # DO close; otherwise paths that do NOT close.
-    require_mode = bool((require_closing_edges or {}).get("Label")) and not (
-        exclude_closing_edges or {}
-    ).get("Label")
-    closing_spec = exclude_closing_edges if not require_mode else require_closing_edges
-    closing_labels = (closing_spec or {}).get("Label") or []
+    # The two path-closing filters cannot compose in one pass, so reject the
+    # combination loudly rather than silently dropping one. require_mode keeps
+    # paths that DO close; the default keeps paths that do NOT close.
+    exclude_labels = (exclude_closing_edges or {}).get("Label") or []
+    require_labels = (require_closing_edges or {}).get("Label") or []
+    if exclude_labels and require_labels:
+        raise ValueError(
+            "Cannot set both exclude_closing_edges and require_closing_edges "
+            "on one phase."
+        )
+    require_mode = bool(require_labels)
+    closing_labels = require_labels if require_mode else exclude_labels
     if closing_labels:
         # Path-aware closing-edge query. Unlike the default path, this must
         # traverse complete fixed-depth paths (@depth..@depth) so the closing-edge
