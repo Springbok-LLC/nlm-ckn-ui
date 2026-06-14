@@ -308,14 +308,19 @@ def _resolve_origin_node_ids(phase, all_phases, phase_results, phase_origin_ids,
         node_ids = [doc["_id"] for doc in docs if doc.get("_id")]
         if not node_ids:
             raise ValueError(f'No nodes found in collection "{collection_name}".')
-        if len(node_ids) > MAX_COLLECTION_ORIGIN_NODES:
-            logger.warning(
-                "Collection '%s' has %d nodes, truncating to %d",
+        # Per-phase origin cap. The Workflow Builder's collection-origin
+        # selector sets `originLimit` (how many of the collection's nodes to
+        # use as origins). Absent => the safe default. Deterministic head
+        # slice so results are stable across runs.
+        limit = phase.get("originLimit") or MAX_COLLECTION_ORIGIN_NODES
+        if len(node_ids) > limit:
+            logger.info(
+                "Collection '%s' has %d nodes, using first %d (originLimit)",
                 collection_name,
                 len(node_ids),
-                MAX_COLLECTION_ORIGIN_NODES,
+                limit,
             )
-            node_ids = node_ids[:MAX_COLLECTION_ORIGIN_NODES]
+            node_ids = node_ids[:limit]
         return node_ids
 
     if origin_source == "previousPhase":
