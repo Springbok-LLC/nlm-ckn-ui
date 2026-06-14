@@ -228,7 +228,10 @@ const PhaseEditor = ({
       const next = current.includes(value)
         ? current.filter((v) => v !== value)
         : [...current, value];
-      onUpdateSettings("excludeClosingEdges", { Label: next });
+      onUpdateSettings("excludeClosingEdges", {
+        ...phase.settings.excludeClosingEdges,
+        Label: next,
+      });
     },
     [phase.settings.excludeClosingEdges, onUpdateSettings],
   );
