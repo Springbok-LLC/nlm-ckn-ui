@@ -58,6 +58,15 @@ class CollectionViewsTestCase(ArangoDBViewTestCase):
         data = response.json()
         self.assertEqual(len(data), 2)
 
+    def test_collection_count(self):
+        response = self.client.post(
+            reverse("collection_count", kwargs={"coll": "publication_ind"}),
+            data={},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"count": 2})
+
     def test_get_object(self):
         response = self.client.get(
             reverse(

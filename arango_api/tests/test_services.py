@@ -59,6 +59,14 @@ class CollectionServiceTestCase(ArangoDBTestCase):
         result = list(collection_service.get_all_by_collection("CL", "ontologies"))
         self.assertEqual(len(result), 6)
 
+    def test_get_collection_count(self):
+        self.assertEqual(collection_service.get_collection_count("CL", "ontologies"), 6)
+
+    def test_get_collection_count_nonexistent(self):
+        self.assertEqual(
+            collection_service.get_collection_count("DoesNotExist", "ontologies"), 0
+        )
+
     def test_get_by_id(self):
         result = collection_service.get_by_id("CL", "CL/0002145")
         self.assertEqual(

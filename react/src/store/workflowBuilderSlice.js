@@ -13,7 +13,13 @@
  */
 
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { createEmptyPhase, DEFAULT_GRAPH_TYPE, GRAPH_STATUS, UI_DEFAULTS } from "../constants";
+import {
+  createEmptyPhase,
+  DEFAULT_COLLECTION_ORIGIN_LIMIT,
+  DEFAULT_GRAPH_TYPE,
+  GRAPH_STATUS,
+  UI_DEFAULTS,
+} from "../constants";
 import {
   fetchCollectionDocuments,
   fetchConnectingPaths,
@@ -186,6 +192,14 @@ export const executePhase = createAsyncThunk(
         .filter(Boolean);
       if (collectionOriginNodeIds.length === 0) {
         throw new Error(`No nodes found in collection "${phase.originCollection}".`);
+      }
+      // Cap how many of the collection's nodes are used as origins. The
+      // collection-origin selector sets `originLimit`; absent => the default.
+      // Must match the backend cap so the builder's /graph/ path and the
+      // /workflow/execute path agree.
+      const originLimit = phase.originLimit || DEFAULT_COLLECTION_ORIGIN_LIMIT;
+      if (collectionOriginNodeIds.length > originLimit) {
+        collectionOriginNodeIds = collectionOriginNodeIds.slice(0, originLimit);
       }
       // Falls through to normal execution below using collectionOriginNodeIds
     }
