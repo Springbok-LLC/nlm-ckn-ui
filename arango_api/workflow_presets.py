@@ -1294,7 +1294,7 @@ WORKFLOW_PRESETS = [
             "genes that sit on at least one broken dipper, using a path-aware "
             "anti-edge (NAC) filter that excludes paths whose drug connects "
             "back to the disease via IS_SUBSTANCE_THAT_TREATS. Then pick a "
-            "gene and run 'Broken Big Dipper: explore a candidate' to see its "
+            "gene and run 'Big Dipper: explore a candidate' to see its "
             "full dipper. (Note: collection origins are capped at "
             "MAX_COLLECTION_ORIGIN_NODES, so this samples diseases rather "
             "than scanning all of them.)"
@@ -1335,20 +1335,75 @@ WORKFLOW_PRESETS = [
         ],
     },
     {
-        "id": "broken-dipper-explorer",
-        "name": "Broken Big Dipper: explore a candidate",
+        "id": "clean-dipper-candidates",
+        "name": "Complete Big Dipper: candidate genes",
         "description": (
-            "Step 2 of the Broken Big Dipper — a Big Dipper builder for one "
-            "candidate. Pick a gene by name (default FLT1; use any gene from "
-            "'Broken Big Dipper: candidate genes') and this renders its full "
-            "Big Dipper: the gene's diseases "
+            "The positive counterpart of 'Broken Big Dipper: candidate "
+            "genes'. Surfaces genes that sit on a COMPLETE dipper: "
+            "disease -> gene -> protein -> drug paths where a drug targets a "
+            "protein produced by a gene that is the genetic basis of the "
+            "disease AND the drug already treats that disease (the dipper's "
+            "closing 4th side is present). Returns the genes on at least one "
+            "complete dipper, using a path-aware require-closing filter that "
+            "keeps only paths whose drug connects back to the disease via "
+            "IS_SUBSTANCE_THAT_TREATS. Useful as a validation/positive-control "
+            "set against the broken (repurposing) candidates. (Note: "
+            "collection origins are capped at MAX_COLLECTION_ORIGIN_NODES, so "
+            "this samples diseases rather than scanning all of them.)"
+        ),
+        "category": "Disease Analysis",
+        "layoutMode": "force",
+        "phases": [
+            {
+                "id": "preset-cbd-phase-1",
+                "name": "Discovery: genes on a complete dipper (all diseases)",
+                "originSource": "collection",
+                "originCollection": "MONDO",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "originFilter": "all",
+                "settings": {
+                    "depth": 3,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["GS", "PR", "CHEMBL"],
+                    "edgeFilters": {
+                        "Label": [
+                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "PRODUCES",
+                            "MOLECULARLY_INTERACTS_WITH",
+                        ],
+                        "Source": [],
+                    },
+                    # Require-closing: keep only paths whose drug treats the
+                    # origin disease — the "complete" dippers.
+                    "requireClosingEdges": {"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": False,
+                    "returnCollections": ["GS"],
+                },
+                "perNodeSettings": {},
+            },
+        ],
+    },
+    {
+        "id": "dipper-explorer",
+        "name": "Big Dipper: explore a candidate",
+        "description": (
+            "A Big Dipper builder for one candidate gene — works for both the "
+            "broken and complete candidate lists. Pick a gene by name (default "
+            "FLT1) and this renders its full Big Dipper: the gene's diseases "
             "(IS_GENETIC_BASIS_FOR_CONDITION), the gene's protein and the "
             "candidate drugs that target it (PRODUCES, "
-            "MOLECULARLY_INTERACTS_WITH), and the cell types that express the "
-            "gene (gene <- cell set -> cell type, GS-CS-CL). The cell leg "
-            "keeps only the cell sets that bridge the gene to a cell type — "
-            "the many cell sets that express the gene but map to no cell type "
-            "are dropped as noise."
+            "MOLECULARLY_INTERACTS_WITH), the cell types that express the gene "
+            "(gene <- cell set -> cell type, GS-CS-CL), and the candidate "
+            "drugs' closing treatment edges back to the gene's own diseases "
+            "(IS_SUBSTANCE_THAT_TREATS). A closing edge present = a complete "
+            "dipper for that disease; absent = the broken (repurposing) "
+            "dipper. The cell leg keeps only the cell sets that bridge the "
+            "gene to a cell type — those that map to no cell type are dropped "
+            "as noise. The closing scan only links existing nodes, so it adds "
+            "no extra diseases."
         ),
         "category": "Disease Analysis",
         "layoutMode": "force",
@@ -1456,12 +1511,19 @@ WORKFLOW_PRESETS = [
                     # Union the clean cell leg (phase 2: bridging cell sets +
                     # their EXPRESSES / COMPOSED_PRIMARILY_OF edges) with the
                     # dipper (phase 3: diseases, protein, drugs + their edges).
-                    # Each source already holds exactly the edges it should, so
-                    # the inter-node scan is OFF — leaving it on would re-discover
-                    # every drug->disease treats edge between the merged nodes,
-                    # re-cluttering the graph the cell-leg rework set out to clean.
+                    # The inter-node scan is scoped to IS_SUBSTANCE_THAT_TREATS
+                    # ONLY, so it draws the dipper's closing 4th side (candidate
+                    # drug -> the gene's own disease) without re-discovering the
+                    # unrelated edges (e.g. cell-type SUB_CLASS_OF) an unfiltered
+                    # scan would add. It links existing nodes only, so no extra
+                    # diseases appear: a closing edge present = a complete dipper
+                    # for that disease, absent = the broken one.
                     "graphType": "phenotypes",
-                    "includeInterNodeEdges": False,
+                    "includeInterNodeEdges": True,
+                    "edgeFilters": {
+                        "Label": ["IS_SUBSTANCE_THAT_TREATS"],
+                        "Source": [],
+                    },
                 },
                 "perNodeSettings": {},
             },
