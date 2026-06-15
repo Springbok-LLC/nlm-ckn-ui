@@ -254,12 +254,65 @@ Resources:
   # alarms and EventBridge rules in THIS account to publish, so cross-stack and
   # service-driven reuse is safe (same-account alarm->SNS also works without it,
   # but the explicit grant makes the contract clear and covers EventBridge).
+  #
+  # The topic is encrypted at rest with the customer-managed key below. We can
+  # NOT use the AWS-managed alias/aws/sns key here: CloudWatch alarms and
+  # EventBridge rules publish via their service principals, which need
+  # kms:GenerateDataKey/Decrypt on the topic's key — the managed key's policy
+  # can't be edited to grant them, so SSE with alias/aws/sns silently drops
+  # every alarm notification. The CMK key policy below grants exactly those
+  # principals.
   # ============================================================================
+  AlertTopicKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'SSE key for the ${ProjectName}-${Environment} alerts SNS topic'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          # Account root retains full administrative control of the key.
+          - Sid: EnableRootAccount
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          # CloudWatch alarms + EventBridge rules must be able to use the key to
+          # publish encrypted messages to the topic.
+          - Sid: AllowCloudWatchAndEventBridge
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudwatch.amazonaws.com
+                - events.amazonaws.com
+            Action:
+              - kms:GenerateDataKey*
+              - kms:Decrypt
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref AWS::AccountId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  AlertTopicKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${ProjectName}-${Environment}-alerts'
+      TargetKeyId: !Ref AlertTopicKey
+
   AlertTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: !Sub '${ProjectName}-${Environment}-alerts'
       DisplayName: !Sub 'Cell-KN ${Environment} alerts'
+      KmsMasterKeyId: !Ref AlertTopicKey
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -510,6 +563,13 @@ Resources:
               - Effect: Allow
                 Action: sns:Publish
                 Resource: !Ref AlertTopic
+              # The topic is SSE-encrypted with AlertTopicKey, so publishing
+              # requires use of the key.
+              - Effect: Allow
+                Action:
+                  - kms:GenerateDataKey*
+                  - kms:Decrypt
+                Resource: !GetAtt AlertTopicKey.Arn
               # Reboot is scoped to the arango instance by tag, and only used
               # when AutoRemediate=true.
               - Effect: Allow
@@ -519,6 +579,7 @@ Resources:
                   StringEquals:
                     'aws:ResourceTag/Project': !Ref ProjectName
                     'aws:ResourceTag/Environment': !Ref Environment
+                    'aws:ResourceTag/Name': !Sub '${ProjectName}-${Environment}-arangodb'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -573,17 +634,27 @@ Resources:
               return None
 
           def _put(metric, value, instance_id):
+              env = os.environ["ENVIRONMENT"]
+              # Publish under BOTH dimension sets: [Environment] is what
+              # WedgeAlarm and the dashboard query (CloudWatch treats differing
+              # dimension sets as distinct metrics), and [Environment, InstanceId]
+              # keeps per-instance granularity for ad-hoc inspection.
               _cw.put_metric_data(
                   Namespace=os.environ["METRIC_NAMESPACE"],
                   MetricData=[
                       {
                           "MetricName": metric,
+                          "Dimensions": [{"Name": "Environment", "Value": env}],
+                          "Value": float(value),
+                      },
+                      {
+                          "MetricName": metric,
                           "Dimensions": [
-                              {"Name": "Environment", "Value": os.environ["ENVIRONMENT"]},
+                              {"Name": "Environment", "Value": env},
                               {"Name": "InstanceId", "Value": instance_id},
                           ],
                           "Value": float(value),
-                      }
+                      },
                   ],
               )
 
@@ -680,8 +751,8 @@ Resources:
   # ============================================================================
   # Alarms
   # ============================================================================
-  # Confirmed wedge -> page. WedgeSuspected is 0/1 per run; alarm on the max so
-  # a single positive run trips it immediately.
+  # Confirmed wedge -> page. WedgeSuspected is 0/1 per run; require two
+  # consecutive positive runs (~2 min) so a transient SSM blip doesn't page.
   WedgeAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:

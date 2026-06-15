@@ -99,4 +99,5 @@ echo "  aws cloudformation deploy --stack-name $STACK_NAME --template-file $TEMP
 echo "    --capabilities CAPABILITY_NAMED_IAM --region $AWS_REGION \\"
 echo "    --parameter-overrides ProjectName=$PROJECT_NAME Environment=$ENVIRONMENT \\"
 echo "      PrivateSubnetIds=\"$SUBNETS\" ArangoDbSecurityGroupId=$ARANGO_SG \\"
+echo "      ArangoDbInstanceId=\"$INSTANCE_ID\" AlbDimension=\"$ALB_DIM\" \\"
 echo "      ScheduleExpression=\"$SCHEDULE_EXPRESSION\" AutoRemediate=$AUTO_REMEDIATE AlarmEmail=\"$ALARM_EMAIL\""
