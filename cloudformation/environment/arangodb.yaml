@@ -29,21 +29,6 @@ Parameters:
     Default: root
     Description: ArangoDB root username
 
-  # EC2 instance type. t4g (Graviton2/ARM64) is ~20% cheaper than equivalent
-  # t3 (x86). arangodb:3.12 is multi-arch and supports ARM64.
-  # t4g.medium: 2 vCPU / 4 GB RAM — recommended for ArangoDB with a modest dataset.
-  InstanceType:
-    Type: String
-    Default: t4g.medium
-    AllowedValues:
-      - t4g.small
-      - t4g.medium
-      - t4g.large
-      - t3.small
-      - t3.medium
-      - t3.large
-    Description: EC2 instance type for ArangoDB (t4g Graviton2 recommended - same specs, ~20% cheaper)
-
   # EBS volume size in GB for ArangoDB data.
   EbsVolumeSize:
     Type: Number
@@ -70,6 +55,17 @@ Parameters:
       Subnet ID for the ArangoDB EC2 instance.
       Must be supplied by deploy-environment.sh (resolved from infra stack exports).
 
+  # Availability Zone for the standalone data volume. A standalone AWS::EC2::Volume
+  # requires an explicit AZ, and it must match the AZ of ArangoDbSubnetId (an EBS
+  # volume can only attach to an instance in the same AZ). We cannot Fn::GetAtt the
+  # AZ of a subnet passed as a parameter, so deploy-environment.sh resolves it from
+  # the subnet (aws ec2 describe-subnets) and passes it here.
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: >
+      Availability Zone for the ArangoDB data volume.
+      Must match the AZ of ArangoDbSubnetId. Resolved by deploy-environment.sh.
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -83,6 +79,7 @@ Metadata:
         Parameters:
           - ArangoDbSecurityGroupId
           - ArangoDbSubnetId
+          - AvailabilityZone
       - Label:
           default: ArangoDB Configuration
         Parameters:
@@ -90,12 +87,31 @@ Metadata:
       - Label:
           default: EC2 / Storage Configuration
         Parameters:
-          - InstanceType
           - EbsVolumeSize
       - Label:
           default: Pre-existing IAM (sandbox/prod only - leave empty in dev/stage)
         Parameters:
           - InstanceProfileArn
+
+Mappings:
+  # ArangoDB EC2 instance size per environment. ArangoDB is memory-bound: the
+  # working set plus ArangoSearch views should fit in cache, otherwise queries
+  # constantly read from EBS (observed on stage at t4g.medium, and as a
+  # multi-second cold window after every restart — 2026-06-15 postmortem).
+  #
+  # Cache sizes are NOT pinned here; the UserData derives them from the host's
+  # actual RAM (see the "cache budget" block in UserData) so they scale with the
+  # instance type automatically (4 / 8 / 16 GiB across t4g.medium / m7g.large /
+  # m7g.xlarge).
+  EnvironmentSizing:
+    dev:
+      InstanceType: t4g.medium
+    stage:
+      InstanceType: m7g.large
+    sandbox:
+      InstanceType: m7g.large
+    prod:
+      InstanceType: m7g.xlarge
 
 Conditions:
   # dev + stage own their full stack; sandbox/prod use NIH-pre-created IAM
@@ -235,6 +251,30 @@ Resources:
                   - elasticloadbalancing:DescribeTargetGroups
                   - cloudformation:ListExports
                 Resource: '*'
+        # The instance attaches its own standalone data volume from UserData
+        # rather than via a CloudFormation AWS::EC2::VolumeAttachment, which would
+        # deadlock against this instance's CreationPolicy. Describe is account-wide
+        # (the API has no resource-level filter); attach/detach are scoped to the
+        # arangodb data volumes by the Environment tag.
+        - PolicyName: EbsDataVolumeAttach
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:AttachVolume
+                  - ec2:DetachVolume
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+                Condition:
+                  StringEquals:
+                    'aws:ResourceTag/Project': !Ref ProjectName
+                    'aws:ResourceTag/Environment': !Ref Environment
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -271,6 +311,38 @@ Resources:
         FailureThreshold: 1
 
   # ============================================================================
+  # ArangoDB Data Volume (standalone, retained)
+  #
+  # Defined as a standalone AWS::EC2::Volume (NOT inline in the instance's
+  # BlockDeviceMappings) so it is NOT replaced when the EC2 instance is replaced.
+  # An InstanceType resize forces instance replacement; with the volume inline,
+  # CloudFormation would provision a brand-new EMPTY data volume and ArangoDB
+  # would come up blank. As a standalone resource with Retain policies, the SAME
+  # volume detaches from the old instance and re-attaches to the new one.
+  #
+  # DeletionPolicy/UpdateReplacePolicy Retain guard against accidental data loss
+  # if the resource is ever deleted or replaced.
+  # ============================================================================
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      Size: !Ref EbsVolumeSize
+      VolumeType: gp3
+      Encrypted: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-arangodb-data'
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================================
   # EC2 Instance
   #
   # Uses the latest Amazon Linux 2023 AMI (resolved at deploy time via SSM).
@@ -299,7 +371,7 @@ Resources:
       # arm64 AMI — matches t4g (Graviton2) instance family.
       # If switching back to t3/x86, change to: al2023-ami-kernel-default-x86_64
       ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}'
-      InstanceType: !Ref InstanceType
+      InstanceType: !FindInMap [EnvironmentSizing, !Ref Environment, InstanceType]
       SubnetId: !Ref ArangoDbSubnetId
       SecurityGroupIds:
         - !Ref ArangoDbSecurityGroupId
@@ -308,19 +380,14 @@ Resources:
         - !Ref InstanceProfile
         - !Ref InstanceProfileArn
       BlockDeviceMappings:
-        # Root volume — OS only
+        # Root volume — OS only. The ArangoDB data volume is a standalone
+        # AWS::EC2::Volume (see DataVolume; attached by UserData) so it
+        # survives instance replacement (e.g. an InstanceType resize).
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 20
             VolumeType: gp3
             DeleteOnTermination: true
-            Encrypted: true
-        # Data volume — ArangoDB data, persisted independently
-        - DeviceName: /dev/xvdb
-          Ebs:
-            VolumeSize: !Ref EbsVolumeSize
-            VolumeType: gp3
-            DeleteOnTermination: false
             Encrypted: true
       UserData:
         Fn::Base64: !Sub |
@@ -342,6 +409,20 @@ Resources:
           yum install -y amazon-cloudwatch-agent
           cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'CWAGENT'
           {
+            "metrics": {
+              "namespace": "CWAgent",
+              "append_dimensions": {
+                "InstanceId": "${!aws:InstanceId}"
+              },
+              "metrics_collected": {
+                "mem": {
+                  "measurement": [
+                    "mem_used_percent"
+                  ],
+                  "metrics_collection_interval": 60
+                }
+              }
+            },
             "logs": {
               "logs_collected": {
                 "files": {
@@ -371,26 +452,99 @@ Resources:
           echo "==> Starting ArangoDB setup $(date)"
 
           # ── 2. Mount EBS data volume ─────────────────────────────────────────
-          DATA_DEVICE=/dev/xvdb
+          # The data volume is a standalone, RETAINED EBS volume attached as
+          # /dev/sdf by the self-attach block above (see DataVolume). It
+          # persists across instance replacement, so on every boot after the very
+          # first it ALREADY contains an XFS filesystem + ArangoDB data. We must
+          # mount it WITHOUT reformatting — a stray mkfs here would wipe the DB.
           DATA_DIR=/var/lib/arangodb3
           APPS_DIR=/var/lib/arangodb3-apps
 
           mkdir -p "$DATA_DIR" "$APPS_DIR"
 
-          # Only format if the device has no filesystem yet (preserves data on restart)
-          if ! blkid "$DATA_DEVICE" | grep -q TYPE; then
-            echo "==> Formatting data volume..."
-            mkfs.xfs "$DATA_DEVICE"
-          else
-            echo "==> Data volume already formatted, skipping mkfs"
+          # Resolve the data device by elimination. On Nitro/Graviton the volume
+          # may present as NVMe (/dev/nvme1n1) regardless of the /dev/sdf request,
+          # so we don't hard-code a name. The root disk is whatever backs "/";
+          # the data volume is the other whole disk. The attachment can lag the
+          # instance boot, so we poll for it.
+          ROOT_DISK=$(lsblk -no pkname "$(findmnt -no SOURCE /)")
+          echo "==> Root disk: $ROOT_DISK"
+
+          # Attach the standalone data volume to THIS instance from UserData.
+          # We can't use a CloudFormation AWS::EC2::VolumeAttachment: it depends on
+          # the instance reaching CREATE_COMPLETE, but our CreationPolicy only
+          # signals success after the volume is mounted -> deadlock. Doing the
+          # attach here also lets us force-detach the volume from a prior instance
+          # during an in-place replacement (e.g. an InstanceType resize), which a
+          # static VolumeAttachment can't coordinate within the same stack update.
+          DATA_VOLUME_ID="${DataVolume}"
+          IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+            -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+          SELF_INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+            http://169.254.169.254/latest/meta-data/instance-id)
+          echo "==> Ensuring data volume $DATA_VOLUME_ID is attached to $SELF_INSTANCE_ID..."
+          for i in $(seq 1 30); do
+            VOL_STATE=$(aws ec2 describe-volumes --volume-ids "$DATA_VOLUME_ID" \
+              --query 'Volumes[0].State' --output text --region "$REGION" 2>/dev/null || echo unknown)
+            ATTACHED_TO=$(aws ec2 describe-volumes --volume-ids "$DATA_VOLUME_ID" \
+              --query 'Volumes[0].Attachments[0].InstanceId' --output text --region "$REGION" 2>/dev/null || echo None)
+            if [ "$ATTACHED_TO" = "$SELF_INSTANCE_ID" ]; then
+              echo "==> Volume attached to this instance (state=$VOL_STATE)"
+              break
+            elif [ "$VOL_STATE" = "available" ]; then
+              echo "==> Volume available; issuing attach..."
+              aws ec2 attach-volume --volume-id "$DATA_VOLUME_ID" \
+                --instance-id "$SELF_INSTANCE_ID" --device /dev/sdf --region "$REGION" || true
+            elif [ "$ATTACHED_TO" != "None" ] && [ -n "$ATTACHED_TO" ]; then
+              echo "==> Volume still attached to prior instance $ATTACHED_TO; force-detaching..."
+              aws ec2 detach-volume --volume-id "$DATA_VOLUME_ID" --force --region "$REGION" || true
+            fi
+            echo "  waiting for attach... attempt $i/30 (state=$VOL_STATE attached_to=$ATTACHED_TO)"
+            sleep 10
+          done
+
+          echo "==> Waiting for data volume to surface as a block device..."
+          DATA_DEVICE=""
+          for i in $(seq 1 30); do
+            # `|| true`: until the volume attaches, grep -v matches nothing and
+            # exits 1, which under `set -e -o pipefail` would abort the script
+            # before this poll loop can retry. Tolerate it and keep polling.
+            DATA_DEVICE=$(lsblk -dpno NAME | grep -v "^/dev/${!ROOT_DISK}$" | head -1 || true)
+            if [ -n "$DATA_DEVICE" ]; then
+              echo "==> Data device found: $DATA_DEVICE (attempt $i)"
+              break
+            fi
+            echo "  waiting for data volume... attempt $i/30"
+            sleep 5
+          done
+
+          if [ -z "$DATA_DEVICE" ]; then
+            echo "ERROR: data volume never appeared as a block device"
+            /opt/aws/bin/cfn-signal -e 1 \
+              --stack "${AWS::StackName}" \
+              --resource ArangoDbInstance \
+              --region "${AWS::Region}"
+            exit 1
           fi
 
-          # Mount (idempotent via fstab)
-          if ! grep -q "$DATA_DEVICE" /etc/fstab; then
-            echo "$DATA_DEVICE $DATA_DIR xfs defaults,nofail 0 2" >> /etc/fstab
+          # Only format if the device has NO filesystem yet. blkid prints a TYPE=
+          # field only when a filesystem (or other signature) is present, so this
+          # guard ensures a populated volume from a prior instance is never wiped.
+          if blkid "$DATA_DEVICE" | grep -q 'TYPE='; then
+            echo "==> Data volume already has a filesystem, skipping mkfs (preserving data)"
+          else
+            echo "==> Data volume is blank (first boot), formatting with XFS..."
+            mkfs.xfs "$DATA_DEVICE"
+          fi
+
+          # Mount by filesystem UUID (stable across reboots / device renaming),
+          # idempotent via fstab.
+          DATA_UUID=$(blkid -s UUID -o value "$DATA_DEVICE")
+          if ! grep -q "$DATA_UUID" /etc/fstab; then
+            echo "UUID=$DATA_UUID $DATA_DIR xfs defaults,nofail 0 2" >> /etc/fstab
           fi
           mount -a
-          echo "==> Data volume mounted at $DATA_DIR"
+          echo "==> Data volume ($DATA_DEVICE, UUID=$DATA_UUID) mounted at $DATA_DIR"
 
           # Set ownership to ArangoDB uid/gid (1000:1000 in official Docker image)
           chown -R 1000:1000 "$DATA_DIR" "$APPS_DIR"
@@ -413,19 +567,48 @@ Resources:
           INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
             http://169.254.169.254/latest/meta-data/instance-id)
 
+          # ── Cache budget (derived from this host's actual RAM) ───────────────
+          # ArangoDB was running starved: column cache DISABLED
+          # (arangodb_search_columns_cache_size = 0), ~512 MiB RocksDB block cache
+          # and ~256 MiB in-RAM cache — so most of the working set lived on EBS
+          # and every restart paid a 2–4.5 s cold-cache window (2026-06-15
+          # postmortem, Springbok-LLC/upptime#2). We size the caches from real RAM
+          # so they scale with the instance type (t4g.medium 4 / m7g.large 8 /
+          # m7g.xlarge 16 GiB) without per-env constants.
+          #
+          # MEM_TOTAL_MIB = physical RAM. We hand ArangoDB ~75% of it via
+          # ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY (leaving ~25%, min 2 GiB, for
+          # the OS + Docker + ArangoSearch query/working memory), then pin the two
+          # big caches explicitly (an explicit value overrides ArangoDB's
+          # memory-derived default):
+          #   --rocksdb.block-cache-size      ≈ 25% of host RAM
+          #   --arangosearch.columns-cache-limit ≈ 12.5% of host RAM (0 = off was the bug)
+          # The in-RAM hash/edge cache (--cache.size) is left at its default,
+          # which ArangoDB derives from the override (~(override-2GiB)*0.25).
+          MEM_TOTAL_MIB=$(free -m | awk '/^Mem:/{print $2}')
+          OS_RESERVE_MIB=$(( MEM_TOTAL_MIB / 4 ))
+          [ "$OS_RESERVE_MIB" -lt 2048 ] && OS_RESERVE_MIB=2048
+          ARANGO_MEM_MIB=$(( MEM_TOTAL_MIB - OS_RESERVE_MIB ))
+          BLOCK_CACHE_BYTES=$(( MEM_TOTAL_MIB / 4 * 1024 * 1024 ))
+          COLUMNS_CACHE_BYTES=$(( MEM_TOTAL_MIB / 8 * 1024 * 1024 ))
+          echo "==> Cache budget: host=${!MEM_TOTAL_MIB}MiB arango_override=${!ARANGO_MEM_MIB}MiB" \
+               "block_cache=${!BLOCK_CACHE_BYTES}B columns_cache=${!COLUMNS_CACHE_BYTES}B"
+
           docker run -d \
             --name arangodb \
             --restart unless-stopped \
             -p 8529:8529 \
             -e ARANGO_ROOT_PASSWORD="$ARANGO_PASSWORD" \
-            -e ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY=3g \
+            -e ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY="${!ARANGO_MEM_MIB}MiB" \
             -v "$DATA_DIR:/var/lib/arangodb3" \
             -v "$APPS_DIR:/var/lib/arangodb3-apps" \
             --log-driver awslogs \
             --log-opt awslogs-region="$REGION" \
             --log-opt awslogs-group="$LOG_GROUP" \
             --log-opt awslogs-stream="arangodb/$INSTANCE_ID" \
-            arangodb:3.12
+            arangodb:3.12 \
+            --rocksdb.block-cache-size "$BLOCK_CACHE_BYTES" \
+            --arangosearch.columns-cache-limit "$COLUMNS_CACHE_BYTES"
 
           # ArangoDB first-boot initialisation (password setup, key generation) can
           # take several minutes. Poll for up to 10 minutes before giving up.
@@ -473,8 +656,16 @@ Resources:
           echo "Dataset bucket:  $ARANGODB_S3_BUCKET"
           echo "Dataset version: $CURRENT_VERSION"
 
+          # On a retained volume that already holds this dataset version (e.g. after
+          # an instance replacement), skip the restore so we don't clobber the live
+          # data — the volume already carries it.
+          RESTORED_MARKER=""
+          [ -f "$DATA_DIR/.dataset-version" ] && RESTORED_MARKER=$(cat "$DATA_DIR/.dataset-version")
+
           if [ "$CURRENT_VERSION" = "none" ] || [ -z "$CURRENT_VERSION" ]; then
             echo "No dataset version configured, skipping restore"
+          elif [ "$CURRENT_VERSION" = "$RESTORED_MARKER" ]; then
+            echo "Dataset version $CURRENT_VERSION already present on volume, skipping restore"
           else
             echo "==> Downloading s3://$ARANGODB_S3_BUCKET/$CURRENT_VERSION"
             aws s3 cp "s3://$ARANGODB_S3_BUCKET/$CURRENT_VERSION" /tmp/restore.tar.gz
@@ -563,6 +754,14 @@ Resources:
           Value: !Sub '${ProjectName}-${Environment}-arangodb'
         - Key: ManagedBy
           Value: CloudFormation
+
+# NOTE: the standalone DataVolume is attached by the instance itself from
+# UserData (see the "Attach the standalone data volume" block). We deliberately
+# do NOT use an AWS::EC2::VolumeAttachment resource here: it would depend on the
+# instance reaching CREATE_COMPLETE, but the instance's CreationPolicy only
+# signals success after the volume is mounted -> a deadlock that times out and
+# rolls back (the original UPDATE_FAILED). Self-attach from UserData also lets us
+# force-detach the volume from a prior instance during an in-place replacement.
 
 Outputs:
   InstanceId:

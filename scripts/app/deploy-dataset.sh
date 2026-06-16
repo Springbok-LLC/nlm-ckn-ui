@@ -28,9 +28,8 @@
 #
 # ENVIRONMENT VARIABLES (optional):
 #   EXPECTED_DBS   Space-separated list of ArangoDB databases verified after
-#                  restore (default: "Cell-KN-Ontologies Cell-KN-Phenotypes
-#                  Cell-KN-Schema"). Override when the schema changes without
-#                  modifying the script.
+#                  restore (default: "Cell-KN-Ontologies Cell-KN-Phenotypes").
+#                  Override when the schema changes without modifying the script.
 #
 # EXAMPLES:
 #   ./scripts/app/deploy-dataset.sh dev
@@ -189,7 +188,7 @@ GREEN_APPS=/var/lib/arangodb3-apps-green
 # Space-separated list of ArangoDB databases that must exist after restore.
 # Override with the EXPECTED_DBS env var when the schema changes rather than
 # editing this default (e.g. export EXPECTED_DBS="DB1 DB2" before running).
-EXPECTED_DBS="${EXPECTED_DBS:-Cell-KN-Ontologies Cell-KN-Phenotypes Cell-KN-Schema}"
+EXPECTED_DBS="${EXPECTED_DBS:-Cell-KN-Ontologies Cell-KN-Phenotypes}"
 
 echo "==> Starting ArangoDB blue-green dataset restore $(date)"
 
@@ -337,9 +336,9 @@ _import_graphs_and_analyzers() {
   local ANALYZER_FILE="$DUMP_DIR/$DB/ckn-analyzers.ndjson"
   if [ -f "$ANALYZER_FILE" ]; then
     echo "  [$DB] Importing analyzers from $ANALYZER_FILE"
-    # Normalize to one compact JSON object per line. jq parses a stream of JSON
-    # values regardless of line breaks, so this handles both true NDJSON and
-    # pretty-printed dumps.
+    # Normalize to one compact JSON object per line. The `if type=="array"`
+    # guard handles dumps that wrap the objects in a single top-level JSON
+    # array, as well as true NDJSON / a stream of pretty-printed objects.
     while IFS= read -r OBJ; do
       [ -z "$OBJ" ] && continue
       # Strip the "DB::" prefix from the analyzer name — ArangoDB re-adds it.
@@ -361,14 +360,15 @@ _import_graphs_and_analyzers() {
         echo "    [analyzer] ERROR: $STRIPPED returned HTTP $HTTP_CODE"
         exit 1
       fi
-    done < <(jq -c '.' "$ANALYZER_FILE")
+    done < <(jq -c 'if type=="array" then .[] else . end' "$ANALYZER_FILE")
   fi
 
   # ── Named graphs ────────────────────────────────────────────────────────────
   local GRAPH_FILE="$DUMP_DIR/$DB/ckn-graphs.ndjson"
   if [ -f "$GRAPH_FILE" ]; then
     echo "  [$DB] Importing named graphs from $GRAPH_FILE"
-    # Normalize to one compact JSON object per line (see analyzer import above).
+    # Normalize to one compact JSON object per line, unwrapping a top-level
+    # array if present (see analyzer import above).
     while IFS= read -r OBJ; do
       [ -z "$OBJ" ] && continue
       local GNAME
@@ -387,7 +387,7 @@ _import_graphs_and_analyzers() {
         echo "    [graph] ERROR: $GNAME returned HTTP $HTTP_CODE"
         exit 1
       fi
-    done < <(jq -c '.' "$GRAPH_FILE")
+    done < <(jq -c 'if type=="array" then .[] else . end' "$GRAPH_FILE")
   fi
 }
 
@@ -431,6 +431,14 @@ if [ "${#MISSING_DBS[@]}" -gt 0 ]; then
 fi
 
 echo "==> arango-green healthy (all expected databases present)"
+
+# Stamp the version marker *inside* green before the swap so it is promoted into
+# the EBS root by the same intra-filesystem rename as the data (line below). That
+# makes "data present" and "marker matches" crash-consistent: there is no window
+# where the new dataset is live but the marker still reads the old version, which
+# would otherwise trigger a needless re-download + arangorestore --overwrite on
+# the next boot (clobbering any in-place writes since this restore).
+echo "$VERSION" > "$GREEN_DATA/.dataset-version"
 
 # ── Swap: blue → green (downtime window starts here) ─────────────────────────
 # /var/lib/arangodb3 is the EBS mount point and cannot be mv'd directly.
@@ -487,7 +495,8 @@ if [ "$SWAP_READY" = "0" ]; then
   exit 1
 fi
 
-echo "$VERSION" > "$DATA_DIR/.dataset-version"
+# Note: the version marker was already written into green before the swap and
+# promoted with the data, so it is in place at "$DATA_DIR/.dataset-version" here.
 
 # ── Clean up ──────────────────────────────────────────────────────────────────
 rm -rf "$DATA_DIR/_blue_backup" "${APPS_DIR}-blue-old" "$DUMP_EXTRACT_DIR"
@@ -606,6 +615,11 @@ while [ "$ELAPSED" -lt "$SSM_TIMEOUT_SECONDS" ]; do
         --query 'Parameter.Value' \
         --output text \
         --region "$AWS_REGION")${NC}"
+      # Smoke test the deployment (advisory — never fails the deploy).
+      echo ""
+      echo -e "${GREEN}==> Running smoke test...${NC}"
+      "$SCRIPT_DIR/../ops/smoke-test.sh" "$ENVIRONMENT" || \
+        echo -e "${YELLOW}==> Smoke test reported failures (non-blocking).${NC}"
       exit 0
       ;;
     Failed|Cancelled|TimedOut|DeliveryTimedOut|ExecutionTimedOut)
