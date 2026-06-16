@@ -39,30 +39,35 @@
 #   CKN_DATASET_VERSION    Active dataset version (object key under the bucket)
 # ==============================================================================
 
+# Helpers print the resolved value (empty if missing/unauthorized) and always
+# return 0, so a failed lookup never trips the caller's `set -e` mid-resolution.
+# `aws ... --output text` prints "None" for a null result; normalize that to "".
+_clean() { [ "$1" = "None" ] && printf '' || printf '%s' "$1"; }
+
 # _cfn_export <export-name>  -> prints the export value (empty if missing)
 _cfn_export() {
-  aws cloudformation list-exports \
+  _clean "$(aws cloudformation list-exports \
     --region "${AWS_REGION:-us-east-1}" \
     --query "Exports[?Name=='$1'].Value" \
-    --output text 2>/dev/null
+    --output text 2>/dev/null || true)"
 }
 
 # _ssm <parameter-name>  -> prints the parameter value (empty if missing)
 _ssm() {
-  aws ssm get-parameter \
+  _clean "$(aws ssm get-parameter \
     --region "${AWS_REGION:-us-east-1}" \
     --name "$1" \
     --query 'Parameter.Value' \
-    --output text 2>/dev/null
+    --output text 2>/dev/null || true)"
 }
 
 # _stack_output <stack-name> <output-key>  -> prints the output value
 _stack_output() {
-  aws cloudformation describe-stacks \
+  _clean "$(aws cloudformation describe-stacks \
     --region "${AWS_REGION:-us-east-1}" \
     --stack-name "$1" \
     --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" \
-    --output text 2>/dev/null
+    --output text 2>/dev/null || true)"
 }
 
 resolve_env() {
@@ -91,9 +96,13 @@ resolve_env() {
       else
         local btg
         btg=$(_cfn_export "cell-kn-sandbox-backend-tg-arn")
-        CKN_BACKEND_INSTANCE_ID=$([ -n "$btg" ] && aws elbv2 describe-target-health \
-          --region "${AWS_REGION:-us-east-1}" --target-group-arn "$btg" \
-          --query 'TargetHealthDescriptions[0].Target.Id' --output text 2>/dev/null)
+        if [ -n "$btg" ]; then
+          CKN_BACKEND_INSTANCE_ID=$(_clean "$(aws elbv2 describe-target-health \
+            --region "${AWS_REGION:-us-east-1}" --target-group-arn "$btg" \
+            --query 'TargetHealthDescriptions[0].Target.Id' --output text 2>/dev/null || true)")
+        else
+          CKN_BACKEND_INSTANCE_ID=""
+        fi
       fi
       CKN_BACKEND_URL=$(_cfn_export "cell-kn-sandbox-backend-url")
       CKN_ARANGO_INSTANCE_ID=$(_cfn_export "cell-kn-dev-arangodb-instance-id")
@@ -114,7 +123,7 @@ resolve_env() {
       local ver_param
       ver_param=$(_stack_output "${p}-${env}-arangodb" "DatasetVersionParameter")
       CKN_ARANGO_BUCKET=$(_ssm "/${p}/shared/arangodb-bucket-name")
-      CKN_DATASET_VERSION=$([ -n "$ver_param" ] && _ssm "$ver_param")
+      if [ -n "$ver_param" ]; then CKN_DATASET_VERSION=$(_ssm "$ver_param"); else CKN_DATASET_VERSION=""; fi
       ;;
     *)
       echo "resolve_env: unknown environment '$env' (expected dev|stage|prod|sandbox)" >&2
