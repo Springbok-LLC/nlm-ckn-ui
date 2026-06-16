@@ -254,6 +254,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - elasticloadbalancing:RegisterTargets
+                  - elasticloadbalancing:DeregisterTargets
                   - elasticloadbalancing:DescribeTargetGroups
                   - cloudformation:ListExports
                 Resource: '*'
