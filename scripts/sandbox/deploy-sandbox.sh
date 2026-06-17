@@ -14,7 +14,7 @@
 # resolve-env.sh rather than from stack names.
 #
 # USAGE:
-#   AWS_PROFILE=nlmsandbox ./scripts/app/deploy-sandbox.sh [frontend|backend|all]
+#   AWS_PROFILE=nlmsandbox ./scripts/sandbox/deploy-sandbox.sh [frontend|backend|all]
 #     (default target: all)
 #
 # In CI the AWS creds come from the environment; locally set AWS_PROFILE=nlmsandbox.
@@ -194,25 +194,64 @@ REMOTE_EOF
 
 # ── Dataset ──────────────────────────────────────────────────────────────────
 # Runs the shared blue-green ArangoDB restore (arango-restore-remote.sh.tmpl) on
-# the sandbox arango host via SSM, pointing it at the sandbox SSM/secret paths.
+# the sandbox arango host via SSM.
+#
+# The dataset is taken from ETL_VERSION (repo root), which selects the standard
+# S3 key format: runs/<ETL_VERSION>/06-golden-dump.tar.gz. This matches the
+# structure produced by the ETL pipeline and consumed by deploy-dataset.sh.
+# The sandbox SSM version parameter is updated before the restore runs so the
+# on-host idempotency check (skip if already on version) works correctly.
+#
 # Set FORCE=true to re-restore even if the host already reports the target version.
 deploy_dataset() {
   echo -e "${GREEN}==> Dataset (blue-green restore via SSM)${NC}"
   : "${CKN_ARANGO_INSTANCE_ID:?Could not resolve arango instance (cell-kn-dev-arangodb-instance-id export)}"
+
+  # Resolve ETL_VERSION from the repo root (same source as deploy-dataset.sh).
+  local etl_version_file="$REPO_ROOT/ETL_VERSION"
+  if [ ! -f "$etl_version_file" ]; then
+    echo -e "${RED}Error: ETL_VERSION file not found at $etl_version_file${NC}"; exit 1
+  fi
+  local etl_version
+  etl_version=$(tr -d '[:space:]' < "$etl_version_file")
+  if [ -z "$etl_version" ]; then
+    echo -e "${RED}Error: ETL_VERSION file is empty${NC}"; exit 1
+  fi
+
+  # Standard S3 key format produced by the ETL pipeline.
+  local dataset_s3_key="runs/${etl_version}/06-golden-dump.tar.gz"
+  local dataset_bucket="cell-kn-arangodb-data-952291113202"
+  local version_param="/platform/cell-kn/arango/pDatasetVersion"
+
   echo "  Arango instance: $CKN_ARANGO_INSTANCE_ID"
-  echo "  Arango bucket:   ${CKN_ARANGO_BUCKET:-(from SSM on host)}"
-  echo "  Dataset version: ${CKN_DATASET_VERSION:-(from SSM on host)}"
+  echo "  ETL version:     $etl_version"
+  echo "  S3 key:          s3://${dataset_bucket}/${dataset_s3_key}"
+
+  # Validate the dataset exists in S3 before touching anything.
+  if ! aws s3 ls "s3://${dataset_bucket}/${dataset_s3_key}" --region "$AWS_REGION" > /dev/null 2>&1; then
+    echo -e "${RED}Error: Dataset not found: s3://${dataset_bucket}/${dataset_s3_key}${NC}"
+    echo "Available versions:"
+    aws s3 ls "s3://${dataset_bucket}/runs/" --region "$AWS_REGION" | awk '{print $2}'
+    exit 1
+  fi
+
+  # Update the SSM version parameter so the on-host idempotency check and the
+  # marker written after restore both reflect the correct key.
+  echo "  Updating SSM ${version_param} → ${dataset_s3_key}"
+  aws ssm put-parameter \
+    --name "$version_param" \
+    --value "$dataset_s3_key" \
+    --overwrite \
+    --region "$AWS_REGION" > /dev/null
 
   local restore_tmp
   restore_tmp=$(mktemp /tmp/arango-restore-XXXXXX.sh)
   trap 'rm -f "$restore_tmp"' RETURN
-  # Sandbox parameter/secret paths (bucket & version differ from the cell-kn-<env>
-  # convention; the arango password secret follows it).
   sed \
     -e "s|__AWS_REGION__|${AWS_REGION}|g" \
     -e "s|__FORCE__|${FORCE:-false}|g" \
     -e "s|__BUCKET_PARAM__|/platform/cell-kn/arango/pArangodbBucketName|g" \
-    -e "s|__VERSION_PARAM__|/platform/cell-kn/arango/pDatasetVersion|g" \
+    -e "s|__VERSION_PARAM__|${version_param}|g" \
     -e "s|__PASSWORD_SECRET__|/cell-kn/sandbox/secrets/arangodb-password|g" \
     "$SCRIPT_DIR/arango-restore-remote.sh.tmpl" > "$restore_tmp"
 

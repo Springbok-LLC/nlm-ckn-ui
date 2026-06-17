@@ -20,7 +20,7 @@
 #   echo "$CKN_FRONTEND_BUCKET"
 #
 # USAGE (inspect):
-#   ./scripts/app/resolve-env.sh <environment>     # prints the resolved table
+#   ./scripts/sandbox/resolve-env.sh <environment>     # prints the resolved table
 #
 # Honors AWS_PROFILE / AWS_REGION from the environment (set AWS_PROFILE=nlmsandbox
 # for local sandbox access; in CI the creds come from the environment directly).
@@ -94,8 +94,13 @@ resolve_env() {
       if [ -n "${CKN_BACKEND_INSTANCE_ID:-}" ]; then
         : # honor caller-provided override
       else
+        # The ALB forwards to the "-tg-80" target group (the one with the
+        # backend instance registered). An older "cell-kn-sandbox-backend-tg"
+        # export points at an empty target group, so prefer "-tg-80-arn" and
+        # only fall back to the legacy name.
         local btg
-        btg=$(_cfn_export "cell-kn-sandbox-backend-tg-arn")
+        btg=$(_cfn_export "cell-kn-sandbox-backend-tg-80-arn")
+        [ -z "$btg" ] && btg=$(_cfn_export "cell-kn-sandbox-backend-tg-arn")
         if [ -n "$btg" ]; then
           CKN_BACKEND_INSTANCE_ID=$(_clean "$(aws elbv2 describe-target-health \
             --region "${AWS_REGION:-us-east-1}" --target-group-arn "$btg" \

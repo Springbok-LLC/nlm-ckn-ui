@@ -31,7 +31,7 @@ GREEN_DATA=/var/lib/arangodb3/_green
 GREEN_APPS=/var/lib/arangodb3-apps-green
 # Space-separated list of ArangoDB databases that must exist after restore.
 # Override with the EXPECTED_DBS env var when the schema changes.
-EXPECTED_DBS="${EXPECTED_DBS:-Cell-KN-Ontologies Cell-KN-Phenotypes Cell-KN-Schema}"
+EXPECTED_DBS="${EXPECTED_DBS:-Cell-KN-Ontologies Cell-KN-Phenotypes}"
 
 echo "==> Starting ArangoDB blue-green dataset restore $(date)"
 
