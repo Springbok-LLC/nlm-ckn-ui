@@ -282,6 +282,15 @@ function ForceGraphConstructor(
   // attachment itself (to gate pointerdown).
   let lassoEnabled = false;
 
+  // Refresh the .pinned class on every node group from each node's userPinned
+  // field. State lives on the node objects themselves (processGraphData
+  // preserves it by reference across rebuilds), so this is a pure read —
+  // no auxiliary set to keep in sync. Called after public state-changing
+  // operations (setNodePinned, unpinAll) and after every renderGraph.
+  const applyPinnedHighlight = () => {
+    nodeContainer.selectAll("g.node").classed("pinned", (d) => !!d.userPinned);
+  };
+
   // The current set of lasso-selected node IDs. Used by renderGraph to apply
   // the .selected class on the parent <g> and by the drag handler to detect
   // group-drag mode. Updated via the public setSelectedNodeIds method.
@@ -991,6 +1000,25 @@ function ForceGraphConstructor(
     // Reads the current selection. Returns a copy so callers can't mutate
     // the internal Set used by the drag handler and applySelectionHighlight.
     getSelectedNodeIds: () => new Set(currentSelectedNodeIds),
+    // Sets or clears a user-pin on a node by id. When pinned, the node's
+    // current x/y become fx/fy and userPinned=true, so the incremental-expand
+    // auto-release skips it. When unpinned, fx/fy are cleared and the node
+    // re-joins the live simulation. Refreshes the visible pin marker.
+    setNodePinned: (nodeId, pinned) => {
+      const node = simulation.nodes().find((n) => n.id === nodeId);
+      if (!node) return;
+      if (pinned) {
+        node.fx = node.x;
+        node.fy = node.y;
+        node.userPinned = true;
+      } else {
+        node.fx = null;
+        node.fy = null;
+        node.userPinned = false;
+        delete node._autoPinned;
+      }
+      applyPinnedHighlight();
+    },
     // Returns the current node/link state suitable for saving.
     getCurrentGraph: () => {
       const finalNodes = processedNodes.map(({ x, y, index, vx, vy, ...rest }) => ({

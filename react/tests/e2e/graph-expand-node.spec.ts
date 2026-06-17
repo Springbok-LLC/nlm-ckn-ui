@@ -424,3 +424,98 @@ test("Expanding a node preserves the positions of pre-existing nodes", async ({ 
 
   expect(filterErrorsContaining(await getCollectedErrors(page), "split").length).toBe(0);
 });
+
+// Pin/Unpin action: right-click a node, choose Pin, confirm the pin marker
+// renders and the node carries the .pinned class. Re-right-clicking shows
+// "Unpin"; clicking it removes the marker and class.
+test("Pin/Unpin action toggles the pin marker on a node", async ({ page }) => {
+  await installErrorInstrumentation(page);
+
+  const originId = `${COLL}/ROOT`;
+
+  await page.route("**/arango_api/collections/", async (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([COLL]),
+      });
+    }
+    return route.continue();
+  });
+  await page.route("**/arango_api/edge_filter_options/", async (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ Label: { type: "categorical", values: ["has_child"] } }),
+      });
+    }
+    return route.continue();
+  });
+  await page.route("**/arango_api/graph/", async (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(buildInitialGraph(originId)),
+      });
+    }
+    return route.continue();
+  });
+  await page.route("**/arango_api/document/details", async (route) => {
+    if (route.request().method() === "POST") {
+      const req = await route.request().postDataJSON();
+      const ids: string[] = req.document_ids || [];
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(ids.map((id) => ({ _id: id, label: id.split("/")[1] }))),
+      });
+    }
+    return route.continue();
+  });
+
+  await page.addInitScript((origin) => {
+    const persistedRoot = {
+      nodesSlice: JSON.stringify({ originNodeIds: [origin] }),
+      savedGraphs: JSON.stringify({ graphs: [] }),
+      _persist: JSON.stringify({ version: -1, rehydrated: true }),
+    };
+    localStorage.setItem("persist:root", JSON.stringify(persistedRoot));
+  }, originId);
+
+  await page.goto("/#/graph");
+  await page.locator(".selected-items-container").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: /Generate Graph|Update Graph/i }).click();
+
+  const svg = page.locator("#chart-container-wrapper svg");
+  await expect(svg).toBeVisible();
+  await expect(svg).toHaveAttribute("data-sim-settled", "true", { timeout: 10000 });
+
+  const rootNode = page.locator("g.node").filter({ hasText: "Root" }).first();
+  await rootNode.waitFor({ state: "visible" });
+
+  // No pin to begin with.
+  await expect(rootNode).not.toHaveClass(/pinned/);
+
+  // Right-click → Pin.
+  let popup = await openNodeContextMenu(page, rootNode);
+  await expect(popup.getByRole("button", { name: "Pin", exact: true })).toBeVisible();
+  await popup.getByRole("button", { name: "Pin", exact: true }).click();
+  await expect(popup).toBeHidden({ timeout: 3000 });
+
+  // Node should now carry the .pinned class so the marker renders.
+  await expect(rootNode).toHaveClass(/pinned/);
+
+  // Re-right-click → button now reads "Unpin".
+  popup = await openNodeContextMenu(page, rootNode);
+  await expect(popup.getByRole("button", { name: "Unpin", exact: true })).toBeVisible();
+  await popup.getByRole("button", { name: "Unpin", exact: true }).click();
+  await expect(popup).toBeHidden({ timeout: 3000 });
+
+  // .pinned should be gone.
+  await expect(rootNode).not.toHaveClass(/pinned/);
+
+  expect(filterErrorsContaining(await getCollectedErrors(page), "split").length).toBe(0);
+});

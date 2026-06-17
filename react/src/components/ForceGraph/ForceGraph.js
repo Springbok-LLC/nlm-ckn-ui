@@ -132,6 +132,10 @@ const ForceGraph = ({
     isEdge: false,
     nodeId: null,
     nodeLabel: null,
+    // Whether the right-clicked node is currently user-pinned. Drives the
+    // Pin/Unpin button label inside the context menu. Sourced from the live
+    // simulation node at handleNodeClick time.
+    userPinned: false,
     position: { x: 0, y: 0 },
   });
   const [collectionMenu, setCollectionMenu] = useState({
@@ -353,6 +357,10 @@ const ForceGraph = ({
       nodeId: nodeData._id,
       nodeLabel: getLabel(nodeData),
       isEdge: nodeData._id.split("/")[0].includes("-"),
+      // nodeData is the live D3 simulation node — userPinned is set on it by
+      // drag-end and setNodePinned and survives merges (preserved by ref in
+      // processGraphData).
+      userPinned: !!nodeData.userPinned,
       position: { x, y },
     });
   };
@@ -861,6 +869,23 @@ const ForceGraph = ({
     }
   };
 
+  // Toggle the right-clicked node's user-pin. setNodePinned mutates the live
+  // simulation node (fx/fy + userPinned). We mirror the change to Redux via
+  // updateNodePosition so the store reflects pin state and survives a
+  // constructor remount (saved graphs read back the field via the same merge).
+  const handlePinToggle = () => {
+    if (!popup.nodeId) return;
+    const newPinned = !popup.userPinned;
+    const node = graphData.nodes.find((n) => n.id === popup.nodeId);
+    if (!node) return;
+    graphInstanceRef.current?.setNodePinned(popup.nodeId, newPinned);
+    dispatch({
+      type: "graph/updateNodePosition",
+      payload: { nodeId: popup.nodeId, x: node.x, y: node.y, userPinned: newPinned },
+    });
+    handlePopupClose();
+  };
+
   const handleCollapse = () => {
     if (!popup.nodeId) return;
     dispatch(collapseNode(popup.nodeId));
@@ -1094,6 +1119,14 @@ const ForceGraph = ({
                 ))}
             </div>
           )}
+          <button
+            type="button"
+            className="document-popup-button"
+            onClick={handlePinToggle}
+            style={{ display: !popup.isEdge ? "block" : "none" }}
+          >
+            {popup.userPinned ? "Unpin" : "Pin"}
+          </button>
           <button
             type="button"
             className="document-popup-button"
