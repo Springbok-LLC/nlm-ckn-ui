@@ -283,8 +283,13 @@ const ForceGraph = ({
 
   // --- Event Handlers ---
   const handleNodeDragEnd = useCallback(
-    ({ nodeId, x, y }) => {
-      dispatch({ type: "graph/updateNodePosition", payload: { nodeId, x, y } });
+    ({ nodeId, x, y, userPinned }) => {
+      // userPinned is set by the constructor's drag-end handler so the
+      // store mirrors the pin state set in-memory on the simulation node.
+      dispatch({
+        type: "graph/updateNodePosition",
+        payload: { nodeId, x, y, userPinned },
+      });
     },
     [dispatch],
   );

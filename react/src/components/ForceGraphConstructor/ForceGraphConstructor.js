@@ -66,6 +66,8 @@ function ForceGraphConstructor(
           snapshot.set(id, { node, startX: node.x, startY: node.y });
           node.fx = node.x;
           node.fy = node.y;
+          // Mark as user-set so the incremental-expand auto-release skips it.
+          node.userPinned = true;
         }
         groupDragSnapshot = {
           subjectId: event.subject.id,
@@ -113,7 +115,9 @@ function ForceGraphConstructor(
             // click on a selected node).
             node.x = node.fx;
             node.y = node.fy;
-            positions.push({ nodeId: id, x: node.fx, y: node.fy });
+            // userPinned was set in the drag-start snapshot loop above; mirror
+            // it onto the Redux payload so the store reflects the pin.
+            positions.push({ nodeId: id, x: node.fx, y: node.fy, userPinned: true });
           }
           mergedOptions.onMultiNodeDragEnd?.(positions);
           groupDragSnapshot = null;
@@ -127,11 +131,13 @@ function ForceGraphConstructor(
 
         if (!event.active) simulation.alphaTarget(0);
         // Pin the node at the dropped position so it stays put while the
-        // simulation continues to settle the rest of the graph. The post-rebuild
-        // unpin loop in updateGraph (and restoreGraph) is the existing release
-        // path — rebuilding the graph clears all pins.
+        // simulation continues to settle the rest of the graph. Mark as a
+        // user-set pin so the incremental-expand auto-release loop in
+        // updateGraph (and the post-load release in restoreGraph) leaves it
+        // alone — only auto-set pins are cleared after settle.
         event.subject.fx = event.x;
         event.subject.fy = event.y;
+        event.subject.userPinned = true;
         // Emit the same coords we just pinned (event.x/y), not
         // event.subject.x/y — the latter is the simulation's last-tick
         // position and can lag by a frame, so subscribers (e.g., Redux
@@ -140,6 +146,7 @@ function ForceGraphConstructor(
           nodeId: event.subject.id,
           x: event.x,
           y: event.y,
+          userPinned: true,
         });
       } finally {
         // Decrement after the dispatch so any synchronous subscriber observes
@@ -196,6 +203,11 @@ function ForceGraphConstructor(
   });
 
   // Select and configure SVG element.
+  // data-sim-settled is a deterministic sentinel for Playwright: "true" means
+  // the simulation has cooled and rendered positions are stable; "false" means
+  // a layout pass is in flight. Tests gate assertions on
+  // svg[data-sim-settled="true"] rather than fixed timeouts. Initialized true
+  // because an empty graph has nothing to settle.
   const svg = d3
     .select(svgElement)
     .attr("width", mergedOptions.width)
@@ -206,7 +218,8 @@ function ForceGraphConstructor(
       mergedOptions.width,
       mergedOptions.height,
     ])
-    .attr("style", "width: 100%; height: 100%;");
+    .attr("style", "width: 100%; height: 100%;")
+    .attr("data-sim-settled", "true");
 
   const g = svg.append("g");
 
@@ -618,6 +631,7 @@ function ForceGraphConstructor(
   // Rebuilds graph from a saved state object.
   // Fixes node positions initially to prevent simulation drift on restore.
   function restoreGraph({ nodes, links, labelStates }) {
+    svg.attr("data-sim-settled", "false");
     // Invalidate any in-flight waitForAlpha promises from prior updateGraph
     // calls — without this, a callback resolving after restoreGraph would
     // call onSimulationEnd with stale `processedNodes` and dispatch
@@ -689,6 +703,9 @@ function ForceGraphConstructor(
 
     // Use the zoom-aware function to set initial label visibility.
     updateLabelVisibilityOnZoom(d3.zoomTransform(svg.node()).k);
+
+    // Restore is a single-tick draw, so positions are stable immediately.
+    svg.attr("data-sim-settled", "true");
   }
 
   // Restore force strengths and apply the current layout mode.
@@ -725,6 +742,9 @@ function ForceGraphConstructor(
     save = true,
     labelStates = mergedOptions.initialLabelStates,
   } = {}) {
+    // Mark the sim as unsettled for the duration of this rebuild — tests gate
+    // on this attribute to avoid racing the alpha cooldown.
+    svg.attr("data-sim-settled", "false");
     if (resetData) {
       resetGraph();
     }
@@ -735,6 +755,12 @@ function ForceGraphConstructor(
     if (mergedOptions.useFocusNodes && newOriginNodeIds.length > 0) {
       mergedOptions.originNodeIds = newOriginNodeIds;
     }
+
+    // Snapshot the IDs of nodes that exist BEFORE the merge. Used after the
+    // merge to auto-pin pre-existing nodes during the post-expand reheat so
+    // the existing layout stays put while only the new nodes flow in
+    // ("preserve mental map" / incremental layout). Released after settle.
+    const prevNodeIds = new Set(processedNodes.map((n) => n.id));
 
     // Process and merge new data into internal state.
     processedNodes = processGraphData(
@@ -781,6 +807,23 @@ function ForceGraphConstructor(
     simulation.nodes(processedNodes);
     forceLink.links(processedLinks);
 
+    // Auto-pin pre-existing nodes before the simulation reheats so their
+    // positions stay put during the new-node settle. Skip nodes the user has
+    // explicitly pinned (drag-end, Pin action) — those carry their own fx/fy
+    // and userPinned=true; we leave them alone. Mark our own auto-pins with
+    // _autoPinned so the post-settle release loop only touches what we set.
+    // Skipped entirely on resetData (no pre-existing nodes to preserve).
+    if (!resetData) {
+      for (const node of processedNodes) {
+        if (!prevNodeIds.has(node.id)) continue;
+        if (node.userPinned) continue;
+        if (node.fx != null || node.fy != null) continue;
+        node.fx = node.x;
+        node.fy = node.y;
+        node._autoPinned = true;
+      }
+    }
+
     // Re-render DOM with updated data.
     renderGraph(
       simulation,
@@ -818,7 +861,18 @@ function ForceGraphConstructor(
     if (currentLayoutMode && currentLayoutMode !== "force") {
       isLiveSimulationRunning = false;
       applyCurrentLayoutMode(() => {
+        // Release auto-pins set above so subsequent interactions (drag,
+        // simulation toggle) can move pre-existing nodes again. User-pinned
+        // nodes are untouched.
+        for (const node of processedNodes) {
+          if (node._autoPinned) {
+            node.fx = null;
+            node.fy = null;
+            delete node._autoPinned;
+          }
+        }
         updateLabelVisibilityOnZoom(d3.zoomTransform(svg.node()).k);
+        svg.attr("data-sim-settled", "true");
         if (save === true && typeof mergedOptions.onSimulationEnd === "function") {
           const finalNodes = processedNodes.map(({ x, y, index, vx, vy, ...rest }) => ({
             x,
@@ -858,6 +912,18 @@ function ForceGraphConstructor(
       // Ensure the live simulation flag is reset after auto-stabilization.
       isLiveSimulationRunning = false;
 
+      // Release the auto-pins we set before the reheat. Leave user-pinned
+      // nodes' fx/fy intact so an explicit Pin (or drag-end pin) survives.
+      // runSimulation(false) already drained alpha to 0; no further tick is
+      // needed — the rendered positions are the visible ones.
+      for (const node of processedNodes) {
+        if (node._autoPinned) {
+          node.fx = null;
+          node.fy = null;
+          delete node._autoPinned;
+        }
+      }
+
       // Perform post-simulation actions.
       if (centerNodeId) {
         centerOnNode(centerNodeId);
@@ -865,6 +931,9 @@ function ForceGraphConstructor(
 
       // Use the zoom-aware function to set final label visibility.
       updateLabelVisibilityOnZoom(d3.zoomTransform(svg.node()).k);
+
+      // Signal to tests that the rendered positions are now stable.
+      svg.attr("data-sim-settled", "true");
 
       // Save final state if required.
       if (save === true && typeof mergedOptions.onSimulationEnd === "function") {

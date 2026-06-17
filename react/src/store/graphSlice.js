@@ -295,12 +295,20 @@ const graphSlice = createSlice({
       state.lastActionType = "setEdgeFilters";
     },
     // Updates a node's position, typically after user drag.
+    // If userPinned is supplied (drag-end, Pin/Unpin actions), copy it onto
+    // the node so pin state survives subsequent updateGraph rebuilds — the
+    // existing-node-merge in processGraphData preserves it by reference, but
+    // the Redux record needs the flag too so a fresh constructor (e.g. after
+    // remount) re-hydrates with the correct pin state.
     updateNodePosition: (state, action) => {
-      const { nodeId, x, y } = action.payload;
+      const { nodeId, x, y, userPinned } = action.payload;
       const nodeToUpdate = state.graphData.nodes.find((n) => n.id === nodeId);
       if (nodeToUpdate) {
         nodeToUpdate.x = x;
         nodeToUpdate.y = y;
+        if (userPinned !== undefined) {
+          nodeToUpdate.userPinned = userPinned;
+        }
       }
       state.lastActionType = "updateNodePosition";
     },
@@ -416,7 +424,8 @@ const graphSlice = createSlice({
       state.lastActionType = "collapseNodes";
     },
     // Bulk version of updateNodePosition: commits final positions for many
-    // nodes after a group drag in a single dispatch.
+    // nodes after a group drag in a single dispatch. Each entry may include
+    // userPinned; copied onto the matching node when present.
     updateNodePositions: (state, action) => {
       const positions = action.payload || [];
       const byId = new Map(positions.map((p) => [p.nodeId, p]));
@@ -425,6 +434,9 @@ const graphSlice = createSlice({
         if (next) {
           node.x = next.x;
           node.y = next.y;
+          if (next.userPinned !== undefined) {
+            node.userPinned = next.userPinned;
+          }
         }
       }
       state.lastActionType = "updateNodePositions";
