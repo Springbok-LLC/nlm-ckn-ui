@@ -1019,6 +1019,39 @@ function ForceGraphConstructor(
       }
       applyPinnedHighlight();
     },
+    // Clears every user-pin and reheats the simulation so the layout relaxes
+    // from its current positions. Used by the "Reset positions" settings
+    // button — analogous to Restart Simulation but also releases pin state.
+    // The existing waitForAlpha callback handles the re-cool + the
+    // data-sim-settled sentinel flip.
+    unpinAll: () => {
+      for (const node of simulation.nodes()) {
+        node.fx = null;
+        node.fy = null;
+        node.userPinned = false;
+        delete node._autoPinned;
+      }
+      applyPinnedHighlight();
+      svg.attr("data-sim-settled", "false");
+      runSimulation(
+        true,
+        simulation,
+        forceNode,
+        forceCenter,
+        forceLink,
+        processedLinks,
+        mergedOptions.nodeForceStrength,
+        mergedOptions.centerForceStrength,
+        linkForceStrength,
+      );
+      const threshold = Math.max(1 / (processedNodes.length || 1), 0.002);
+      waitForAlpha(simulation, threshold, simulationGeneration).then((stillValid) => {
+        if (!stillValid) return;
+        runSimulation(false, simulation, forceNode, forceCenter, forceLink);
+        updateLabelVisibilityOnZoom(d3.zoomTransform(svg.node()).k);
+        svg.attr("data-sim-settled", "true");
+      });
+    },
     // Returns the current node/link state suitable for saving.
     getCurrentGraph: () => {
       const finalNodes = processedNodes.map(({ x, y, index, vx, vy, ...rest }) => ({

@@ -10,6 +10,7 @@ import { ActionCreators } from "redux-undo";
 import { fetchNeighborCollections } from "services";
 import {
   addToLassoSelection,
+  clearAllPins,
   clearGraphData,
   clearLassoSelection,
   clearNodeToCenter,
@@ -789,6 +790,15 @@ const ForceGraph = ({
     graphInstanceRef.current?.setLayoutMode(settings.layoutMode || "force", settings.labelStates);
   };
 
+  // Reset positions: clear every user-pin (live D3 + Redux) and reheat the
+  // simulation so the layout relaxes from current positions. Companion to
+  // Restart Simulation. The constructor's unpinAll handles the data-sim-settled
+  // sentinel + reheat lifecycle.
+  const handleResetPositions = () => {
+    graphInstanceRef.current?.unpinAll?.();
+    dispatch(clearAllPins());
+  };
+
   // --- Popup Handlers ---
   const handleExpand = () => {
     if (!popup.nodeId) return;
@@ -1276,6 +1286,7 @@ const ForceGraph = ({
                       dispatch(updateSetting({ setting: "layoutMode", value: e.target.value }))
                     }
                     onSimulationRestart={handleSimulationRestart}
+                    onResetPositions={handleResetPositions}
                   />
                 )}
                 {activeSecondaryTab === "filters" && (

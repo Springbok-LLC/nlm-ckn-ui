@@ -448,6 +448,18 @@ const graphSlice = createSlice({
         state.settings = state.lastAppliedSettings;
       }
     },
+    // Releases every user-pin in graphData. Companion to the constructor's
+    // unpinAll() — the constructor handles the live D3 nodes; this keeps
+    // Redux in sync so a constructor remount (or future setGraphData
+    // dispatch) doesn't re-pin nodes that the user just released.
+    // Intentionally not added to the redux-undo filter — "Reset positions"
+    // is a layout operation, not a topology change, like Restart Simulation.
+    clearAllPins: (state) => {
+      for (const node of state.graphData.nodes) {
+        node.userPinned = false;
+      }
+      state.lastActionType = "clearAllPins";
+    },
   },
   // Reducers for handling async thunk lifecycle actions.
   extraReducers: (builder) => {
@@ -567,6 +579,7 @@ export const {
   addToLassoSelection,
   clearLassoSelection,
   syncSettingsToLastApplied,
+  clearAllPins,
 } = graphSlice.actions;
 
 // Wrap base reducer with redux-undo.

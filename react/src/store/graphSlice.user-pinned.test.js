@@ -7,7 +7,13 @@ jest.mock("../services", () => ({
 }));
 
 const slice = require("./graphSlice");
-const { default: graphReducer, setGraphData, updateNodePosition, updateNodePositions } = slice;
+const {
+  default: graphReducer,
+  clearAllPins,
+  setGraphData,
+  updateNodePosition,
+  updateNodePositions,
+} = slice;
 
 const makeStore = () => configureStore({ reducer: { graph: graphReducer } });
 const present = (store) => store.getState().graph.present;
@@ -118,5 +124,36 @@ describe("updateNodePositions (bulk) propagates userPinned per entry", () => {
     seed(store);
     expect(() => store.dispatch(updateNodePositions([]))).not.toThrow();
     expect(() => store.dispatch(updateNodePositions())).not.toThrow();
+  });
+});
+
+describe("clearAllPins clears userPinned across every node", () => {
+  it("flips userPinned to false on every node, leaves x/y untouched", () => {
+    const store = makeStore();
+    seed(store);
+
+    // Pin two of the three.
+    store.dispatch(updateNodePosition({ nodeId: "a", x: 0, y: 0, userPinned: true }));
+    store.dispatch(updateNodePosition({ nodeId: "b", x: 10, y: 10, userPinned: true }));
+    expect(findNode(store, "a").userPinned).toBe(true);
+    expect(findNode(store, "b").userPinned).toBe(true);
+
+    const beforePositions = present(store).graphData.nodes.map((n) => ({
+      id: n.id,
+      x: n.x,
+      y: n.y,
+    }));
+
+    store.dispatch(clearAllPins());
+
+    for (const node of present(store).graphData.nodes) {
+      expect(node.userPinned).toBe(false);
+    }
+    const afterPositions = present(store).graphData.nodes.map((n) => ({
+      id: n.id,
+      x: n.x,
+      y: n.y,
+    }));
+    expect(afterPositions).toEqual(beforePositions);
   });
 });
