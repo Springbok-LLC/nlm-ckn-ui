@@ -704,8 +704,14 @@ function ForceGraphConstructor(
     simulation.alpha(0);
     ticked();
 
-    // Unfix node positions to allow interaction.
+    // Unfix node positions to allow interaction — except for nodes the user
+    // explicitly pinned before saving. Honoring userPinned here is what makes
+    // pin state survive save/load: getCurrentGraph spreads ...rest so
+    // userPinned/fx/fy ride along in the saved payload; loadGraph assigns
+    // graphData verbatim; renderGraph's merged classed("pinned", ...) makes
+    // the marker reappear automatically.
     for (const node of processedNodes) {
+      if (node.userPinned) continue;
       node.fx = null;
       node.fy = null;
     }
