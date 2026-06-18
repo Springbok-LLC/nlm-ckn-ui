@@ -61,9 +61,7 @@ echo -e "${BLUE}========================================${NC}\n"
 
 # Deploy backend
 echo -e "${GREEN}Step 1/3: Deploying Backend...${NC}"
-$SCRIPT_DIR/deploy-backend.sh "$ENVIRONMENT"
-
-if [ $? -ne 0 ]; then
+if ! "$SCRIPT_DIR/deploy-backend.sh" "$ENVIRONMENT"; then
     echo -e "${RED}Backend deployment failed. Aborting.${NC}"
     exit 1
 fi
@@ -72,9 +70,7 @@ echo -e "\n${BLUE}----------------------------------------${NC}\n"
 
 # Deploy frontend
 echo -e "${GREEN}Step 2/3: Deploying Frontend...${NC}"
-$SCRIPT_DIR/deploy-frontend.sh "$ENVIRONMENT"
-
-if [ $? -ne 0 ]; then
+if ! "$SCRIPT_DIR/deploy-frontend.sh" "$ENVIRONMENT"; then
     echo -e "${RED}Frontend deployment failed.${NC}"
     exit 1
 fi
@@ -83,9 +79,7 @@ echo -e "\n${BLUE}----------------------------------------${NC}\n"
 
 # Deploy dataset
 echo -e "${GREEN}Step 3/3: Deploying Dataset...${NC}"
-$SCRIPT_DIR/deploy-dataset.sh "$ENVIRONMENT"
-
-if [ $? -ne 0 ]; then
+if ! "$SCRIPT_DIR/deploy-dataset.sh" "$ENVIRONMENT"; then
     echo -e "${RED}Dataset deployment failed.${NC}"
     exit 1
 fi

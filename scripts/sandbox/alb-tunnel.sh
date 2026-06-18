@@ -153,15 +153,21 @@ echo "  Jump host: $INSTANCE_ID ($JUMP_IP)"
 # --- 3. Temporarily authorize the jump host on the ALB SG ---------------------
 echo ""
 echo "==> Authorizing ${JUMP_IP}/32 on ${SG_ID}:${REMOTE_PORT} (temporary)..."
-if aws ec2 authorize-security-group-ingress --region "$AWS_REGION" \
+if AUTH_ERR=$(aws ec2 authorize-security-group-ingress --region "$AWS_REGION" \
      --group-id "$SG_ID" \
      --ip-permissions "IpProtocol=tcp,FromPort=${REMOTE_PORT},ToPort=${REMOTE_PORT},IpRanges=[{CidrIp=${JUMP_IP}/32,Description=\"temp alb-tunnel.sh jump host\"}]" \
-     >/dev/null 2>&1; then
+     2>&1 >/dev/null); then
   RULE_ADDED=1
   echo -e "${GREEN}    Added (will be revoked on exit).${NC}"
+elif printf '%s' "$AUTH_ERR" | grep -q 'InvalidPermission.Duplicate'; then
+  # Rule already exists (e.g. left over) -- proceed but DON'T revoke on exit.
+  echo -e "${YELLOW}    Rule already present; proceeding without managing it.${NC}"
 else
-  # Rule may already exist (e.g. left over) -- proceed but DON'T revoke on exit.
-  echo -e "${YELLOW}    Rule already present or add failed; proceeding without managing it.${NC}"
+  # Any other error (auth failure, API error, bad input) is fatal: a tunnel
+  # without the SG rule won't work, so fail with the actual AWS error.
+  echo -e "${RED}Error: failed to authorize ${JUMP_IP}/32 on ${SG_ID}:${REMOTE_PORT}${NC}"
+  echo -e "${RED}${AUTH_ERR}${NC}"
+  exit 1
 fi
 
 # --- 4. Open the tunnel to the ALB private IP ---------------------------------

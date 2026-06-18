@@ -55,7 +55,8 @@ directly. This opens an SSM port-forward through an in-VPC jump host:
 
 1. Looks up the ALB by tag (`Name=cell-kn-<env>-alb`) — its security group and a
    private (in-VPC) IP.
-2. Picks a running EC2 instance in the same VPC as the SSM jump host.
+2. Picks a running EC2 instance in the same VPC as the ALB to use as the SSM
+   jump host.
 3. Temporarily authorizes the jump host's private IP on the ALB security group
    for the target port.
 4. Opens an SSM port-forward to the ALB's **private** IP (source stays in-VPC,
