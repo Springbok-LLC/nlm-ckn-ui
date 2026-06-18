@@ -6,22 +6,35 @@
 # CloudFormation conventions the standard deploy-*.sh scripts assume, and its
 # architecture differs:
 #   - Frontend is served via ALB->S3 (no CloudFront, so no invalidation).
-#   - Backend runs on ECS-on-EC2 and has no ECS service stood up yet, so we
-#     can only build + push the image to ECR (no rolling service update).
+#   - Backend runs as a plain docker container on an EC2 host (not an ECS
+#     service), recreated in place via SSM.
 #   - ArangoDB dataset restore uses different SSM/secret paths than dev/prod.
+#
+# PROMOTION MODEL: sandbox does not build artifacts. It promotes already-built
+# springbok *stage* artifacts cross-account, the same way the ArangoDB dataset
+# is pulled from the springbok S3 bucket:
+#   - Frontend: s3 sync from the stage frontend bucket (cross-account read
+#     granted in cloudformation/environment/frontend.yaml, IsStage condition).
+#   - Backend: the host pulls the requested image tag directly from the shared
+#     cell-kn-backend ECR repo (cross-account pull granted in
+#     cloudformation/shared/shared-resources.yaml). Pass the tag via IMAGE_TAG.
+# Both artifacts are environment-agnostic (frontend makes same-origin/relative
+# API calls; backend config is injected as host env vars at recreate time), so
+# the stage build runs unchanged in sandbox.
 #
 # Resource names are resolved from the stable exports/SSM contract via
 # resolve-env.sh rather than from stack names.
 #
 # USAGE:
-#   AWS_PROFILE=nlmsandbox ./scripts/sandbox/deploy-sandbox.sh [frontend|backend|all]
-#     (default target: all)
+#   AWS_PROFILE=nlmsandbox IMAGE_TAG=<stage-tag> \
+#     ./scripts/sandbox/deploy-sandbox.sh [frontend|backend|dataset|all]
+#     (default target: all; IMAGE_TAG is required for backend/all)
 #
 # In CI the AWS creds come from the environment; locally set AWS_PROFILE=nlmsandbox.
 #
 # ENVIRONMENT VARIABLES:
 #   AWS_REGION   AWS region (default: us-east-1)
-#   IMAGE_TAG    Override the git SHA tag for the backend image (optional)
+#   IMAGE_TAG    Stage image tag to promote (required for backend/all)
 # ==============================================================================
 set -euo pipefail
 
@@ -95,62 +108,59 @@ print(r.stdout.strip())
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 deploy_frontend() {
-  echo -e "${GREEN}==> Frontend${NC}"
-  : "${CKN_FRONTEND_BUCKET:?Could not resolve frontend bucket (cell-kn-sandbox-frontend-bucket export)}"
+  echo -e "${GREEN}==> Frontend (promote stage build)${NC}"
+  : "${CKN_FRONTEND_BUCKET:?Could not resolve sandbox frontend bucket (cell-kn-sandbox-frontend-bucket export)}"
+  : "${CKN_PROMOTE_FRONTEND_BUCKET:?Could not resolve stage frontend bucket (promotion source)}"
 
-  cd "$REPO_ROOT/react"
-  echo -e "${YELLOW}Building React application...${NC}"
-  npm ci --prefer-offline --no-audit
-  npm run build-react
-  [ -d build ] || { echo -e "${RED}Error: build directory not found${NC}"; exit 1; }
-
-  echo -e "${GREEN}Syncing to s3://${CKN_FRONTEND_BUCKET}/${NC}"
-  aws s3 sync build/ "s3://${CKN_FRONTEND_BUCKET}/" --delete
+  # The frontend bundle is environment-agnostic (same-origin/relative API calls,
+  # no baked-in API URL), so the stage build runs unchanged in sandbox. Promote
+  # it by syncing the stage bucket into the sandbox bucket cross-account.
+  echo -e "${GREEN}Promoting s3://${CKN_PROMOTE_FRONTEND_BUCKET}/ -> s3://${CKN_FRONTEND_BUCKET}/${NC}"
+  aws s3 sync "s3://${CKN_PROMOTE_FRONTEND_BUCKET}/" "s3://${CKN_FRONTEND_BUCKET}/" --delete
   # No CloudFront in sandbox (ALB->S3), so no invalidation step.
-  echo -e "${GREEN}✓ Frontend deployed${NC} (URL: ${CKN_BACKEND_URL:-n/a})\n"
+  echo -e "${GREEN}✓ Frontend promoted${NC} (URL: ${CKN_BACKEND_URL:-n/a})\n"
 }
 
 # ── Backend ──────────────────────────────────────────────────────────────────
 # The backend runs as a plain `backend` docker container (port 80->8000,
 # restart=unless-stopped) on an EC2 host, created by cloud-init user-data with
-# its env baked in. We build + push the image to ECR (mutable tag), then via SSM
-# tell the host to pull the new image and recreate the container, preserving its
-# existing env / ports / restart policy (captured on the host via `docker inspect`
-# so secrets never leave the instance).
+# its env baked in. We promote an already-built stage image: the host pulls the
+# requested tag directly from the shared cell-kn-backend ECR repo (cross-account
+# pull granted in shared-resources.yaml), then recreates the container preserving
+# its existing env / ports / restart policy (captured on the host via
+# `docker inspect` so secrets never leave the instance).
 deploy_backend() {
-  echo -e "${GREEN}==> Backend (build, push, recreate via SSM)${NC}"
-  : "${CKN_ECR_URL:?Could not resolve ECR url (/platform/cell-kn/shared/pEcrUrl)}"
+  echo -e "${GREEN}==> Backend (promote stage image via SSM)${NC}"
+  : "${IMAGE_TAG:?Set IMAGE_TAG to the stage image tag to promote (e.g. the stage git SHA)}"
+  : "${CKN_PROMOTE_ECR_REGISTRY:?Could not resolve shared ECR registry (promotion source)}"
+  : "${CKN_PROMOTE_ECR_REPO:?Could not resolve shared ECR repo (promotion source)}"
 
-  # CKN_ECR_URL is "registry/repo:tag". Keep the SSM-provided tag so the running
-  # container's image reference still matches after the push.
-  local registry repo_and_tag repo_path tag image_uri
-  registry="${CKN_ECR_URL%%/*}"
-  repo_and_tag="${CKN_ECR_URL#*/}"
-  repo_path="${repo_and_tag%%:*}"
-  if [ -n "${IMAGE_TAG:-}" ]; then
-    tag="$IMAGE_TAG"
-  elif [[ "$repo_and_tag" == *:* ]]; then
-    tag="${repo_and_tag#*:}"
+  local image_uri="${CKN_PROMOTE_ECR_REGISTRY}/${CKN_PROMOTE_ECR_REPO}:${IMAGE_TAG}"
+  echo "  Promoting image: $image_uri"
+
+  # Best-effort pre-flight: confirm the tag exists in the shared repo before
+  # touching the host. This runs as the deploy (human/CI) identity, which may
+  # lack cross-account ecr:DescribeImages even though the springbok repo policy
+  # grants it to the account root — cross-account needs both sides to allow.
+  # The authoritative gate is the host's `docker pull` (the EC2 instance role
+  # has Resource:* ECR pull + GetAuthorizationToken), so a denied/failed check
+  # only warns and proceeds rather than aborting.
+  local registry_id="${CKN_PROMOTE_ECR_REGISTRY%%.*}" describe_err
+  if describe_err=$(aws ecr describe-images --registry-id "$registry_id" \
+        --repository-name "$CKN_PROMOTE_ECR_REPO" --image-ids imageTag="$IMAGE_TAG" \
+        --region "$AWS_REGION" 2>&1 >/dev/null); then
+    echo -e "${GREEN}✓ Tag found in shared ECR${NC}"
+  elif printf '%s' "$describe_err" | grep -q 'ImageNotFoundException'; then
+    echo -e "${RED}Error: tag '${IMAGE_TAG}' not found in ${CKN_PROMOTE_ECR_REGISTRY}/${CKN_PROMOTE_ECR_REPO}${NC}"
+    exit 1
   else
-    tag="latest"
+    echo -e "${YELLOW}Could not pre-verify tag (likely no cross-account ecr:DescribeImages${NC}"
+    echo -e "${YELLOW}for this identity); relying on the host pull to validate.${NC}"
   fi
-  image_uri="${registry}/${repo_path}:${tag}"
-  echo "  Image URI: $image_uri"
-
-  echo -e "${GREEN}Logging in to ECR...${NC}"
-  aws ecr get-login-password --region "$AWS_REGION" \
-    | docker login --username AWS --password-stdin "$registry"
-
-  echo -e "${GREEN}Building image (linux/amd64)...${NC}"
-  docker build --platform linux/amd64 --build-arg UI_VERSION="$tag" -t "$image_uri" "$REPO_ROOT"
-
-  echo -e "${GREEN}Pushing image...${NC}"
-  docker push "$image_uri"
-  echo -e "${GREEN}✓ Image pushed: ${image_uri}${NC}"
 
   if [ -z "${CKN_BACKEND_INSTANCE_ID:-}" ]; then
-    echo -e "${YELLOW}No backend instance resolved — image is staged in ECR but the${NC}"
-    echo -e "${YELLOW}container was not recreated. Check the cell-kn-sandbox-backend-tg.${NC}\n"
+    echo -e "${YELLOW}No backend instance resolved — the container was not recreated.${NC}"
+    echo -e "${YELLOW}Check the cell-kn-sandbox-backend-tg.${NC}\n"
     return 0
   fi
 
@@ -258,6 +268,11 @@ deploy_dataset() {
   # The S3 download + arangorestore can take 30-60 min on large datasets.
   _ssm_run_and_wait "$CKN_ARANGO_INSTANCE_ID" "$restore_tmp" "ArangoDB dataset restore" 5400
 }
+
+# Fail fast before any work if a backend promotion is requested without a tag.
+case "$TARGET" in
+  backend|all) : "${IMAGE_TAG:?Set IMAGE_TAG to the stage image tag to promote (required for backend/all)}" ;;
+esac
 
 case "$TARGET" in
   frontend) deploy_frontend ;;

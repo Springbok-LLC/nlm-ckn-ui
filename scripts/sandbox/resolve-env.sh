@@ -113,6 +113,18 @@ resolve_env() {
       CKN_ARANGO_INSTANCE_ID=$(_cfn_export "cell-kn-dev-arangodb-instance-id")
       CKN_ARANGO_BUCKET=$(_ssm "/platform/cell-kn/arango/pArangodbBucketName")
       CKN_DATASET_VERSION=$(_ssm "/platform/cell-kn/arango/pDatasetVersion")
+      # ── Promotion sources (springbok account 952291113202) ──────────────
+      # Sandbox promotes already-built stage artifacts cross-account, the same
+      # way the dataset is pulled from the springbok Arango bucket. These are
+      # pinned constants: cross-account CloudFormation exports aren't readable
+      # from the sandbox account, so they can't be looked up here.
+      #   Frontend: synced from the stage frontend bucket (grant in
+      #     cloudformation/environment/frontend.yaml, IsStage condition).
+      #   Backend: pulled from the shared cell-kn-backend ECR repo (grant in
+      #     cloudformation/shared/shared-resources.yaml).
+      CKN_PROMOTE_FRONTEND_BUCKET="cell-kn-stage-frontend"
+      CKN_PROMOTE_ECR_REGISTRY="952291113202.dkr.ecr.us-east-1.amazonaws.com"
+      CKN_PROMOTE_ECR_REPO="cell-kn-backend"
       ;;
     dev|stage|prod)
       # Conventional cell-kn-<env>-* stacks.
@@ -138,7 +150,8 @@ resolve_env() {
 
   export CKN_ENVIRONMENT CKN_FRONTEND_BUCKET CKN_CF_DIST_ID CKN_ECR_URL \
          CKN_ECS_CLUSTER CKN_BACKEND_SERVICE CKN_BACKEND_INSTANCE_ID CKN_BACKEND_URL \
-         CKN_ARANGO_INSTANCE_ID CKN_ARANGO_BUCKET CKN_DATASET_VERSION
+         CKN_ARANGO_INSTANCE_ID CKN_ARANGO_BUCKET CKN_DATASET_VERSION \
+         CKN_PROMOTE_FRONTEND_BUCKET CKN_PROMOTE_ECR_REGISTRY CKN_PROMOTE_ECR_REPO
 }
 
 # When executed directly (not sourced), print the resolved table for inspection.
