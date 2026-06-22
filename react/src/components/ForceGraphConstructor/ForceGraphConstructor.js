@@ -120,6 +120,11 @@ function ForceGraphConstructor(
             positions.push({ nodeId: id, x: node.fx, y: node.fy, userPinned: true });
           }
           mergedOptions.onMultiNodeDragEnd?.(positions);
+          // Drag-end mutated userPinned on each selected node but did not
+          // touch the DOM — refresh the .pinned class so the pin markers
+          // appear immediately. Without this, the icons only appear after a
+          // later renderGraph (or a manual Pin action) re-syncs the class.
+          applyPinnedHighlight();
           groupDragSnapshot = null;
           // Repaint at final positions. simulation.alpha(...) without restart()
           // won't run a tick once the simulation has cooled, so call ticked()
@@ -148,6 +153,9 @@ function ForceGraphConstructor(
           y: event.y,
           userPinned: true,
         });
+        // Refresh the .pinned class so the marker appears on the just-dropped
+        // node without waiting for a renderGraph rebuild.
+        applyPinnedHighlight();
       } finally {
         // Decrement after the dispatch so any synchronous subscriber observes
         // isDragging() as still true during its own work. Use finally so a
