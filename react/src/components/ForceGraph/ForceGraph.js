@@ -886,7 +886,10 @@ const ForceGraph = ({
   const handlePinToggle = () => {
     if (!popup.nodeId) return;
     const newPinned = !popup.userPinned;
-    const node = graphData.nodes.find((n) => n.id === popup.nodeId);
+    // popup.nodeId comes from nodeData._id (see handleNodeClick); match on
+    // either field for consistency with the rest of this file (e.g.,
+    // handleSimulationEnd merge, expand merge).
+    const node = graphData.nodes.find((n) => (n._id || n.id) === popup.nodeId);
     if (!node) return;
     graphInstanceRef.current?.setNodePinned(popup.nodeId, newPinned);
     dispatch({
