@@ -1,4 +1,4 @@
-# ADR 0001: Single Source of Truth for the Project Name
+# ADR 0002: Single Source of Truth for the Project Name
 
 - **Status:** Proposed
 - **Date:** 2026-06-22
@@ -87,8 +87,8 @@ repo-wide find-and-replace.
 - Already-deployed `cell-kn-*` resources (ECR repos, IAM roles, S3 buckets, log
   groups) are not renamed by this decision. Renaming them would force resource
   replacement; the pragmatic path is to leave the legacy resources in place,
-  document the prefix, and apply this convention to everything new (see ADR 0002
-  on auto-generated physical names and ADR 0003 on tag-based identity).
+  document the prefix, and apply this convention to everything new (see ADR 0003
+  on auto-generated physical names and ADR 0004 on tag-based identity).
 - Resolving the name from SSM/exports in scripts adds a small amount of
   indirection versus a hard-coded string.
 

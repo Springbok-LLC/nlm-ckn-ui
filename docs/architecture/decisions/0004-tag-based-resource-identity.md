@@ -1,4 +1,4 @@
-# ADR 0003: Tag-Based Resource Identity
+# ADR 0004: Tag-Based Resource Identity
 
 - **Status:** Proposed
 - **Date:** 2026-06-22
@@ -68,7 +68,7 @@ grouping, querying, and billing resources. Specifically:
 3. **Complete tag coverage.** Audit each `cloudformation/environment/*.yaml`
    stack so every taggable resource carries the full required set, closing the
    gaps noted above.
-4. **Retrofit existing resources now.** Unlike auto-generated names (ADR 0002),
+4. **Retrofit existing resources now.** Unlike auto-generated names (ADR 0003),
    tags can be applied to already-deployed `cell-kn-*` resources without
    replacement. Apply the standard tag set to existing resources rather than
    waiting for a rebuild.
@@ -102,7 +102,7 @@ cosmetic and name drift stops mattering operationally.
   when adopted *before* resources are created. Retrofitting the existing fleet
   still leaves the legacy `cell-kn` string in physical names and in the current
   `Project` tag value until those are updated; the tag-based discipline must be
-  paired with ADRs 0001 and 0002 to fully resolve the drift.
+  paired with ADRs 0002 and 0003 to fully resolve the drift.
 - **Tags are not self-enforcing.** Nothing prevents a new resource from shipping
   untagged or mistagged, as the current coverage gaps demonstrate. This needs
   enforcement (cfn-lint/checkov rules, tag policies, or a CI check) to avoid
@@ -120,7 +120,7 @@ cosmetic and name drift stops mattering operationally.
   parsing the physical name. Rejected: this is the exact coupling that turned a
   rename into pervasive drift; it does not survive a rename and cannot be made
   to.
-- **Auto-generated physical names only (ADR 0002).** Let IaC generate
+- **Auto-generated physical names only (ADR 0003).** Let IaC generate
   unique names and reference logical names / exports. Strong and complementary,
   but it only helps resources created *after* adoption and forces replacement of
   stateful resources to apply. Tag-based identity is the piece that can be
@@ -134,5 +134,5 @@ cosmetic and name drift stops mattering operationally.
 ## References
 
 - AWS Tagging Best Practices and Tag Policies / SCPs.
-- Related: ADR 0001 (naming source-of-truth) and ADR 0002 (auto-generated
+- Related: ADR 0002 (naming source-of-truth) and ADR 0003 (auto-generated
   names) — complementary to this decision.

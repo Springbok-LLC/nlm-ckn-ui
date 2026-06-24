@@ -1,4 +1,4 @@
-# ADR 0002: Auto-Generated Physical Names for Stateful Resources
+# ADR 0003: Auto-Generated Physical Names for Stateful Resources
 
 - **Status:** Proposed
 - **Date:** 2026-06-22
@@ -82,7 +82,7 @@ forward.
   nothing keys off the literal.
 - **Fewer co-located literals.** Logical-name references plus exports/SSM remove
   the hard-coded `${ProjectName}-...` strings that have to be kept in sync.
-- **Composes with ADRs 0001 and 0003.** Single-source-of-truth naming and
+- **Composes with ADRs 0002 and 0004.** Single-source-of-truth naming and
   tag-based identity (Project / Environment / ManagedBy tags) mean the physical
   name is cosmetic, which is exactly the state we want.
 
@@ -90,7 +90,7 @@ forward.
 
 - **Less human-friendly names.** Auto-generated names (e.g.,
   `nlm-ckn-frontend-1a2b3c4d`) are harder to recognize in the console and CLI.
-  Tag-based identity (ADR 0003) is the intended mitigation: filter and
+  Tag-based identity (ADR 0004) is the intended mitigation: filter and
   group by `Project`/`Environment` tags rather than by name.
 - **Cross-stack discipline required.** Consumers must go through exports/SSM
   instead of reconstructing names. This is more correct but slightly more
@@ -103,7 +103,7 @@ forward.
   Therefore:
   - Leave existing `cell-kn-*` resources in place with their current names.
   - Tag them (`Project`, `Environment`, `ManagedBy`) so identity lives in tags
-    (ADR 0003).
+    (ADR 0004).
   - Document the legacy `cell-kn` prefix in the CloudFormation README.
   - Apply this ADR to everything **new** going forward.
 
@@ -113,19 +113,19 @@ forward.
    `cell-kn-*` literal to `nlm-ckn-*`. Rejected: this forces replacement of
    stateful resources (S3 data, ECR images, IAM role ARNs referenced by
    policies and SSM) and re-introduces the same coupling that caused the drift.
-2. **Keep explicit names but centralize the prefix only (ADR 0001
+2. **Keep explicit names but centralize the prefix only (ADR 0002
    alone).** Drive every name from a single `ProjectName`. This reduces the
    number of edit sites but does **not** remove the replace-on-rename problem,
    because the prefix is still embedded in immutable physical names. Adopted as
    complementary, not sufficient on its own.
-3. **Tag-based identity only (ADR 0003 alone).** Tag everything and ignore
+3. **Tag-based identity only (ADR 0004 alone).** Tag everything and ignore
    names. Necessary but insufficient: it makes drift *harmless* but, on its own,
    still leaves stateful resources carrying name-derived identity. Best combined
    with this ADR.
 
 ## References
 
-- Related: ADR 0001 (single source of truth), ADR 0003 (tag-based identity).
+- Related: ADR 0002 (single source of truth), ADR 0004 (tag-based identity).
 - Current explicit-name usages cited above:
   `cloudformation/shared/shared-resources.yaml`,
   `cloudformation/environment/frontend.yaml`,
