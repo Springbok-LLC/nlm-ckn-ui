@@ -116,6 +116,68 @@ class GraphTraversalSerializerTestCase(SimpleTestCase):
         )
         self.assertFalse(serializer.is_valid())
 
+    def test_graph_traversal_accepts_exclude_edge_filters(self):
+        from arango_api.serializers import GraphTraversalSerializer
+
+        s = GraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "depth": 1,
+                "edge_direction": "ANY",
+                "allowed_collections": ["CL"],
+                "exclude_edge_filters": {"Label": ["DERIVES_FROM"]},
+            }
+        )
+        self.assertTrue(s.is_valid(), s.errors)
+        self.assertEqual(
+            s.validated_data["exclude_edge_filters"], {"Label": ["DERIVES_FROM"]}
+        )
+
+    def test_graph_traversal_rejects_unsafe_edge_filter_key(self):
+        from arango_api.serializers import GraphTraversalSerializer
+
+        s = GraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "depth": 1,
+                "edge_direction": "ANY",
+                "allowed_collections": ["CL"],
+                "exclude_edge_filters": {"bad`key": ["x"]},
+            }
+        )
+        self.assertFalse(s.is_valid())
+        self.assertIn("exclude_edge_filters", s.errors)
+
+
+class EdgesBetweenSerializerTestCase(SimpleTestCase):
+    """Tests for edges-between request validation."""
+
+    def test_edges_between_accepts_exclude_edge_filters(self):
+        from arango_api.serializers import EdgesBetweenSerializer
+
+        s = EdgesBetweenSerializer(
+            data={
+                "node_ids": ["CL/0000061", "CL/0000151"],
+                "exclude_edge_filters": {"Label": ["DERIVES_FROM"]},
+            }
+        )
+        self.assertTrue(s.is_valid(), s.errors)
+        self.assertEqual(
+            s.validated_data["exclude_edge_filters"], {"Label": ["DERIVES_FROM"]}
+        )
+
+    def test_edges_between_rejects_unsafe_edge_filter_key(self):
+        from arango_api.serializers import EdgesBetweenSerializer
+
+        s = EdgesBetweenSerializer(
+            data={
+                "node_ids": ["CL/0000061", "CL/0000151"],
+                "edge_filters": {"bad`key": ["x"]},
+            }
+        )
+        self.assertFalse(s.is_valid())
+        self.assertIn("edge_filters", s.errors)
+
 
 class AdvancedGraphTraversalSerializerTestCase(SimpleTestCase):
     """Tests for advanced graph traversal request validation."""
@@ -139,6 +201,53 @@ class AdvancedGraphTraversalSerializerTestCase(SimpleTestCase):
         serializer = AdvancedGraphTraversalSerializer(data={"node_ids": ["CL/0000061"]})
         self.assertFalse(serializer.is_valid())
         self.assertIn("advanced_settings", serializer.errors)
+
+    def test_advanced_settings_rejects_unsafe_edge_filter_key(self):
+        from arango_api.serializers import AdvancedGraphTraversalSerializer
+
+        s = AdvancedGraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "advanced_settings": {
+                    "CL/0000061": {"excludeEdgeFilters": {"bad`key": ["x"]}}
+                },
+            }
+        )
+        self.assertFalse(s.is_valid())
+        self.assertIn("advanced_settings", s.errors)
+
+    def test_advanced_settings_accepts_valid_edge_filter_keys(self):
+        from arango_api.serializers import AdvancedGraphTraversalSerializer
+
+        s = AdvancedGraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "advanced_settings": {
+                    "CL/0000061": {
+                        "edgeFilters": {"Label": ["IS_A"]},
+                        "excludeEdgeFilters": {"Label": ["DERIVES_FROM"]},
+                    }
+                },
+            }
+        )
+        self.assertTrue(s.is_valid(), s.errors)
+
+    def test_advanced_settings_rejects_non_dict_edge_filters(self):
+        # A nested edge filter that is not an object (e.g. a list) must be
+        # rejected with a 400 rather than reaching the query builder and
+        # raising a 500 on `.items()`.
+        from arango_api.serializers import AdvancedGraphTraversalSerializer
+
+        s = AdvancedGraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "advanced_settings": {
+                    "CL/0000061": {"excludeEdgeFilters": ["Label"]}
+                },
+            }
+        )
+        self.assertFalse(s.is_valid())
+        self.assertIn("advanced_settings", s.errors)
 
 
 class ShortestPathsSerializerTestCase(SimpleTestCase):
