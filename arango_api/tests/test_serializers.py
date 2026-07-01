@@ -148,6 +148,23 @@ class GraphTraversalSerializerTestCase(SimpleTestCase):
         self.assertFalse(s.is_valid())
         self.assertIn("exclude_edge_filters", s.errors)
 
+    def test_graph_traversal_rejects_field_name_with_trailing_newline(self):
+        # `$` matches before a trailing newline in Python; the validator must
+        # use `\Z` so "Label\n" is rejected.
+        from arango_api.serializers import GraphTraversalSerializer
+
+        s = GraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "depth": 1,
+                "edge_direction": "ANY",
+                "allowed_collections": ["CL"],
+                "edge_filters": {"Label\n": ["IS_A"]},
+            }
+        )
+        self.assertFalse(s.is_valid())
+        self.assertIn("edge_filters", s.errors)
+
 
 class EdgesBetweenSerializerTestCase(SimpleTestCase):
     """Tests for edges-between request validation."""

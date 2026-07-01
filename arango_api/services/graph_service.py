@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 # Edge filter dict keys are interpolated directly into AQL attribute accessors
 # (e.`<field>`), so each must be a plain identifier. Rejecting anything else
 # (backticks, dots, whitespace) prevents AQL injection.
-_SAFE_EDGE_FIELD = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# \Z (not $) so a trailing newline (e.g. "Label\n") is not accepted.
+_SAFE_EDGE_FIELD = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
 def _build_edge_filter_clause(

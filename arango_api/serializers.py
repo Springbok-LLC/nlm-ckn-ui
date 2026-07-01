@@ -21,7 +21,8 @@ from rest_framework import serializers
 # Rejecting anything else (backticks, dots, whitespace) prevents AQL injection.
 # Leading underscores are allowed because the frontend searches system/edge
 # attributes such as _from, _to and _key.
-_VALID_FIELD_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# \Z (not $) so a trailing newline (e.g. "Label\n") is not accepted.
+_VALID_FIELD_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\Z")
 
 GRAPH_CHOICES = ["ontologies", "phenotypes"]
 

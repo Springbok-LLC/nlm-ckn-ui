@@ -263,6 +263,17 @@ class GraphServiceTestCase(ArangoDBTestCase):
         self.assertEqual(neg, [])
         self.assertEqual(bind_vars, {})
 
+    def test_build_edge_filter_clause_rejects_trailing_newline_field_name(self):
+        # `$` matches before a trailing newline; the guard must use `\Z` so a
+        # key like "Label\n" is not interpolated into AQL.
+        bind_vars = {}
+        pos, neg = graph_service._build_edge_filter_clause(
+            {"Label\n": ["IS_A"]}, bind_vars
+        )
+        self.assertEqual(pos, [])
+        self.assertEqual(neg, [])
+        self.assertEqual(bind_vars, {})
+
     def test_find_inter_node_edges_no_filters(self):
         # Without filters, all edges between the given nodes are returned.
         # CL/0000061 connects to CL/0000151 (subClassOf), GO/0008150
