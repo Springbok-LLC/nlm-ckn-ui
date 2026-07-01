@@ -127,9 +127,14 @@ class AdvancedGraphTraversalSerializer(GraphRequestSerializer):
     )
 
     def validate_advanced_settings(self, value):
-        for node_settings in (value or {}).values():
+        for node_id, node_settings in (value or {}).items():
+            # Per-node settings must be objects; a non-dict here would reach
+            # traverse_graph_advanced's settings.get(...) and raise a 500, so
+            # reject it at the boundary with a 400.
             if not isinstance(node_settings, dict):
-                continue
+                raise serializers.ValidationError(
+                    f"Settings for node '{node_id}' must be an object."
+                )
             for key in ("edgeFilters", "excludeEdgeFilters"):
                 _validate_edge_filter_field_names(node_settings.get(key))
         return value

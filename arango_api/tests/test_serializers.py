@@ -266,6 +266,21 @@ class AdvancedGraphTraversalSerializerTestCase(SimpleTestCase):
         self.assertFalse(s.is_valid())
         self.assertIn("advanced_settings", s.errors)
 
+    def test_advanced_settings_rejects_non_dict_node_settings(self):
+        # A per-node settings entry that is not an object (e.g. a list) must be
+        # rejected with a 400 rather than reaching traverse_graph_advanced's
+        # settings.get(...) and raising a 500.
+        from arango_api.serializers import AdvancedGraphTraversalSerializer
+
+        s = AdvancedGraphTraversalSerializer(
+            data={
+                "node_ids": ["CL/0000061"],
+                "advanced_settings": {"CL/0000061": ["not", "an", "object"]},
+            }
+        )
+        self.assertFalse(s.is_valid())
+        self.assertIn("advanced_settings", s.errors)
+
 
 class ShortestPathsSerializerTestCase(SimpleTestCase):
     """Tests for shortest paths request validation."""

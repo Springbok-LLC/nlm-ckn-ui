@@ -219,7 +219,7 @@ class GraphServiceTestCase(ArangoDBTestCase):
             exclude_edge_filters={"label": ["subClassOf"]},
             include_inter_node_edges=False,
         )
-        labels = sorted(l["label"] for l in result["CL/0000061"]["links"])
+        labels = sorted(link["label"] for link in result["CL/0000061"]["links"])
         self.assertNotIn("subClassOf", labels)
         self.assertIn("participates_in", labels)
 
