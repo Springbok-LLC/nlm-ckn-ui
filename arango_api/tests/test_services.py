@@ -274,6 +274,30 @@ class GraphServiceTestCase(ArangoDBTestCase):
         self.assertEqual(neg, [])
         self.assertEqual(bind_vars, {})
 
+    def test_include_categorical_prunes_missing_attribute_edges(self):
+        # An include filter must PRUNE every real edge that does not satisfy it,
+        # including edges missing the attribute — otherwise traversal walks
+        # through a hidden (filtered-out) edge and returns its descendants as
+        # orphans. The prune condition negates the include condition (so it is
+        # true for a null/absent attribute) but guards on `e != null` so the
+        # start vertex at depth 0 (edge is null) is not pruned.
+        bind_vars = {}
+        pos, neg = graph_service._build_edge_filter_clause(
+            {"Label": ["IS_A"]}, bind_vars
+        )
+        self.assertEqual(len(pos), 1)
+        self.assertEqual(len(neg), 1)
+        self.assertEqual(neg[0], f"(e != null AND NOT {pos[0]})")
+
+    def test_include_numeric_prunes_missing_attribute_edges(self):
+        bind_vars = {}
+        pos, neg = graph_service._build_edge_filter_clause(
+            {"score": {"min": 0.5, "max": 1.0}}, bind_vars
+        )
+        self.assertEqual(len(pos), 1)
+        self.assertEqual(len(neg), 1)
+        self.assertEqual(neg[0], f"(e != null AND NOT {pos[0]})")
+
     def test_find_inter_node_edges_no_filters(self):
         # Without filters, all edges between the given nodes are returned.
         # CL/0000061 connects to CL/0000151 (subClassOf), GO/0008150

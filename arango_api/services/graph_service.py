@@ -71,7 +71,12 @@ def _build_edge_filter_clause(
             pos_cond = f"({' AND '.join(range_parts)})"
             positive_conditions.append(pos_cond)
 
-            neg_cond = f"({field_ref}.`{key}` != null AND NOT ({' AND '.join(range_parts[2:])}))"
+            # PRUNE any real edge that does not satisfy the include condition —
+            # including edges missing the attribute — so traversal does not walk
+            # through a hidden edge and surface its descendants as orphans. The
+            # `{field_ref} != null` guard keeps depth 0 (the start vertex, where
+            # the edge is null) from being pruned, which would halt traversal.
+            neg_cond = f"({field_ref} != null AND NOT {pos_cond})"
             negative_conditions.append(neg_cond)
             continue
 
@@ -87,12 +92,12 @@ def _build_edge_filter_clause(
             )
             positive_conditions.append(pos_cond)
 
-            neg_cond = (
-                f"({field_ref}.`{key}` != null AND NOT ("
-                f"(IS_STRING({field_ref}.`{key}`) AND {field_ref}.`{key}` IN @{bind_key}) OR "
-                f"(IS_ARRAY({field_ref}.`{key}`) AND LENGTH(INTERSECTION({field_ref}.`{key}`, @{bind_key})) > 0)"
-                f"))"
-            )
+            # PRUNE any real edge that does not satisfy the include condition —
+            # including edges missing the attribute — so traversal does not walk
+            # through a hidden edge and surface its descendants as orphans. The
+            # `{field_ref} != null` guard keeps depth 0 (the start vertex, where
+            # the edge is null) from being pruned, which would halt traversal.
+            neg_cond = f"({field_ref} != null AND NOT {pos_cond})"
             negative_conditions.append(neg_cond)
 
             bind_vars[bind_key] = values
