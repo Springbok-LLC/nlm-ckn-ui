@@ -134,11 +134,7 @@ const FiltersPanel = ({
                   </button>
                 </fieldset>
                 <FilterableDropdown
-                  label={
-                    settings.edgeFilterModes?.[field] === "exclude"
-                      ? `${field} (hide these)`
-                      : `${field} (show only these)`
-                  }
+                  label={field}
                   options={filterData.values || []}
                   selectedOptions={settings.edgeFilters[field] || []}
                   onOptionToggle={(value) => dispatch(updateEdgeFilter({ field, value }))}

@@ -45,16 +45,35 @@ describe("FiltersPanel edge filter mode toggle", () => {
     expect(screen.getByRole("button", { name: /exclude/i })).toBeInTheDocument();
   });
 
-  it("dropdown label reflects include mode", () => {
+  it("marks Include active in include mode", () => {
     renderPanel("include");
-    expect(screen.getByPlaceholderText(/show only these/i)).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/hide these/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^include$/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /exclude/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
-  it("dropdown label reflects exclude mode", () => {
+  it("marks Exclude active in exclude mode", () => {
     renderPanel("exclude");
-    expect(screen.getByPlaceholderText(/hide these/i)).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/show only these/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /exclude/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /^include$/i })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("keeps the dropdown placeholder stable regardless of mode", () => {
+    // The placeholder is a stable handle (used by e2e locators); mode is shown
+    // by the Include/Exclude toggle, not the dropdown label.
+    renderPanel("exclude");
+    expect(screen.getByPlaceholderText("Filter by Label...")).toBeInTheDocument();
   });
 
   it("hides the Include/Exclude toggle in advanced mode", () => {
