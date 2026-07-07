@@ -77,9 +77,16 @@ export function usePerNodeSettings(
   }, [isAdvancedMode, activeOriginNodeId, dispatch]);
 
   // Effect to sync filter changes back to local per-node state.
+  const prevActiveNodeForFiltersRef = useRef(activeOriginNodeId);
   useEffect(() => {
     // Only run this logic if advanced mode is active and a node is selected.
     if (isAdvancedMode && activeOriginNodeId) {
+      const nodeJustChanged = prevActiveNodeForFiltersRef.current !== activeOriginNodeId;
+      prevActiveNodeForFiltersRef.current = activeOriginNodeId;
+      // On a node switch the active-node push effect is authoritative; skip the
+      // mirror so we don't overwrite the newly-selected node's saved filters with
+      // the previous node's/global value before it has propagated.
+      if (nodeJustChanged) return;
       // Check if the edgeFilters in Redux are different from what's stored locally.
       if (
         JSON.stringify(settings.edgeFilters) !==
