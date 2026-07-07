@@ -1,6 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { act, renderHook } from "@testing-library/react";
-import React from "react";
 import { Provider } from "react-redux";
 import graphReducer from "../../../store/graphSlice";
 import { usePerNodeSettings } from "./usePerNodeSettings";
