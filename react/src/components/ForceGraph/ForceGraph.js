@@ -48,6 +48,7 @@ const ForceGraph = ({
   // Accept node IDs via props for direct linking (e.g., landing pages).
   nodeIds: _originNodeIdsFromProps = [],
   settings: settingsFromProps,
+  onNodeSelect = () => {},
 }) => {
   const dispatch = useDispatch();
 
@@ -352,6 +353,8 @@ const ForceGraph = ({
     if (y + popupHeight > chartRect.height) y = y - popupHeight;
     x = Math.max(0, x);
     y = Math.max(0, y);
+
+    onNodeSelect(nodeData._id);
 
     setPopup({
       visible: true,
