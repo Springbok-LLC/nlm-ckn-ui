@@ -530,6 +530,7 @@ export const DEFAULT_GRAPH_OPTIONS = {
   linkFontSize: 10,
   minVisibleFontSize: 7,
   onNodeClick: () => {},
+  onNodeLeftClick: () => {},
   onNodeDragEnd: () => {},
   interactionCallback: () => {},
   nodeRadius: 16,

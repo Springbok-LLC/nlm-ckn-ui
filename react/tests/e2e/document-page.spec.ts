@@ -220,11 +220,10 @@ test("DocumentPage: inspector swaps on node click and saved-graph shelf gains a 
   );
   expect(nonOriginIndex).toBeGreaterThanOrEqual(0);
 
-  // Node selection is wired to the context-menu (right-click) interaction
-  // (see ForceGraphConstructor/graphRendering.js: onNodeClick fires on
-  // "contextmenu", not "click") — a left click alone doesn't call
-  // onNodeSelect.
-  await nodeGroups.nth(nonOriginIndex).click({ button: "right" });
+  // Node selection is wired to a left-click interaction (see
+  // ForceGraphConstructor/graphRendering.js: onNodeLeftClick fires on
+  // "click"); right-click stays reserved for the context menu.
+  await nodeGroups.nth(nonOriginIndex).click();
 
   // Inspector swaps to the clicked node's document.
   await expect(inspectorLegend).not.toContainText(`${TEST_COLL}_${originKey}`, { timeout: 5000 });

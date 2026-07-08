@@ -354,8 +354,6 @@ const ForceGraph = ({
     x = Math.max(0, x);
     y = Math.max(0, y);
 
-    onNodeSelect(nodeData._id);
-
     setPopup({
       visible: true,
       nodeId: nodeData._id,
@@ -367,6 +365,12 @@ const ForceGraph = ({
       userPinned: !!nodeData.userPinned,
       position: { x, y },
     });
+  };
+
+  // Left-click selects the node for the inspector; right-click keeps the
+  // context menu (handleNodeClick above) without swapping the inspector.
+  const handleNodeLeftClick = (e, nodeData) => {
+    onNodeSelect(nodeData._id);
   };
 
   // Main effect for synchronizing D3 instance with Redux state.
@@ -388,6 +392,7 @@ const ForceGraph = ({
           nodeGroups: settings.availableCollections,
           collectionMaps: collectionMaps,
           onNodeClick: handleNodeClick,
+          onNodeLeftClick: handleNodeLeftClick,
           onNodeDragEnd: handleNodeDragEnd,
           onLassoSelection: handleLassoSelection,
           onMultiNodeDragEnd: handleMultiNodeDragEnd,
