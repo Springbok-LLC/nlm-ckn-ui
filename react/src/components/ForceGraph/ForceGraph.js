@@ -380,6 +380,21 @@ const ForceGraph = ({
     onNodeSelect(nodeData._id);
   };
 
+  // Double-click toggles the node's user-pin. setNodePinned mutates the live
+  // simulation node (fx/fy + userPinned); mirror to Redux via updateNodePosition
+  // so the pin persists across a constructor remount and into saved graphs —
+  // the same path as the context-menu Pin action (handlePinToggle).
+  const handleNodeDoubleClick = (e, nodeData) => {
+    const nodeId = nodeData._id || nodeData.id;
+    if (!nodeId) return;
+    const newPinned = !nodeData.userPinned;
+    graphInstanceRef.current?.setNodePinned(nodeId, newPinned);
+    dispatch({
+      type: "graph/updateNodePosition",
+      payload: { nodeId, x: nodeData.x, y: nodeData.y, userPinned: newPinned },
+    });
+  };
+
   // Main effect for synchronizing D3 instance with Redux state.
   // biome-ignore lint/correctness/useExhaustiveDependencies: complex effect intentionally limited deps
   useEffect(() => {
@@ -400,6 +415,7 @@ const ForceGraph = ({
           collectionMaps: collectionMaps,
           onNodeClick: handleNodeClick,
           onNodeLeftClick: handleNodeLeftClick,
+          onNodeDoubleClick: handleNodeDoubleClick,
           onNodeDragEnd: handleNodeDragEnd,
           onLassoSelection: handleLassoSelection,
           onMultiNodeDragEnd: handleMultiNodeDragEnd,

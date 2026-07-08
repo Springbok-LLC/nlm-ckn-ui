@@ -531,6 +531,7 @@ export const DEFAULT_GRAPH_OPTIONS = {
   minVisibleFontSize: 7,
   onNodeClick: () => {},
   onNodeLeftClick: () => {},
+  onNodeDoubleClick: () => {},
   onNodeDragEnd: () => {},
   interactionCallback: () => {},
   nodeRadius: 16,
