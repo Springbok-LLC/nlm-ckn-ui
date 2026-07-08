@@ -1,8 +1,7 @@
 import collectionDefaults from "assets/collection-defaults.json";
 import Breadcrumbs from "components/Breadcrumbs";
-import DocumentCard from "components/DocumentCard";
-import ForceGraph from "components/ForceGraph/ForceGraph";
 import FTUIllustration from "components/FTUIllustration";
+import GraphWorkspace from "components/GraphWorkspace";
 import { FTU_ILLUSTRATIONS_JSONLD_URL } from "constants/index";
 import { useFtuParts } from "contexts";
 import { useEffect, useMemo, useState } from "react";
@@ -127,19 +126,18 @@ const DocumentPage = () => {
           <h1>{getTitle(document)}</h1>
           {document.term && <span>Term: {document.term}</span>}{" "}
         </div>
+        {ftuIllustrationUrl && (
+          <FTUIllustration
+            selectedIllustration={ftuIllustrationUrl}
+            illustrations={FTU_ILLUSTRATIONS_JSONLD_URL}
+          />
+        )}
         <div className="document-page-main-content-area">
-          <div className={`document-card-panel ${isPanelVisible ? "" : "hidden"}`}>
-            <DocumentCard document={document} />
-            {ftuIllustrationUrl && (
-              <FTUIllustration
-                selectedIllustration={ftuIllustrationUrl}
-                illustrations={FTU_ILLUSTRATIONS_JSONLD_URL}
-              />
-            )}
-          </div>
-          <div className={`force-graph-panel ${isPanelVisible ? "" : "flex-full"}`}>
-            <ForceGraph nodeIds={nodeIds} settings={forceGraphSettings} />
-          </div>
+          <GraphWorkspace
+            originDocument={document}
+            nodeIds={nodeIds}
+            settings={forceGraphSettings}
+          />
         </div>
       </div>
     </div>
