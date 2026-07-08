@@ -45,7 +45,7 @@ export {
   renameGraph,
   restoreSavedGraph,
   saveGraph,
-  setActiveGraph,
+  setActiveGraph as setActiveSavedGraph,
 } from "./savedGraphsSlice";
 // Store configuration
 export { persistor, store } from "./store";

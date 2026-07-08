@@ -1,0 +1,61 @@
+import { configureStore } from "@reduxjs/toolkit";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { Provider } from "react-redux";
+import graphReducer from "store/graphSlice";
+import savedGraphsReducer from "store/savedGraphsSlice";
+import SavedGraphShelf from "./SavedGraphShelf";
+
+const renderWithState = (savedGraphs, activeGraphId = null) => {
+  const store = configureStore({
+    reducer: { graph: graphReducer, savedGraphs: savedGraphsReducer },
+    preloadedState: { savedGraphs: { savedGraphs, activeGraphId } },
+  });
+  return {
+    store,
+    ...render(
+      <Provider store={store}>
+        <SavedGraphShelf />
+      </Provider>,
+    ),
+  };
+};
+
+const card = (over = {}) => ({
+  id: "1",
+  name: "Graph Title",
+  thumbnail: null,
+  originNodeIds: ["CS/a"],
+  settings: {},
+  graphData: { nodes: [], links: [] },
+  timestamp: "t",
+  ...over,
+});
+
+describe("SavedGraphShelf", () => {
+  it("renders an empty state when there are no saved graphs", () => {
+    const { container } = renderWithState([]);
+    expect(container.querySelector(".saved-graph-shelf--empty")).toBeInTheDocument();
+  });
+
+  it("renders a card per saved graph and highlights the active one", () => {
+    const { container } = renderWithState(
+      [card({ id: "1" }), card({ id: "2", name: "Second" })],
+      "2",
+    );
+    expect(screen.getByText("Graph Title")).toBeInTheDocument();
+    expect(screen.getByText("Second")).toBeInTheDocument();
+    expect(container.querySelectorAll(".saved-graph-card--active")).toHaveLength(1);
+  });
+
+  it("restores a graph when its card is clicked", () => {
+    const { store } = renderWithState([card({ id: "1" })]);
+    fireEvent.click(screen.getByText("Graph Title"));
+    expect(store.getState().savedGraphs.activeGraphId).toBe("1");
+  });
+
+  it("deletes a graph via its delete control", () => {
+    const { store } = renderWithState([card({ id: "1" })]);
+    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+    expect(store.getState().savedGraphs.savedGraphs).toHaveLength(0);
+  });
+});
