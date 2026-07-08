@@ -19,6 +19,15 @@
   display: flex;
   flex-direction: column;
   flex-grow: 1;
+  /* The unified graph workspace is a full-bleed page (matches the Figma "for
+     dev" frame): drop the standard content-card gutters, rounding, and shadow
+     so the workspace meets the viewport edges. Scoped to the document page. */
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.content-page-layout.document-details-page-layout {
+  padding: 0;
 }
 
 /* Mobile: Stack panels vertically */
