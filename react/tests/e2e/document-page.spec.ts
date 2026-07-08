@@ -29,9 +29,7 @@ function buildRawGraph(originId: string) {
   };
 }
 
-test("DocumentPage shows details, toggles panel, renders graph, and opens options", async ({
-  page,
-}) => {
+test("DocumentPage shows details, renders graph, and opens/closes options", async ({ page }) => {
   await installErrorInstrumentation(page);
 
   const originKey = "ROOT";

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { useNodeDocument } from "./useNodeDocument";
 
 jest.mock("services", () => ({
@@ -34,6 +34,35 @@ describe("useNodeDocument", () => {
     const second = renderHook(() => useNodeDocument("CS/abc"));
     expect(second.result.current.document).toEqual({ _id: "CS/abc", label: "Lung" });
     expect(fetchDocument).not.toHaveBeenCalled();
+  });
+
+  it("does not flash the previous node's document when switching to an uncached node", async () => {
+    fetchDocument.mockResolvedValueOnce({ _id: "CS/a", label: "A" });
+    const { result, rerender } = renderHook(({ nodeId }) => useNodeDocument(nodeId), {
+      initialProps: { nodeId: "CS/a" },
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.document).toEqual({ _id: "CS/a", label: "A" });
+
+    let resolveB;
+    fetchDocument.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveB = resolve;
+        }),
+    );
+    act(() => {
+      rerender({ nodeId: "CS/b" });
+    });
+    // Must report loading and never expose node A's stale document while B is pending.
+    expect(result.current.loading).toBe(true);
+    expect(result.current.document).toBeNull();
+
+    await act(async () => {
+      resolveB({ _id: "CS/b", label: "B" });
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.document).toEqual({ _id: "CS/b", label: "B" });
   });
 
   it("captures fetch errors", async () => {

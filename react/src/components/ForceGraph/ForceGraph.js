@@ -28,7 +28,14 @@ import {
   updateNodePositions,
   updateSetting,
 } from "store";
-import { getLabel, hasNodesInRawData, isMac, LoadingBar, performSetOperation } from "utils";
+import {
+  captureGraphThumbnail,
+  getLabel,
+  hasNodesInRawData,
+  isMac,
+  LoadingBar,
+  performSetOperation,
+} from "utils";
 // Import extracted hooks
 import { useGraphExport, useNodeNames, usePerNodeSettings } from "./hooks";
 // Import extracted panels
@@ -727,15 +734,18 @@ const ForceGraph = ({
   const handleSave = useCallback(() => {
     const graphName = window.prompt("Please enter a name for your graph:");
     if (graphName) {
-      dispatch(
-        saveGraph({
-          name: graphName,
-          originNodeIds: originNodeIds,
-          settings: settings,
-          graphData: graphData,
-        }),
-      );
-      alert(`Graph "${graphName}" saved successfully!`);
+      captureGraphThumbnail(svgRef.current).then((thumbnail) => {
+        dispatch(
+          saveGraph({
+            name: graphName,
+            originNodeIds: originNodeIds,
+            settings: settings,
+            graphData: graphData,
+            thumbnail,
+          }),
+        );
+        alert(`Graph "${graphName}" saved successfully!`);
+      });
     }
   }, [dispatch, originNodeIds, settings, graphData]);
 

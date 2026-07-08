@@ -11,34 +11,43 @@ const nodeDocumentCache = new Map();
  * @returns {{ document: object|null, loading: boolean, error: Error|null }}
  */
 export const useNodeDocument = (nodeId) => {
-  const [state, setState] = useState({ document: null, loading: false, error: null });
+  // Tracks which nodeId the stored document/loading/error state belongs to, so a
+  // stale document from a prior nodeId is never returned while a new one is pending.
+  const [state, setState] = useState({ nodeId: null, document: null, loading: false, error: null });
 
   useEffect(() => {
     if (!nodeId) {
-      setState({ document: null, loading: false, error: null });
+      setState({ nodeId: null, document: null, loading: false, error: null });
       return;
     }
     if (nodeDocumentCache.has(nodeId)) {
-      setState({ document: nodeDocumentCache.get(nodeId), loading: false, error: null });
+      setState({ nodeId, document: nodeDocumentCache.get(nodeId), loading: false, error: null });
       return;
     }
     let cancelled = false;
-    setState({ document: null, loading: true, error: null });
+    setState({ nodeId, document: null, loading: true, error: null });
     const [coll, ...rest] = nodeId.split("/");
     const id = rest.join("/");
     fetchDocument(coll, id)
       .then((doc) => {
         if (cancelled) return;
         nodeDocumentCache.set(nodeId, doc);
-        setState({ document: doc, loading: false, error: null });
+        setState({ nodeId, document: doc, loading: false, error: null });
       })
       .catch((err) => {
-        if (!cancelled) setState({ document: null, loading: false, error: err });
+        if (!cancelled) setState({ nodeId, document: null, loading: false, error: err });
       });
     return () => {
       cancelled = true;
     };
   }, [nodeId]);
 
-  return state;
+  if (state.nodeId !== nodeId) {
+    // The effect for the current nodeId hasn't run yet; report loading (unless
+    // there's no node selected) instead of exposing the previous nodeId's document.
+    return { document: null, loading: !!nodeId, error: null };
+  }
+
+  const { nodeId: _nodeId, ...rest } = state;
+  return rest;
 };
