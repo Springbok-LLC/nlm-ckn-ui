@@ -46,6 +46,7 @@ export {
   restoreSavedGraph,
   saveGraph,
   setActiveGraph as setActiveSavedGraph,
+  snapshotCurrentGraph,
 } from "./savedGraphsSlice";
 // Store configuration
 export { persistor, store } from "./store";

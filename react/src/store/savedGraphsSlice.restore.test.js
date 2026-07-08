@@ -1,11 +1,12 @@
 import { configureStore } from "@reduxjs/toolkit";
-import graphReducer from "./graphSlice";
+import graphReducer, { setGraphData } from "./graphSlice";
 import savedGraphsReducer, {
   deleteGraph,
   renameGraph,
   restoreSavedGraph,
   saveGraph,
   setActiveGraph,
+  snapshotCurrentGraph,
 } from "./savedGraphsSlice";
 
 const makeStore = () => configureStore({ reducer: { savedGraphs: savedGraphsReducer } });
@@ -75,5 +76,23 @@ describe("restoreSavedGraph thunk", () => {
   it("is a no-op for an unknown id", () => {
     const store = makeFullStore();
     expect(() => store.dispatch(restoreSavedGraph("nope"))).not.toThrow();
+  });
+});
+
+describe("snapshotCurrentGraph thunk", () => {
+  it("snapshots the current live graph to the shelf", () => {
+    const store = makeFullStore();
+    store.dispatch(setGraphData({ nodes: [{ id: "CS/a" }], links: [], skipUndo: true }));
+    store.dispatch(snapshotCurrentGraph({ name: "Snap", thumbnail: "data:x" }));
+    const shelf = store.getState().savedGraphs.savedGraphs;
+    expect(shelf).toHaveLength(1);
+    expect(shelf[0].name).toBe("Snap");
+    expect(shelf[0].thumbnail).toBe("data:x");
+  });
+
+  it("does not snapshot an empty graph", () => {
+    const store = makeFullStore();
+    store.dispatch(snapshotCurrentGraph({ name: "Snap" }));
+    expect(store.getState().savedGraphs.savedGraphs).toHaveLength(0);
   });
 });

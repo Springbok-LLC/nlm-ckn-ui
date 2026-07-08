@@ -60,4 +60,25 @@ export const restoreSavedGraph = (id) => (dispatch, getState) => {
   dispatch(setActiveGraph(id));
 };
 
+/**
+ * Snapshots the current live graph onto the shelf. No-op if the graph is empty.
+ * @param {{ name?: string, thumbnail?: string|null }} [opts]
+ */
+export const snapshotCurrentGraph =
+  ({ name = "Graph Title", thumbnail = null } = {}) =>
+  (dispatch, getState) => {
+    const present = getState().graph.present;
+    const nodes = present?.graphData?.nodes ?? [];
+    if (!nodes.length) return;
+    dispatch(
+      saveGraph({
+        name,
+        originNodeIds: present.originNodeIds ?? [],
+        settings: present.settings ?? {},
+        graphData: present.graphData,
+        thumbnail,
+      }),
+    );
+  };
+
 export default savedGraphsSlice.reducer;
