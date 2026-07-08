@@ -50,6 +50,21 @@
   display: none;
 }
 
+/* Node inspector (unified graph workspace left column) */
+
+.node-inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.node-inspector-loading,
+.node-inspector-fallback {
+  padding: var(--spacing-md);
+  color: var(--color-gray);
+  font-size: var(--font-size-sm);
+}
+
 .force-graph-panel {
   flex: 1 1 auto;
   min-width: 0;
