@@ -31,6 +31,7 @@ export { LoadingBar } from "./components";
 export { downloadBlob, downloadFile, generateCsv } from "./csvHelpers";
 // FTU utilities
 export { findFtuUrlById } from "./ftu";
+// Graph and tree utilities
 export {
   findNodeById,
   hasAnyNodes,
@@ -38,7 +39,6 @@ export {
   mergeChildren,
   parseId,
 } from "./graph";
-// Graph and tree utilities
 export { captureGraphThumbnail } from "./graphThumbnail";
 // Platform utilities
 export { isMac } from "./platform";
