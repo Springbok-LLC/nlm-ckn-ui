@@ -43,6 +43,7 @@ export {
   default as savedGraphsReducer,
   deleteGraph,
   renameGraph,
+  restoreSavedGraph,
   saveGraph,
   setActiveGraph,
 } from "./savedGraphsSlice";

@@ -1,5 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { v4 as uuidv4 } from "uuid";
+import { setGraphData } from "./graphSlice";
 
 const initialState = {
   savedGraphs: [],
@@ -41,5 +42,22 @@ const savedGraphsSlice = createSlice({
 });
 
 export const { saveGraph, deleteGraph, renameGraph, setActiveGraph } = savedGraphsSlice.actions;
+
+/**
+ * Restores a saved graph into the live graph and marks it active.
+ * @param {string} id
+ */
+export const restoreSavedGraph = (id) => (dispatch, getState) => {
+  const graph = getState().savedGraphs.savedGraphs.find((g) => g.id === id);
+  if (!graph) return;
+  dispatch(
+    setGraphData({
+      graphData: graph.graphData,
+      originNodeIds: graph.originNodeIds,
+      skipUndo: true,
+    }),
+  );
+  dispatch(setActiveGraph(id));
+};
 
 export default savedGraphsSlice.reducer;

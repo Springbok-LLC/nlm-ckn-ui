@@ -1,12 +1,16 @@
 import { configureStore } from "@reduxjs/toolkit";
+import graphReducer from "./graphSlice";
 import savedGraphsReducer, {
   deleteGraph,
   renameGraph,
+  restoreSavedGraph,
   saveGraph,
   setActiveGraph,
 } from "./savedGraphsSlice";
 
 const makeStore = () => configureStore({ reducer: { savedGraphs: savedGraphsReducer } });
+const makeFullStore = () =>
+  configureStore({ reducer: { graph: graphReducer, savedGraphs: savedGraphsReducer } });
 const state = (s) => s.getState().savedGraphs;
 
 describe("savedGraphsSlice extensions", () => {
@@ -48,5 +52,28 @@ describe("savedGraphsSlice extensions", () => {
     store.dispatch(setActiveGraph(id));
     store.dispatch(deleteGraph(id));
     expect(state(store).activeGraphId).toBeNull();
+  });
+});
+
+describe("restoreSavedGraph thunk", () => {
+  it("loads the saved graph's data and marks it active", () => {
+    const store = makeFullStore();
+    store.dispatch(
+      saveGraph({
+        name: "G1",
+        originNodeIds: ["CS/a"],
+        settings: {},
+        graphData: { nodes: [{ id: "CS/a" }], links: [] },
+      }),
+    );
+    const id = store.getState().savedGraphs.savedGraphs[0].id;
+    store.dispatch(restoreSavedGraph(id));
+    expect(store.getState().savedGraphs.activeGraphId).toBe(id);
+    expect(store.getState().graph.present.graphData.nodes).toEqual([{ id: "CS/a" }]);
+  });
+
+  it("is a no-op for an unknown id", () => {
+    const store = makeFullStore();
+    expect(() => store.dispatch(restoreSavedGraph("nope"))).not.toThrow();
   });
 });
