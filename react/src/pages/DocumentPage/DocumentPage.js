@@ -16,7 +16,6 @@ const DocumentPage = () => {
   const { coll, id } = useParams();
   const [document, setDocument] = useState(null);
   const [nodeIds, setNodeIds] = useState(null);
-  const [isPanelVisible, setIsPanelVisible] = useState(true);
 
   const { ftuParts } = useFtuParts();
 
@@ -115,14 +114,6 @@ const DocumentPage = () => {
           ]}
         />
         <div className="document-item-header">
-          <button
-            type="button"
-            onClick={() => setIsPanelVisible(!isPanelVisible)}
-            className={"toggle-options-button"}
-            style={{ position: "static" }}
-          >
-            {isPanelVisible ? "<" : ">"}
-          </button>
           <h1>{getTitle(document)}</h1>
           {document.term && <span>Term: {document.term}</span>}{" "}
         </div>
