@@ -42,9 +42,10 @@ cp .env.example .env
 
 Then edit `.env`:
 
-- **`SECRET_KEY`** — generate one:
+- **`SECRET_KEY`** — generate one (uses only the Python standard library, so it
+  works on a clean checkout before dependencies are installed):
   ```bash
-  python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+  python3 -c "import secrets; print(secrets.token_urlsafe(64))"
   ```
 - **`ARANGO_DB_PASSWORD`** — pick a password. The loader script (step 4) uses it
   to initialize the ArangoDB container.
@@ -105,11 +106,15 @@ see [Frontend Development](#frontend-development) below.)
 ### 6. Run the backend
 
 ```bash
-python -m venv venv && source venv/bin/activate
+python3.13 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
+
+Create the venv with `python3.13` explicitly so it doesn't pick up another
+interpreter (unless pyenv has already activated `.python-version` for you). Once
+the venv is activated, the `python`/`pip` below correctly resolve to it.
 
 `python manage.py migrate` sets up the local SQLite database (`db.sqlite3`) and
 loads the predefined queries the app depends on — don't skip it on a fresh clone.
