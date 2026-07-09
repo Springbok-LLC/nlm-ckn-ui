@@ -73,6 +73,26 @@ describe("restoreSavedGraph thunk", () => {
     expect(store.getState().graph.present.graphData.nodes).toEqual([{ id: "CS/a" }]);
   });
 
+  it("restores the saved display settings alongside the graph data", () => {
+    const store = makeFullStore();
+    store.dispatch(
+      saveGraph({
+        name: "G1",
+        originNodeIds: ["CS/a"],
+        settings: { collapseOnStart: true, nodeLabelFilters: ["CS"] },
+        graphData: { nodes: [{ id: "CS/a" }], links: [] },
+      }),
+    );
+    const id = store.getState().savedGraphs.savedGraphs[0].id;
+    store.dispatch(restoreSavedGraph(id));
+    const { settings } = store.getState().graph.present;
+    expect(settings.collapseOnStart).toBe(true);
+    expect(settings.nodeLabelFilters).toEqual(["CS"]);
+    // Query-affecting fields stay disabled because the data is already resolved.
+    expect(settings.depth).toBe(0);
+    expect(settings.useFocusNodes).toBe(false);
+  });
+
   it("is a no-op for an unknown id", () => {
     const store = makeFullStore();
     expect(() => store.dispatch(restoreSavedGraph("nope"))).not.toThrow();

@@ -4,6 +4,10 @@ import { fetchDocument } from "services";
 // Session-scoped cache of resolved node documents, keyed by "COLL/key".
 const nodeDocumentCache = new Map();
 
+// Test-only helper to clear the module-scoped cache so specs stay isolated and
+// order-independent. Not part of the public API.
+export const __clearNodeDocumentCache = () => nodeDocumentCache.clear();
+
 /**
  * Fetches the full document for a graph node id ("COLL/key"), caching results
  * for the session so re-selecting a visited node is instant.

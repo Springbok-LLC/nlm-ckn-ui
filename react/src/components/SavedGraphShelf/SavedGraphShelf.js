@@ -38,7 +38,10 @@ const SavedGraphShelf = () => {
                 className="saved-graph-card-title-input"
                 defaultValue={g.name}
                 onBlur={(e) => {
-                  dispatch(renameGraph({ id: g.id, name: e.target.value }));
+                  const name = e.target.value.trim();
+                  // Ignore an empty/whitespace value so a card never ends up with a
+                  // blank title and broken aria-labels; just leave rename mode.
+                  if (name) dispatch(renameGraph({ id: g.id, name }));
                   setEditingId(null);
                 }}
               />

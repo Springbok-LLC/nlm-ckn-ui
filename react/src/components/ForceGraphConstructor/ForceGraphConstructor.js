@@ -56,6 +56,10 @@ function ForceGraphConstructor(
   // those guards.
   mergedOptions.drag = d3
     .drag()
+    // Keep d3's own click-vs-drag threshold aligned with DRAG_PIN_THRESHOLD so a
+    // sub-threshold movement that we treat as a click for pinning does not get
+    // its native "click" (node selection) suppressed by d3.
+    .clickDistance(DRAG_PIN_THRESHOLD)
     .on("start", (event, _d) => {
       activeDrags += 1;
       mergedOptions.interactionCallback();

@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useNodeDocument } from "./useNodeDocument";
+import { __clearNodeDocumentCache, useNodeDocument } from "./useNodeDocument";
 
 jest.mock("services", () => ({
   fetchDocument: jest.fn(),
@@ -8,7 +8,10 @@ jest.mock("services", () => ({
 import { fetchDocument } from "services";
 
 describe("useNodeDocument", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    __clearNodeDocumentCache();
+  });
 
   it("returns idle state for a null nodeId", () => {
     const { result } = renderHook(() => useNodeDocument(null));
