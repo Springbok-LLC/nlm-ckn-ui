@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { deleteGraph, renameGraph, restoreSavedGraph } from "store";
 
 /**
- * Bottom filmstrip of session-saved graphs. Click a card to restore it;
- * double-click the title to rename; use the delete control to remove it.
+ * Bottom filmstrip of session-saved graphs. Click a card to restore it; use the
+ * rename control to rename it; use the delete control to remove it.
  */
 const SavedGraphShelf = () => {
   const dispatch = useDispatch();
@@ -43,12 +43,7 @@ const SavedGraphShelf = () => {
                 }}
               />
             ) : (
-              <button
-                type="button"
-                className="saved-graph-card-title"
-                onClick={restore}
-                onDoubleClick={() => setEditingId(g.id)}
-              >
+              <button type="button" className="saved-graph-card-title" onClick={restore}>
                 {g.name}
               </button>
             )}
@@ -58,6 +53,14 @@ const SavedGraphShelf = () => {
               ) : (
                 <span className="thumb-placeholder" />
               )}
+            </button>
+            <button
+              type="button"
+              className="saved-graph-card-rename"
+              aria-label={`Rename ${g.name}`}
+              onClick={() => setEditingId(g.id)}
+            >
+              ✎
             </button>
             <button
               type="button"

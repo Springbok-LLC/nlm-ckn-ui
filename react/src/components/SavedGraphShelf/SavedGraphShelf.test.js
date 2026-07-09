@@ -53,6 +53,17 @@ describe("SavedGraphShelf", () => {
     expect(store.getState().savedGraphs.activeGraphId).toBe("1");
   });
 
+  it("renames a graph via the rename control without restoring it", () => {
+    const { store } = renderWithState([card({ id: "1" })]);
+    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
+    // Entering rename mode must not restore the graph.
+    expect(store.getState().savedGraphs.activeGraphId).toBeNull();
+    const input = screen.getByDisplayValue("Graph Title");
+    fireEvent.change(input, { target: { value: "Renamed" } });
+    fireEvent.blur(input);
+    expect(store.getState().savedGraphs.savedGraphs[0].name).toBe("Renamed");
+  });
+
   it("deletes a graph via its delete control", () => {
     const { store } = renderWithState([card({ id: "1" })]);
     fireEvent.click(screen.getByRole("button", { name: /delete/i }));

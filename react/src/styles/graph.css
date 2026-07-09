@@ -639,6 +639,12 @@ g.node.pinned .node-pin-marker path {
     min-height: 300px;
   }
 
+  /* Match the base 400px wrapper floor to the tighter mobile canvas so the
+     flex child does not force the canvas taller than intended. */
+  .graph-workspace-canvas #chart-container-wrapper {
+    min-height: 300px;
+  }
+
   .graph-workspace-shelf {
     padding: var(--spacing-xs);
   }
@@ -734,6 +740,21 @@ g.node.pinned .node-pin-marker path {
   position: absolute;
   top: var(--spacing-xs);
   right: var(--spacing-xs);
+  color: var(--color-gray);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
+/* Rename control sits just left of the delete control, same treatment. */
+.saved-graph-card-rename {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  position: absolute;
+  top: var(--spacing-xs);
+  right: calc(var(--spacing-xs) + 18px);
   color: var(--color-gray);
   font-size: var(--font-size-sm);
   line-height: 1;

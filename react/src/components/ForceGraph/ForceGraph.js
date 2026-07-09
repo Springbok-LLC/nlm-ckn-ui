@@ -749,20 +749,24 @@ const ForceGraph = ({
 
   const handleSave = useCallback(() => {
     const graphName = window.prompt("Please enter a name for your graph:");
-    if (graphName) {
-      captureGraphThumbnail(svgRef.current).then((thumbnail) => {
-        dispatch(
-          saveGraph({
-            name: graphName,
-            originNodeIds: originNodeIds,
-            settings: settings,
-            graphData: graphData,
-            thumbnail,
-          }),
-        );
-        alert(`Graph "${graphName}" saved successfully!`);
-      });
-    }
+    if (!graphName) return;
+    const persist = (thumbnail) => {
+      dispatch(
+        saveGraph({
+          name: graphName,
+          originNodeIds: originNodeIds,
+          settings: settings,
+          graphData: graphData,
+          thumbnail,
+        }),
+      );
+      alert(`Graph "${graphName}" saved successfully!`);
+    };
+    // captureGraphThumbnail is best-effort and resolves to null on failure, but
+    // guard the chain so the save is never dropped if it ever rejects.
+    captureGraphThumbnail(svgRef.current)
+      .then(persist)
+      .catch(() => persist(null));
   }, [dispatch, originNodeIds, settings, graphData]);
 
   const handleLoad = useCallback(() => {
