@@ -19,7 +19,10 @@ const SavedGraphShelf = () => {
     }
   }, [editingId]);
 
-  if (!savedGraphs.length) {
+  // `savedGraphs` is session-only (not persisted), but a stale blob rehydrated
+  // from an older build can leave the array undefined — guard so the shelf never
+  // crashes the surrounding workspace.
+  if (!savedGraphs?.length) {
     return <div className="saved-graph-shelf saved-graph-shelf--empty">No saved graphs yet</div>;
   }
 
