@@ -89,6 +89,13 @@ describe("SearchBar Component", () => {
     });
   });
 
+  it("uses a custom placeholder when provided", () => {
+    renderWithContext(<SearchBar placeholder="Search gene, tissue, cell set, publication..." />);
+    expect(
+      screen.getByPlaceholderText("Search gene, tissue, cell set, publication..."),
+    ).toBeInTheDocument();
+  });
+
   // TODO: Add test for searchDocuments service call - requires fixing mock isolation issues
   it.todo("calls searchDocuments service after debounce when input changes");
 });
