@@ -1,7 +1,37 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter as Router } from "react-router-dom"; // Wrap with Router for routing context
-import { ActiveNavProvider } from "../../contexts/ActiveNavContext";
+import { MemoryRouter, MemoryRouter as Router } from "react-router-dom"; // Wrap with Router for routing context
+import { ActiveNavProvider, GraphContext } from "contexts";
 import Header from "./Header";
+
+// SearchBar pulls in the results table + search service; stub the table so the
+// header test targets composition, not search internals.
+jest.mock("components/SearchResultsTable/SearchResultsTable", () => () => (
+  <div data-testid="search-results-table" />
+));
+
+const renderHeader = () =>
+  render(
+    <MemoryRouter>
+      <GraphContext.Provider value={{ graphType: "phenotypes" }}>
+        <ActiveNavProvider>
+          <Header />
+        </ActiveNavProvider>
+      </GraphContext.Provider>
+    </MemoryRouter>,
+  );
+
+describe("Header", () => {
+  it("renders the brand, the header search, and the nav links", () => {
+    renderHeader();
+    expect(screen.getByAltText(/NLM Cell Knowledge Network logo/i)).toBeInTheDocument();
+    expect(screen.getByText("NLM Cell Knowledge Network")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Search gene, tissue, cell set, publication..."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Collections" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Graph" })).toBeInTheDocument();
+  });
+});
 
 describe("Header Component", () => {
   test("renders without crashing", () => {
