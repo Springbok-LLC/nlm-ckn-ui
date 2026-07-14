@@ -1,28 +1,5 @@
 /* Navigation and Header Components */
 
-/* Mobile-first header */
-.app-header {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-}
-
-.app-header * {
-  font-weight: 100;
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: var(--font-size-2xl);
-  line-height: 1.2;
-}
-
-.app-header a:hover {
-  color: var(--color-light);
-}
-
 /* Mobile-first navbar */
 .navbar {
   display: flex;
@@ -188,26 +165,12 @@
 
 /* Tablet and up */
 @media (min-width: 640px) {
-  .app-header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-lg);
-  }
-
   .navbar {
     padding: 0;
   }
 
   .navbar h4 {
     padding-left: var(--spacing-xl);
-  }
-}
-
-/* Desktop and up */
-@media (min-width: 1024px) {
-  .app-header {
-    padding: calc(var(--spacing-lg) * 1.5);
   }
 }
 

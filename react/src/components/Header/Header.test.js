@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, MemoryRouter as Router } from "react-router-dom"; // Wrap with Router for routing context
 import { ActiveNavProvider, GraphContext } from "contexts";
+import { MemoryRouter } from "react-router-dom"; // Wrap with Router for routing context
 import Header from "./Header";
 
 // SearchBar pulls in the results table + search service; stub the table so the
@@ -36,21 +36,21 @@ describe("Header", () => {
 describe("Header Component", () => {
   test("renders without crashing", () => {
     render(
-      <Router>
+      <MemoryRouter>
         <ActiveNavProvider>
           <Header />
         </ActiveNavProvider>
-      </Router>,
+      </MemoryRouter>,
     );
   });
 
   test("renders all navigation links", () => {
     render(
-      <Router>
+      <MemoryRouter>
         <ActiveNavProvider>
           <Header />
         </ActiveNavProvider>
-      </Router>,
+      </MemoryRouter>,
     );
 
     // Check if each navigation link is rendered
@@ -63,11 +63,11 @@ describe("Header Component", () => {
   test("sets active class for correct link based on location", () => {
     // Simulate different routes and check if the active class is applied to the correct link
     render(
-      <Router initialEntries={["/tree"]}>
+      <MemoryRouter initialEntries={["/tree"]}>
         <ActiveNavProvider>
           <Header />
         </ActiveNavProvider>
-      </Router>,
+      </MemoryRouter>,
     );
 
     expect(screen.getByText(/Explore/i)).toHaveClass("active-nav"); // /tree should be active
@@ -76,12 +76,12 @@ describe("Header Component", () => {
 
   test("updates active class when location changes by clicking a link", () => {
     render(
-      <Router initialEntries={["/collections"]}>
+      <MemoryRouter initialEntries={["/collections"]}>
         {" "}
         <ActiveNavProvider>
           <Header />
         </ActiveNavProvider>
-      </Router>,
+      </MemoryRouter>,
     );
 
     // Check the initial active class
