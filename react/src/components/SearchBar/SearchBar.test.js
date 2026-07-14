@@ -94,6 +94,8 @@ describe("SearchBar Component", () => {
     expect(
       screen.getByPlaceholderText("Search gene, tissue, cell set, publication..."),
     ).toBeInTheDocument();
+    // Guard against the prop being ignored: the default must not be rendered.
+    expect(screen.queryByPlaceholderText("Search NLM-CKN...")).not.toBeInTheDocument();
   });
 
   // TODO: Add test for searchDocuments service call - requires fixing mock isolation issues
