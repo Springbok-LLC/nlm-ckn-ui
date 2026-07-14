@@ -65,6 +65,64 @@
   color: var(--color-focus);
 }
 
+/* Redesigned navy Title Bar (Figma "Title Bar - Desktop L", node 683:5587). */
+.app-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  background-color: var(--color-primary-darkest); /* #112e51 */
+  padding: 0.75rem var(--spacing-2xl); /* 12px 40px */
+}
+
+.app-title-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg); /* 24px */
+  min-width: 0;
+}
+
+.app-title-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.app-title-wordmark {
+  color: var(--color-white);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-2xl); /* 24px */
+  line-height: 1.125;
+  white-space: nowrap;
+}
+
+/* Header-scoped search field — Figma spec. Higher specificity than components.css
+   so the Search page's own SearchBar styling is unaffected. */
+.app-title-bar .search-component-wrapper {
+  margin: 0;
+  flex: 0 1 519px;
+  max-width: 580px;
+  min-width: 160px;
+}
+
+.app-title-bar .search-bar-container {
+  background-color: var(--color-gray-lightest); /* #f1f1f1 */
+  border: none;
+  border-radius: 4px 4px 0 0;
+  box-shadow: none;
+  height: 40px;
+}
+
+.app-title-bar .search-input-wrapper {
+  height: 100%;
+}
+
+.app-title-bar .search-input::placeholder {
+  color: var(--color-gray); /* #5b616b */
+  font-style: normal;
+}
+
 /* Footer */
 
 .site-footer {
@@ -150,6 +208,20 @@
 @media (min-width: 1024px) {
   .app-header {
     padding: calc(var(--spacing-lg) * 1.5);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-title-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+  }
+
+  .app-title-bar .search-component-wrapper {
+    flex-basis: auto;
+    max-width: none;
   }
 }
 
