@@ -9,9 +9,9 @@ jest.mock("components/SearchResultsTable/SearchResultsTable", () => () => (
   <div data-testid="search-results-table" />
 ));
 
-const renderHeader = () =>
+const renderHeader = (initialEntries = ["/"]) =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <GraphContext.Provider value={{ graphType: "phenotypes" }}>
         <ActiveNavProvider>
           <Header />
@@ -35,23 +35,11 @@ describe("Header", () => {
 
 describe("Header Component", () => {
   test("renders without crashing", () => {
-    render(
-      <MemoryRouter>
-        <ActiveNavProvider>
-          <Header />
-        </ActiveNavProvider>
-      </MemoryRouter>,
-    );
+    renderHeader();
   });
 
   test("renders all navigation links", () => {
-    render(
-      <MemoryRouter>
-        <ActiveNavProvider>
-          <Header />
-        </ActiveNavProvider>
-      </MemoryRouter>,
-    );
+    renderHeader();
 
     // Check if each navigation link is rendered
     expect(screen.getByText(/Explore/i)).toBeInTheDocument();
@@ -62,27 +50,14 @@ describe("Header Component", () => {
 
   test("sets active class for correct link based on location", () => {
     // Simulate different routes and check if the active class is applied to the correct link
-    render(
-      <MemoryRouter initialEntries={["/tree"]}>
-        <ActiveNavProvider>
-          <Header />
-        </ActiveNavProvider>
-      </MemoryRouter>,
-    );
+    renderHeader(["/tree"]);
 
     expect(screen.getByText(/Explore/i)).toHaveClass("active-nav"); // /tree should be active
     expect(screen.getByText(/collections/i)).not.toHaveClass("active-nav");
   });
 
   test("updates active class when location changes by clicking a link", () => {
-    render(
-      <MemoryRouter initialEntries={["/collections"]}>
-        {" "}
-        <ActiveNavProvider>
-          <Header />
-        </ActiveNavProvider>
-      </MemoryRouter>,
-    );
+    renderHeader(["/collections"]);
 
     // Check the initial active class
     expect(screen.getByText(/collections/i)).toHaveClass("active-nav");
