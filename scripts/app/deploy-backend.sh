@@ -213,12 +213,32 @@ STACK_STATUS=$(aws cloudformation describe-stacks \
   --query 'Stacks[0].StackStatus' \
   --output text 2>/dev/null) || STACK_STATUS=""
 
-if [ -n "$STACK_STATUS" ] && [[ "$STACK_STATUS" != *_COMPLETE ]]; then
-  echo -e "\n${YELLOW}Backend stack ${BACKEND_STACK} is not ready (status: ${STACK_STATUS}).${NC}"
-  echo -e "${YELLOW}The image has been pushed — CloudFormation will pick it up as it finishes provisioning.${NC}"
-  echo -e "${YELLOW}Re-run this script once the stack reaches a *_COMPLETE state to roll out future revisions.${NC}"
-  exit 0
-fi
+case "$STACK_STATUS" in
+  # Successful, deployable terminal states — the ECS service/task-def exist, so
+  # continue to the SSM + ECS rollout below. (UPDATE_ROLLBACK_COMPLETE rolled
+  # back to a prior working state, so its resources are usable too.)
+  CREATE_COMPLETE|UPDATE_COMPLETE|IMPORT_COMPLETE|UPDATE_ROLLBACK_COMPLETE)
+    ;;
+  # Empty status means the describe-stacks lookup failed or the stack doesn't
+  # exist yet — preserve the prior behavior of falling through.
+  "")
+    ;;
+  # Failed terminal states that also end in _COMPLETE (e.g. ROLLBACK_COMPLETE,
+  # DELETE_COMPLETE) or otherwise. The stack has no usable ECS resources, so an
+  # SSM/ECS rollout would fight the broken stack or fail confusingly. Stop here.
+  ROLLBACK_COMPLETE|ROLLBACK_FAILED|UPDATE_ROLLBACK_FAILED|DELETE_COMPLETE|DELETE_FAILED|CREATE_FAILED|UPDATE_FAILED)
+    echo -e "\n${RED}Backend stack ${BACKEND_STACK} is in a failed state (status: ${STACK_STATUS}).${NC}"
+    echo -e "${RED}The image has been pushed, but resolve the stack in CloudFormation before deploying application code.${NC}"
+    exit 1
+    ;;
+  # Anything else is a non-terminal, in-progress state — still provisioning.
+  *)
+    echo -e "\n${YELLOW}Backend stack ${BACKEND_STACK} is not ready (status: ${STACK_STATUS}).${NC}"
+    echo -e "${YELLOW}The image has been pushed — CloudFormation will pick it up as it finishes provisioning.${NC}"
+    echo -e "${YELLOW}Re-run this script once the stack reaches a *_COMPLETE state to roll out future revisions.${NC}"
+    exit 0
+    ;;
+esac
 
 # Store the active image tag in SSM (for auditability and rollback reference)
 SSM_IMAGE_TAG_PARAM="/${PROJECT_NAME}/${ENVIRONMENT}/backend/image-tag"

@@ -72,13 +72,27 @@ fi
 CDN_STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}-frontend-cdn"
 
 # Helper: fetch selected outputs from a stack as "Key<TAB>Value" lines.
-# Returns empty (and non-error) when the stack doesn't exist.
+# Returns empty (and non-error) only when the stack genuinely doesn't exist.
+# Any other describe-stacks failure (permissions, credentials, throttling,
+# connectivity) is propagated so a caller can't silently treat it as "absent"
+# and skip CDN invalidation or the smoke test.
 fetch_stack_outputs() {
-  aws cloudformation describe-stacks \
+  local out
+  if out=$(aws cloudformation describe-stacks \
     --stack-name "$1" \
     --region "$AWS_REGION" \
     --query 'Stacks[0].Outputs[?OutputKey==`BucketName` || OutputKey==`CloudFrontDistributionId` || OutputKey==`FrontendUrl`].[OutputKey,OutputValue]' \
-    --output text 2>/dev/null || true
+    --output text 2>&1); then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  # A non-existent stack is expected (the CDN stack may not be deployed yet).
+  if printf '%s' "$out" | grep -q 'does not exist'; then
+    return 0
+  fi
+  echo -e "${RED}Error: describe-stacks failed for $1:${NC}" >&2
+  printf '%s\n' "$out" >&2
+  return 1
 }
 
 echo -e "${GREEN}Getting infrastructure details from CloudFormation / SSM...${NC}"
