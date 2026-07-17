@@ -744,6 +744,9 @@ g.node.pinned .node-pin-marker path {
 }
 
 .saved-graph-card-thumb {
+  /* Thumbnail renders above the title; markup order is unchanged so the
+     rename-input logic stays intact. */
+  order: -1;
   background: none;
   border: none;
   padding: 0;
@@ -753,6 +756,7 @@ g.node.pinned .node-pin-marker path {
   height: 100px;
   display: block;
   overflow: hidden;
+  border-radius: var(--radius-sm, 2px);
 }
 
 .saved-graph-card-thumb img {
