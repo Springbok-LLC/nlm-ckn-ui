@@ -42,6 +42,7 @@
   /* Semantic Mappings (for backward compatibility) */
   --color-main: var(--color-primary-darker);
   --color-text: var(--color-base);
+  --color-text-muted: #5b616b;
   --color-text-on-dark: var(--color-white);
   --color-dark: var(--color-base);
   --color-bg: var(--color-gray-light);

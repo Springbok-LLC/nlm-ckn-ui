@@ -262,13 +262,13 @@ g.node.pinned .node-pin-marker path {
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-sm) var(--spacing-md);
-  border-bottom: 1px solid var(--color-border, #e2e4e8);
+  border-bottom: 1px solid var(--color-border);
 }
 .graph-title {
   margin: 0;
   font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--color-text, #1b1b1b);
+  color: var(--color-text);
 }
 .graph-title-actions {
   display: flex;
@@ -539,7 +539,7 @@ g.node.pinned .node-pin-marker path {
   margin: 0 0 var(--spacing-sm);
   font-size: var(--font-size-md);
   font-weight: 600;
-  color: var(--color-text, #1b1b1b);
+  color: var(--color-text);
 }
 
 .inspector-overview .document-attributes-table {
@@ -547,14 +547,14 @@ g.node.pinned .node-pin-marker path {
   border-collapse: collapse;
 }
 
-.inspector-overview .attribute-key {
-  color: var(--color-text-muted, #5b616b);
+.inspector-overview .document-attributes-table .attribute-key {
+  color: var(--color-text-muted);
   font-weight: 500;
   padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) 0;
   vertical-align: top;
 }
 
-.inspector-overview .attribute-value {
+.inspector-overview .document-attributes-table .attribute-value {
   padding: var(--spacing-xs) 0;
 }
 
@@ -756,7 +756,7 @@ g.node.pinned .node-pin-marker path {
   height: 100px;
   display: block;
   overflow: hidden;
-  border-radius: var(--radius-sm, 2px);
+  border-radius: var(--radius-sm);
 }
 
 .saved-graph-card-thumb img {
