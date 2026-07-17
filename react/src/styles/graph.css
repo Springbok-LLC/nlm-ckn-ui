@@ -533,6 +533,31 @@ g.node.pinned .node-pin-marker path {
   box-shadow: var(--shadow-sm);
 }
 
+/* Inspector Overview Card */
+
+.inspector-overview-title {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text, #1b1b1b);
+}
+
+.inspector-overview .document-attributes-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inspector-overview .attribute-key {
+  color: var(--color-text-muted, #5b616b);
+  font-weight: 500;
+  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) 0;
+  vertical-align: top;
+}
+
+.inspector-overview .attribute-value {
+  padding: var(--spacing-xs) 0;
+}
+
 /* Desktop and up: Side-by-Side Layout */
 @media (min-width: 1024px) {
   .graph-component-wrapper {
