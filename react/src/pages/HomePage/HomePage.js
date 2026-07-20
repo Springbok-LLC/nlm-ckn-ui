@@ -1,16 +1,8 @@
-import SearchBar from "components/SearchBar";
 import { Link } from "react-router-dom";
 
-const SearchPage = () => {
+const HomePage = () => {
   return (
-    <div className="search-page-layout">
-      <div className="main-search-box">
-        <h1 className="search-page-title">Search the Knowledge Network</h1>
-        <div className="search-bar-wrapper">
-          <SearchBar />
-        </div>
-      </div>
-
+    <div className="home-page-layout">
       <div className="about-section-container">
         <h2 className="about-title">About NLM-CKN</h2>
         <p>
@@ -26,8 +18,8 @@ const SearchPage = () => {
           about cells, tissues, biomarkers, pathways, drugs, and diseases.
         </p>
         <p>
-          Use the search bar above to find and explore entities within this network. You can add
-          items to your graph or navigate to their specific pages.
+          Use the search bar in the header to find and explore entities within this network. You can
+          add items to your graph or navigate to their specific pages.
           <Link to="/about" className="learn-more-link internal-learn-more">
             Learn more...
           </Link>
@@ -37,4 +29,4 @@ const SearchPage = () => {
   );
 };
 
-export default SearchPage;
+export default HomePage;

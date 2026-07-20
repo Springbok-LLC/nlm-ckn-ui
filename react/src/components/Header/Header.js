@@ -17,7 +17,7 @@ const Header = () => {
       <TitleBar />
       <div className="navbar background-color-light-bg">
         <Link to="/">
-          <h4 className={activeNav === "/" ? "active-nav" : ""}>Search</h4>
+          <h4 className={activeNav === "/" ? "active-nav" : ""}>Home</h4>
         </Link>
         <Link to="/sunburst">
           <h4 className={activeNav === "/sunburst" ? "active-nav" : ""}>Browse</h4>

@@ -12,8 +12,8 @@ import CollectionsPage from "./pages/CollectionsPage/CollectionsPage";
 import DocumentPage from "./pages/DocumentPage/DocumentPage";
 import FTUExplorerPage from "./pages/FTUExplorerPage/FTUExplorerPage";
 import GraphPage from "./pages/GraphPage/GraphPage";
+import HomePage from "./pages/HomePage/HomePage";
 import NotFoundPage from "./pages/NotFoundPage/NotFoundPage";
-import SearchPage from "./pages/SearchPage/SearchPage";
 import SunburstPage from "./pages/SunburstPage/SunburstPage";
 import TreePage from "./pages/TreePage/TreePage";
 import WorkflowBuilderPage from "./pages/WorkflowBuilderPage/WorkflowBuilderPage";
@@ -38,7 +38,7 @@ function App() {
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/tree" element={<TreePage />} />
                     <Route path="/sunburst" element={<SunburstPage />} />
-                    <Route path="/" element={<SearchPage />} />
+                    <Route path="/" element={<HomePage />} />
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                 </div>
