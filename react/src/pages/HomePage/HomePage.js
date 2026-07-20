@@ -20,7 +20,11 @@ const HomePage = () => {
         <p>
           Use the search bar in the header to find and explore entities within this network. You can
           add items to your graph or navigate to their specific pages.
-          <Link to="/about" className="learn-more-link internal-learn-more">
+          <Link
+            to="/about"
+            className="learn-more-link internal-learn-more"
+            aria-label="Learn more about NLM-CKN on the About page"
+          >
             Learn more...
           </Link>
         </p>
