@@ -45,7 +45,7 @@ test('searching "lung" navigates to lung page', async ({ page }) => {
   await page.goto("/");
 
   // Input
-  const input = page.getByPlaceholder("Search NLM-CKN...");
+  const input = page.getByPlaceholder("Search gene, tissue, cell set, publication...");
   await expect(input).toBeVisible();
 
   // Type
@@ -98,7 +98,7 @@ test("exact match appears first when backend returns correctly sorted results", 
 
   await page.goto("/");
 
-  const input = page.getByPlaceholder("Search NLM-CKN...");
+  const input = page.getByPlaceholder("Search gene, tissue, cell set, publication...");
   await expect(input).toBeVisible();
   await input.fill("lung");
 
