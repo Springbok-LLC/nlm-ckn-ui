@@ -14,7 +14,6 @@
 /* Mobile-specific overrides: < 640px */
 @media (max-width: 639px) {
   /* Typography adjustments */
-  .search-page-title,
   .page-title,
   .content-page-title {
     font-size: 1.5rem;
@@ -52,7 +51,7 @@
   }
 
   /* Reduce padding on small screens */
-  .search-page-layout,
+  .home-page-layout,
   .visualization-page-layout,
   .collections-page-layout,
   .content-page-layout {
@@ -60,7 +59,6 @@
   }
 
   .content-box,
-  .main-search-box,
   .visualization-content-box,
   .collections-content-box {
     padding: var(--spacing-medium);
@@ -174,7 +172,7 @@
 /* Landscape phone adjustments */
 @media (max-width: 768px) and (orientation: landscape) {
   /* Reduce vertical padding in landscape */
-  .search-page-layout,
+  .home-page-layout,
   .visualization-page-layout {
     padding: var(--spacing-sm) var(--spacing-md);
   }
@@ -189,7 +187,6 @@
 /* Wide screens: 1200px+ */
 @media (min-width: 1200px) {
   /* Allow more breathing room on wide screens */
-  .main-search-box,
   .visualization-content-box,
   .content-box {
     max-width: 1100px;

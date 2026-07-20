@@ -16,7 +16,7 @@
 
 /* Page Layout Patterns - Mobile First */
 
-.search-page-layout,
+.home-page-layout,
 .visualization-page-layout,
 .collections-page-layout,
 .content-page-layout {
@@ -28,7 +28,7 @@
   min-height: 100vh;
 }
 
-.search-page-layout,
+.home-page-layout,
 .visualization-page-layout {
   gap: var(--spacing-lg);
 }
@@ -42,16 +42,6 @@
 }
 
 /* Content Boxes - Mobile First */
-
-.main-search-box {
-  background-color: var(--color-white);
-  padding: var(--spacing-lg);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-md);
-  width: 100%;
-  max-width: 900px;
-  text-align: center;
-}
 
 .visualization-content-box {
   background-color: var(--color-white);
@@ -95,7 +85,6 @@
 
 /* Page Titles */
 
-.search-page-title,
 .page-title,
 .content-page-title {
   font-size: var(--font-size-2xl);
@@ -125,7 +114,7 @@
 
 /* Tablet and up */
 @media (min-width: 640px) {
-  .search-page-layout,
+  .home-page-layout,
   .visualization-page-layout,
   .collections-page-layout,
   .content-page-layout {
@@ -136,7 +125,6 @@
     padding: var(--spacing-lg);
   }
 
-  .main-search-box,
   .visualization-content-box,
   .collections-content-box {
     padding: var(--spacing-xl) calc(var(--spacing-xl) * 1.33);
@@ -149,7 +137,6 @@
 
 /* Desktop and up */
 @media (min-width: 1024px) {
-  .search-page-title,
   .page-title,
   .content-page-title {
     font-size: var(--font-size-3xl);
