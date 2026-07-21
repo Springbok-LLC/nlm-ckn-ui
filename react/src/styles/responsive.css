@@ -36,11 +36,8 @@
   }
 
   /* Options panel: full-width in-flow block on mobile (not a trapping overlay).
-     Stacks below the graph controls; the toggle in the title bar stays reachable. */
-  .graph-component-wrapper {
-    flex-direction: column;
-  }
-
+     Stacks below the graph controls (the wrapper is already column here); the
+     toggle in the title bar stays reachable. */
   .graph-options-side-panel {
     position: static;
     width: 100%;
@@ -57,7 +54,6 @@
 
   .graph-component-wrapper.options-closed .graph-options-side-panel {
     display: none;
-    width: 100%; /* override the desktop options-closed width:0 collapse */
   }
 
   /* Give the panel room to enter the viewport: shrink the chart's forced
