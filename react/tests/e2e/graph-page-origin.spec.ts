@@ -99,7 +99,7 @@ test("Graph page shows two selected nodes and builds graph with both origins", a
 
   // Add from Search
   await page.goto("/");
-  await page.getByPlaceholder("Search NLM-CKN...").fill("sea");
+  await page.getByPlaceholder("Search gene, tissue, cell set, publication...").fill("sea");
   // Ensure result
   await expect(page.locator(".unified-search-results-list")).toContainText("Search Node");
   // Click add button
@@ -108,6 +108,10 @@ test("Graph page shows two selected nodes and builds graph with both origins", a
       ".unified-search-results-list .result-item-row-link .item-meta-actions .add-to-graph-button",
     )
     .click();
+
+  // Clear the global header search so its results dropdown does not linger over
+  // later pages and pollute the page-wide `.add-to-graph-button` locator below.
+  await page.getByPlaceholder("Search gene, tissue, cell set, publication...").fill("");
 
   // Add from Tree
   await page.getByRole("link", { name: "Explore" }).click();
