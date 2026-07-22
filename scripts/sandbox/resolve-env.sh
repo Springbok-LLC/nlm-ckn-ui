@@ -69,7 +69,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../common.sh"
 # from PROJECT_NAME: the two accounts renamed on different schedules, and the
 # sandbox side still answers to "cell-kn". See the header before changing it.
 # Export TARGET_PROJECT to re-point a one-off run (e.g. a sandbox rename).
-: "${TARGET_PROJECT:=cell-kn}"
+# Unset-only defaulting (`=`, not `:=`): an explicitly empty TARGET_PROJECT is
+# preserved so the required-value check in resolve_env can reject it.
+: "${TARGET_PROJECT=cell-kn}"
 
 # Helpers print the resolved value (empty if missing/unauthorized) and always
 # return 0, so a failed lookup never trips the caller's `set -e` mid-resolution.

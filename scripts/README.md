@@ -8,9 +8,9 @@ Application deployment and operations scripts for NLM-CKN.
 > repo (`nlm-ckn-ui`) ships application code to infrastructure that `nlm-ckn-iac`
 > has already provisioned.
 
-```
+```text
 scripts/
-  common.sh          # Shared constants (PROJECT_NAME) sourced by app + ops scripts
+  common.sh          # Shared constants (PROJECT_NAME) sourced by app, ops, and the sandbox env resolver
   app/               # Application deployments (ship code to existing infrastructure)
   ops/               # Operational helpers (smoke test, ...)
   sandbox/           # Sandbox-account deploy (separate naming; see sandbox/README.md)
@@ -136,14 +136,16 @@ connectivity end to end. Exits non-zero on any failure, so it can gate a deploy.
 
 ### Initial Setup
 ```bash
-# 1. Account setup + environment provisioning (in the nlm-ckn-iac repo)
-#    ./deploy/01-deploy-account-setup.sh
-#    ./deploy/02-deploy-environment.sh dev
+# 1. Account setup (in the nlm-ckn-iac repo)
+#    ./deploy/01-deploy-account-setup.sh          # one-time per AWS account
 
 # 2. Push initial backend image (before first environment deploy)
 ./scripts/app/push-backend-image.sh
 
-# 3. Deploy applications
+# 3. Provision the environment (in the nlm-ckn-iac repo)
+#    ./deploy/02-deploy-environment.sh dev
+
+# 4. Deploy applications
 ./scripts/app/deploy-all.sh
 ```
 
