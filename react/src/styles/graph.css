@@ -754,8 +754,10 @@ g.node.pinned .node-pin-marker path {
 }
 
 .saved-graph-card-thumb img {
-  max-width: 100%;
+  width: 100%;
+  height: auto;
   display: block;
+  object-fit: contain;
 }
 
 .saved-graph-card-thumb .thumb-placeholder {

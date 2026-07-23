@@ -31,4 +31,20 @@ describe("captureGraphThumbnail", () => {
     // The decoded markup must carry the SVG namespace, or browsers render a broken image.
     expect(decodeURIComponent(url)).toContain('xmlns="http://www.w3.org/2000/svg"');
   });
+
+  it("frames the clone to a fixed size with preserveAspectRatio so content isn't cropped", async () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const url = await captureGraphThumbnail(svg);
+    const markup = decodeURIComponent(url);
+    expect(markup).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(markup).toMatch(/height="160"/);
+  });
+
+  it("honors custom width/height options on the framed clone", async () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const url = await captureGraphThumbnail(svg, { width: 300, height: 200 });
+    const markup = decodeURIComponent(url);
+    expect(markup).toMatch(/width="300"/);
+    expect(markup).toMatch(/height="200"/);
+  });
 });

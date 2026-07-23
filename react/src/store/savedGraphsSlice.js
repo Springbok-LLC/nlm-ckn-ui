@@ -32,11 +32,6 @@ const savedGraphsSlice = createSlice({
       state.savedGraphs = state.savedGraphs.filter((g) => g.id !== idToDelete);
       if (state.activeGraphId === idToDelete) state.activeGraphId = null;
     },
-    renameGraph: (state, action) => {
-      const { id, name } = action.payload;
-      const graph = state.savedGraphs.find((g) => g.id === id);
-      if (graph) graph.name = name;
-    },
     setActiveGraph: (state, action) => {
       state.activeGraphId = action.payload;
     },
@@ -58,7 +53,6 @@ const savedGraphsSlice = createSlice({
 export const {
   saveGraph,
   deleteGraph,
-  renameGraph,
   setActiveGraph,
   addHistoryEntry,
   deleteHistoryEntry,
@@ -76,46 +70,6 @@ const EMPTY_SAVED_GRAPHS = [];
  * @returns {Array}
  */
 export const selectSavedGraphs = (state) => state.savedGraphs.savedGraphs ?? EMPTY_SAVED_GRAPHS;
-
-/**
- * Restores a saved graph into the live graph and marks it active.
- * @param {string} id
- */
-export const restoreSavedGraph = (id) => (dispatch, getState) => {
-  const graph = selectSavedGraphs(getState()).find((g) => g.id === id);
-  if (!graph) return;
-  dispatch(
-    setGraphData({
-      graphData: graph.graphData,
-      originNodeIds: graph.originNodeIds,
-      settings: graph.settings,
-      isRestore: true,
-      skipUndo: true,
-    }),
-  );
-  dispatch(setActiveGraph(id));
-};
-
-/**
- * Snapshots the current live graph onto the shelf. No-op if the graph is empty.
- * @param {{ name?: string, thumbnail?: string|null }} [opts]
- */
-export const snapshotCurrentGraph =
-  ({ name = "Graph Title", thumbnail = null } = {}) =>
-  (dispatch, getState) => {
-    const present = getState().graph.present;
-    const nodes = present?.graphData?.nodes ?? [];
-    if (!nodes.length) return;
-    dispatch(
-      saveGraph({
-        name,
-        originNodeIds: present.originNodeIds ?? [],
-        settings: present.settings ?? {},
-        graphData: present.graphData,
-        thumbnail,
-      }),
-    );
-  };
 
 const EMPTY_HISTORY = [];
 

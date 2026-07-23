@@ -44,15 +44,12 @@ export {
   default as savedGraphsReducer,
   deleteGraph,
   deleteHistoryEntry,
-  renameGraph,
   restoreHistoryEntry,
-  restoreSavedGraph,
   saveGraph,
   selectOriginHistory,
   selectSavedGraphs,
   setActiveGraph as setActiveSavedGraph,
   setActiveHistory,
-  snapshotCurrentGraph,
 } from "./savedGraphsSlice";
 // Store configuration
 export { persistor, store } from "./store";
