@@ -32,6 +32,20 @@ describe("originHistory", () => {
     expect(s.originHistory[0].checked).toBeUndefined();
   });
 
+  it("addHistoryEntry marks the new entry active", () => {
+    const s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    expect(s.activeHistoryId).toBe("h-A");
+  });
+
+  it("addHistoryEntry re-activates an already-tracked origin without duplicating", () => {
+    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    s = reducer(s, addHistoryEntry(entry("B", ["B"])));
+    expect(s.activeHistoryId).toBe("h-B");
+    s = reducer(s, addHistoryEntry(entry("A", ["A"]))); // dup origin
+    expect(s.originHistory).toHaveLength(2);
+    expect(s.activeHistoryId).toBe("h-A"); // focus returns to A
+  });
+
   it("deleteHistoryEntry removes it", () => {
     let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
     s = reducer(s, deleteHistoryEntry("h-A"));

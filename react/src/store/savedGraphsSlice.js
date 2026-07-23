@@ -40,9 +40,12 @@ const savedGraphsSlice = createSlice({
       // entries never persist it.
       // biome-ignore lint/correctness/noUnusedVariables: destructured only to omit it from entry
       const { checked, ...entry } = action.payload;
-      // One entry per origin; re-adding an already-tracked origin is a no-op.
-      if (state.originHistory.some((e) => e.originId === entry.originId)) return;
-      state.originHistory.push({ thumbnail: null, ...entry });
+      // One entry per origin; re-adding an already-tracked origin doesn't
+      // duplicate it, but still focuses it as the active version.
+      if (!state.originHistory.some((e) => e.originId === entry.originId)) {
+        state.originHistory.push({ thumbnail: null, ...entry });
+      }
+      state.activeHistoryId = entry.id;
     },
     deleteHistoryEntry: (state, action) => {
       state.originHistory = state.originHistory.filter((h) => h.id !== action.payload);
