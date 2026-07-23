@@ -1,16 +1,15 @@
 import reducer, {
   addHistoryEntry,
   deleteHistoryEntry,
-  mergeCheckedSubgraphs,
+  restoreHistoryEntry,
   selectOriginHistory,
-  toggleHistoryEntry,
+  setActiveHistory,
 } from "./savedGraphsSlice";
 
-const entry = (originId, nodeIds, checked = true) => ({
+const entry = (originId, nodeIds) => ({
   id: `h-${originId}`,
   originId,
   label: originId,
-  checked,
   timestamp: "t",
   thumbnail: null,
   subgraph: {
@@ -28,10 +27,9 @@ describe("originHistory", () => {
     expect(s.originHistory.map((e) => e.originId)).toEqual(["A", "B"]);
   });
 
-  it("toggleHistoryEntry flips checked", () => {
-    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
-    s = reducer(s, toggleHistoryEntry("h-A"));
-    expect(s.originHistory[0].checked).toBe(false);
+  it("addHistoryEntry does not store a checked field", () => {
+    const s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    expect(s.originHistory[0].checked).toBeUndefined();
   });
 
   it("deleteHistoryEntry removes it", () => {
@@ -40,14 +38,44 @@ describe("originHistory", () => {
     expect(s.originHistory).toHaveLength(0);
   });
 
-  it("mergeCheckedSubgraphs unions checked entries and dedupes shared nodes by _id", () => {
-    const history = [
-      entry("A", ["A", "shared"], true),
-      entry("B", ["B", "shared"], true),
-      entry("C", ["C"], false),
-    ];
-    const { nodes } = mergeCheckedSubgraphs(history);
-    const ids = nodes.map((n) => n._id).sort();
-    expect(ids).toEqual(["A", "B", "shared"]); // C excluded (unchecked), shared once
+  it("setActiveHistory sets activeHistoryId", () => {
+    const s = reducer(undefined, setActiveHistory("h-A"));
+    expect(s.activeHistoryId).toBe("h-A");
+  });
+
+  it("restoreHistoryEntry dispatches setGraphData and marks the entry active", () => {
+    let state = reducer(undefined, addHistoryEntry(entry("A", ["A", "n1"])));
+    const dispatch = jest.fn((action) => {
+      if (typeof action === "function") return action(dispatch, getState);
+      state = reducer(state, action);
+      return action;
+    });
+    const getState = () => ({ savedGraphs: state });
+
+    restoreHistoryEntry("h-A")(dispatch, getState);
+
+    expect(state.activeHistoryId).toBe("h-A");
+    const setGraphDataCall = dispatch.mock.calls.find(
+      ([action]) => action.type === "graph/setGraphData",
+    );
+    expect(setGraphDataCall).toBeDefined();
+    expect(setGraphDataCall[0].payload.isRestore).toBe(true);
+  });
+
+  it("restoreHistoryEntry is a no-op for an unknown id", () => {
+    const state = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    const dispatch = jest.fn();
+    const getState = () => ({ savedGraphs: state });
+
+    restoreHistoryEntry("missing")(dispatch, getState);
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("selectOriginHistory", () => {
+  it("returns the history array from state", () => {
+    const state = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    expect(selectOriginHistory({ savedGraphs: state })).toHaveLength(1);
   });
 });

@@ -642,7 +642,7 @@ const ForceGraph = ({
   // also dedupes by originId, but this guard avoids redundant thumbnail work.
   // Simplification: the entry's subgraph is a snapshot of the full current
   // graphData rather than just that origin's contribution — acceptable for
-  // this first cut because the history-merge dedupes shared nodes.
+  // this first cut since each entry restores independently.
   const capturedOriginIdsRef = useRef(new Set());
   useEffect(() => {
     if (lastActionType === "restoreGraph") return;

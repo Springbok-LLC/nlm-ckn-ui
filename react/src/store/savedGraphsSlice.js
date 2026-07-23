@@ -6,6 +6,7 @@ const initialState = {
   savedGraphs: [],
   activeGraphId: null,
   originHistory: [],
+  activeHistoryId: null,
 };
 
 const savedGraphsSlice = createSlice({
@@ -43,14 +44,13 @@ const savedGraphsSlice = createSlice({
       const entry = action.payload;
       // One entry per origin; re-adding an already-tracked origin is a no-op.
       if (state.originHistory.some((e) => e.originId === entry.originId)) return;
-      state.originHistory.push({ checked: true, thumbnail: null, ...entry });
-    },
-    toggleHistoryEntry: (state, action) => {
-      const e = state.originHistory.find((h) => h.id === action.payload);
-      if (e) e.checked = !e.checked;
+      state.originHistory.push({ thumbnail: null, ...entry });
     },
     deleteHistoryEntry: (state, action) => {
       state.originHistory = state.originHistory.filter((h) => h.id !== action.payload);
+    },
+    setActiveHistory: (state, action) => {
+      state.activeHistoryId = action.payload;
     },
   },
 });
@@ -61,8 +61,8 @@ export const {
   renameGraph,
   setActiveGraph,
   addHistoryEntry,
-  toggleHistoryEntry,
   deleteHistoryEntry,
+  setActiveHistory,
 } = savedGraphsSlice.actions;
 
 // Stable empty reference so the fallback doesn't churn selector identity.
@@ -128,38 +128,15 @@ const EMPTY_HISTORY = [];
 export const selectOriginHistory = (state) => state.savedGraphs.originHistory ?? EMPTY_HISTORY;
 
 /**
- * Merge the subgraphs of all checked history entries into one graph.
- * Dedupe nodes by _id (first-seen position wins), union links by a
- * source/target/label key. Pure — no store access.
- * @param {Array} history
- * @returns {{nodes: Array, links: Array}}
+ * Restores a history entry's subgraph into the live graph and marks it active,
+ * preserving positions (no re-query, no re-simulation).
+ * @param {string} id
  */
-export const mergeCheckedSubgraphs = (history) => {
-  const nodes = new Map();
-  const links = new Map();
-  for (const entry of history) {
-    if (!entry.checked) continue;
-    for (const n of entry.subgraph?.nodes ?? []) {
-      if (!nodes.has(n._id)) nodes.set(n._id, n);
-    }
-    for (const l of entry.subgraph?.links ?? []) {
-      const s = typeof l.source === "object" ? (l.source._id ?? l.source.id) : l.source;
-      const t = typeof l.target === "object" ? (l.target._id ?? l.target.id) : l.target;
-      const key = `${s}->${t}:${l.label ?? ""}`;
-      if (!links.has(key)) links.set(key, l);
-    }
-  }
-  return { nodes: [...nodes.values()], links: [...links.values()] };
-};
-
-/**
- * Rebuild the live graph from the currently-checked history entries, preserving
- * positions (no re-query, no re-simulation). Flags the render as a restore so
- * ForceGraph loads it in place.
- */
-export const recomposeFromHistory = () => (dispatch, getState) => {
-  const graphData = mergeCheckedSubgraphs(selectOriginHistory(getState()));
-  dispatch(setGraphData({ graphData, isRestore: true, skipUndo: true }));
+export const restoreHistoryEntry = (id) => (dispatch, getState) => {
+  const entry = selectOriginHistory(getState()).find((e) => e.id === id);
+  if (!entry) return;
+  dispatch(setGraphData({ graphData: entry.subgraph, isRestore: true, skipUndo: true }));
+  dispatch(setActiveHistory(id));
 };
 
 export default savedGraphsSlice.reducer;
