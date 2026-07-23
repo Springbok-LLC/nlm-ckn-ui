@@ -331,8 +331,8 @@ g.node.pinned .node-pin-marker path {
 }
 
 .lasso-toggle-button.active {
-  background-color: var(--color-primary-darkest);
-  border-color: var(--color-primary-darkest);
+  background-color: var(--color-focus);
+  border-color: var(--color-focus);
   color: var(--color-white);
 }
 

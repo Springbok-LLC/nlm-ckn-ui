@@ -7,6 +7,7 @@ import nodesReducer from "../../store/nodesSlice";
 import savedGraphsReducer, { selectOriginHistory } from "../../store/savedGraphsSlice";
 import { ToastProvider } from "../Toast";
 import ForceGraph from "./ForceGraph";
+import { useGraphExport } from "./hooks";
 
 // Mock ResizeObserver for jsdom
 global.ResizeObserver = class ResizeObserver {
@@ -44,6 +45,11 @@ jest.mock("components/ForceGraphConstructor/ForceGraphConstructor", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
+
+jest.mock("./hooks", () => {
+  const actual = jest.requireActual("./hooks");
+  return { ...actual, useGraphExport: jest.fn() };
+});
 
 const ForceGraphConstructorMock =
   require("components/ForceGraphConstructor/ForceGraphConstructor").default;
@@ -133,6 +139,8 @@ describe("ForceGraph", () => {
     });
     mockGraphInstance.getCurrentGraph.mockReturnValue(null);
     mockGraphInstance.isDragging.mockReturnValue(false);
+    // Re-arm the export hook mock (resetMocks clears implementations between tests)
+    useGraphExport.mockImplementation(() => jest.fn());
     // Default return values for service mocks
     fetchCollections.mockResolvedValue([]);
     fetchEdgeFilterOptions.mockResolvedValue([]);
@@ -192,8 +200,9 @@ describe("ForceGraph", () => {
     const downloadButton = screen.getByRole("button", { name: /download graph/i });
     expect(downloadButton).toBeInTheDocument();
 
-    // Should not throw when clicked, even without a rendered SVG in the wrapper.
-    expect(() => fireEvent.click(downloadButton)).not.toThrow();
+    const exportMock = useGraphExport.mock.results.at(-1).value;
+    fireEvent.click(downloadButton);
+    expect(exportMock).toHaveBeenCalledWith("png");
   });
 
   describe("Expand by Collection submenu", () => {
