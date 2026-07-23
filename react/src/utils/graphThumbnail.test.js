@@ -40,6 +40,16 @@ describe("captureGraphThumbnail", () => {
     expect(markup).toMatch(/height="160"/);
   });
 
+  it("tight-frames the viewBox to the content bounding box (with 8% padding) when getBBox is available", async () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    // jsdom doesn't implement getBBox, so stub known bounds to exercise the
+    // tight-frame path. padX = 100*0.08 = 8, padY = 50*0.08 = 4 →
+    // viewBox = "(10-8) (20-4) (100+16) (50+8)" = "2 16 116 58".
+    svg.getBBox = () => ({ x: 10, y: 20, width: 100, height: 50 });
+    const url = await captureGraphThumbnail(svg);
+    expect(decodeURIComponent(url)).toContain('viewBox="2 16 116 58"');
+  });
+
   it("honors custom width/height options on the framed clone", async () => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const url = await captureGraphThumbnail(svg, { width: 300, height: 200 });

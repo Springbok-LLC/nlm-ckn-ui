@@ -654,10 +654,15 @@ const ForceGraph = ({
     );
     if (newOriginIds.length === 0) return;
 
-    for (const originId of newOriginIds) {
-      capturedOriginIdsRef.current.add(originId);
-      captureGraphThumbnail(svgRef.current)
-        .then((thumbnail) =>
+    // Capture the thumbnail once and reuse it for every origin resolving in this
+    // run (a multi-origin query shares one graph image). Best-effort: a failed
+    // capture yields a null thumbnail but still records each entry, so no origin
+    // is silently dropped from history.
+    for (const originId of newOriginIds) capturedOriginIdsRef.current.add(originId);
+    captureGraphThumbnail(svgRef.current)
+      .catch(() => null)
+      .then((thumbnail) => {
+        for (const originId of newOriginIds) {
           dispatch(
             addHistoryEntry({
               id: `hist-${originId}`,
@@ -667,23 +672,9 @@ const ForceGraph = ({
               thumbnail,
               timestamp: new Date().toISOString(),
             }),
-          ),
-        )
-        .catch(() => {
-          // Best-effort: thumbnail capture failed, but still record the entry
-          // so this origin isn't silently dropped from history.
-          dispatch(
-            addHistoryEntry({
-              id: `hist-${originId}`,
-              originId,
-              label: nodeNameMap?.get(originId) ?? originId,
-              subgraph: { nodes: graphData.nodes, links: graphData.links },
-              thumbnail: null,
-              timestamp: new Date().toISOString(),
-            }),
           );
-        });
-    }
+        }
+      });
   }, [dispatch, graphData, originNodeIds, originHistory, lastActionType, nodeNameMap, isRestoring]);
 
   // Updates D3 node font size when setting changes.
