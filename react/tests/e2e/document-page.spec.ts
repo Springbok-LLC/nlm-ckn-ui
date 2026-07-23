@@ -86,7 +86,7 @@ test("DocumentPage shows details, renders graph, and opens/closes options", asyn
   await page.goto(`/#/collections/${TEST_COLL}/${originKey}`);
 
   // Details visible
-  await expect(page.locator(".document-item-header h1")).toHaveText(
+  await expect(page.locator(".graph-title-bar .graph-title")).toHaveText(
     /Test document collection: Root/i,
   );
   await expect(page.locator(".graph-workspace-inspector .document-info-fieldset")).toBeVisible();
