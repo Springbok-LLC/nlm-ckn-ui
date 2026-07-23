@@ -169,7 +169,11 @@ describe("GraphWorkspace", () => {
     });
     render(
       <Provider store={store}>
-        <GraphWorkspace originDocument={{ _id: "CS/pending" }} nodeIds={["CS/pending"]} settings={{}} />
+        <GraphWorkspace
+          originDocument={{ _id: "CS/pending" }}
+          nodeIds={["CS/pending"]}
+          settings={{}}
+        />
       </Provider>,
     );
     // The active entry's document isn't resolved (mock returns null for
