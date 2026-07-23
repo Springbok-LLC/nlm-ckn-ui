@@ -15,12 +15,20 @@ jest.mock("components/ForceGraph/ForceGraph", () => ({ onNodeSelect, title }) =>
   </div>
 ));
 jest.mock("components/NodeInspector", () => ({ selectedNodeId, originDocument }) => (
-  <div data-testid="inspector">{selectedNodeId ?? originDocument?._id ?? "empty"}</div>
+  <div
+    data-testid="inspector"
+    data-selected={selectedNodeId ?? ""}
+    data-origin={originDocument?._id ?? ""}
+  >
+    {selectedNodeId ?? originDocument?._id ?? "empty"}
+  </div>
 ));
 jest.mock("components/SavedGraphShelf", () => () => <div data-testid="shelf" />);
 jest.mock("hooks", () => ({
   useNodeDocument: (nodeId) => ({
-    document: nodeId ? { _id: nodeId, __resolved: true } : null,
+    // "CS/pending" simulates a not-yet-resolved fetch so the originDocument-seed
+    // fallback (active history entry, doc still loading) can be exercised.
+    document: nodeId && nodeId !== "CS/pending" ? { _id: nodeId, __resolved: true } : null,
     loading: false,
     error: null,
   }),
@@ -137,5 +145,39 @@ describe("GraphWorkspace", () => {
     });
     // Inspector shows the edge document, not the _from vertex.
     expect(screen.getByTestId("inspector")).toHaveTextContent("EDGE_COLL/e1");
+  });
+
+  it("seeds the inspector from the page document while the active entry's origin is still resolving", () => {
+    const store = configureStore({
+      reducer: { graph: graphReducer, savedGraphs: savedGraphsReducer },
+      preloadedState: {
+        savedGraphs: {
+          savedGraphs: [],
+          activeGraphId: null,
+          originHistory: [
+            {
+              id: "hist-CS/pending",
+              originId: "CS/pending",
+              label: "P",
+              subgraph: { nodes: [], links: [] },
+              thumbnail: null,
+            },
+          ],
+          activeHistoryId: "hist-CS/pending",
+        },
+      },
+    });
+    render(
+      <Provider store={store}>
+        <GraphWorkspace originDocument={{ _id: "CS/pending" }} nodeIds={["CS/pending"]} settings={{}} />
+      </Provider>,
+    );
+    // The active entry's document isn't resolved (mock returns null for
+    // "CS/pending"), so the workspace uses the matching page originDocument as
+    // the seed (passed as originDocument) rather than making the inspector fetch
+    // it (selected stays empty).
+    const inspector = screen.getByTestId("inspector");
+    expect(inspector).toHaveAttribute("data-origin", "CS/pending");
+    expect(inspector).toHaveAttribute("data-selected", "");
   });
 });
