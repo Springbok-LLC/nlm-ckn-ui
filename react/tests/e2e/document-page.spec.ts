@@ -233,7 +233,10 @@ test("DocumentPage: inspector swaps on node click and saved-graph shelf gains a 
 
   const shelfCard = page.locator(".saved-graph-card");
   await expect(shelfCard).toBeVisible();
-  await expect(shelfCard).toContainText(`${TEST_COLL}/${originKey}`);
+  // The auto-captured History card carries a graph thumbnail (a serialized SVG
+  // data URL). The label resolves to the origin's display name, so assert the
+  // thumbnail rather than a specific, resolution-dependent label string.
+  await expect(shelfCard.locator("img")).toHaveAttribute("src", /^data:image\/svg\+xml/);
 
   expect(filterErrorsContaining(await getCollectedErrors(page), "split").length).toBe(0);
 });
