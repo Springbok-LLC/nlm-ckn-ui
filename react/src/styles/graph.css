@@ -747,7 +747,7 @@ g.node.pinned .node-pin-marker path {
   margin: 0;
   cursor: pointer;
   width: 100%;
-  height: 100px;
+  aspect-ratio: 3 / 2;
   display: block;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -755,9 +755,9 @@ g.node.pinned .node-pin-marker path {
 
 .saved-graph-card-thumb img {
   width: 100%;
-  height: auto;
-  display: block;
+  height: 100%;
   object-fit: contain;
+  display: block;
 }
 
 .saved-graph-card-thumb .thumb-placeholder {

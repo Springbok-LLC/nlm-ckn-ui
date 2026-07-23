@@ -36,13 +36,17 @@ const savedGraphsSlice = createSlice({
       state.activeGraphId = action.payload;
     },
     addHistoryEntry: (state, action) => {
-      const entry = action.payload;
+      // Strip any incoming "checked" field (a UI-only selection flag); history
+      // entries never persist it.
+      // biome-ignore lint/correctness/noUnusedVariables: destructured only to omit it from entry
+      const { checked, ...entry } = action.payload;
       // One entry per origin; re-adding an already-tracked origin is a no-op.
       if (state.originHistory.some((e) => e.originId === entry.originId)) return;
       state.originHistory.push({ thumbnail: null, ...entry });
     },
     deleteHistoryEntry: (state, action) => {
       state.originHistory = state.originHistory.filter((h) => h.id !== action.payload);
+      if (state.activeHistoryId === action.payload) state.activeHistoryId = null;
     },
     setActiveHistory: (state, action) => {
       state.activeHistoryId = action.payload;

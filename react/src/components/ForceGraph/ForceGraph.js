@@ -645,7 +645,7 @@ const ForceGraph = ({
   // this first cut since each entry restores independently.
   const capturedOriginIdsRef = useRef(new Set());
   useEffect(() => {
-    if (lastActionType === "restoreGraph") return;
+    if (isRestoring || lastActionType === "loadGraph" || lastActionType === "restoreGraph") return;
     if (!graphData?.nodes?.length || !originNodeIds?.length) return;
 
     const historyOriginIds = new Set(originHistory.map((entry) => entry.originId));
@@ -662,7 +662,7 @@ const ForceGraph = ({
             addHistoryEntry({
               id: `hist-${originId}`,
               originId,
-              label: nodeNameMap?.[originId] ?? originId,
+              label: nodeNameMap?.get(originId) ?? originId,
               subgraph: { nodes: graphData.nodes, links: graphData.links },
               thumbnail,
               timestamp: new Date().toISOString(),
@@ -670,10 +670,21 @@ const ForceGraph = ({
           ),
         )
         .catch(() => {
-          // Best-effort: skip the thumbnail (and this entry) on failure.
+          // Best-effort: thumbnail capture failed, but still record the entry
+          // so this origin isn't silently dropped from history.
+          dispatch(
+            addHistoryEntry({
+              id: `hist-${originId}`,
+              originId,
+              label: nodeNameMap?.get(originId) ?? originId,
+              subgraph: { nodes: graphData.nodes, links: graphData.links },
+              thumbnail: null,
+              timestamp: new Date().toISOString(),
+            }),
+          );
         });
     }
-  }, [dispatch, graphData, originNodeIds, originHistory, lastActionType, nodeNameMap]);
+  }, [dispatch, graphData, originNodeIds, originHistory, lastActionType, nodeNameMap, isRestoring]);
 
   // Updates D3 node font size when setting changes.
   useEffect(() => {

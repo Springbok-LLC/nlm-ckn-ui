@@ -28,7 +28,7 @@ describe("originHistory", () => {
   });
 
   it("addHistoryEntry does not store a checked field", () => {
-    const s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    const s = reducer(undefined, addHistoryEntry({ ...entry("A", ["A"]), checked: true }));
     expect(s.originHistory[0].checked).toBeUndefined();
   });
 
@@ -36,6 +36,23 @@ describe("originHistory", () => {
     let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
     s = reducer(s, deleteHistoryEntry("h-A"));
     expect(s.originHistory).toHaveLength(0);
+  });
+
+  it("deleteHistoryEntry clears activeHistoryId when deleting the active entry", () => {
+    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    s = reducer(s, setActiveHistory("h-A"));
+    expect(s.activeHistoryId).toBe("h-A");
+    s = reducer(s, deleteHistoryEntry("h-A"));
+    expect(s.originHistory).toHaveLength(0);
+    expect(s.activeHistoryId).toBeNull();
+  });
+
+  it("deleteHistoryEntry leaves activeHistoryId unchanged when deleting a different entry", () => {
+    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    s = reducer(s, addHistoryEntry(entry("B", ["B"])));
+    s = reducer(s, setActiveHistory("h-A"));
+    s = reducer(s, deleteHistoryEntry("h-B"));
+    expect(s.activeHistoryId).toBe("h-A");
   });
 
   it("setActiveHistory sets activeHistoryId", () => {

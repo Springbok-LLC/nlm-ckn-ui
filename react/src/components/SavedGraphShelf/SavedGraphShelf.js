@@ -29,7 +29,12 @@ const SavedGraphShelf = () => {
             key={entry.id}
             className={`saved-graph-card ${entry.id === activeHistoryId ? "saved-graph-card--active" : ""}`}
           >
-            <button type="button" className="saved-graph-card-thumb" onClick={restore}>
+            <button
+              type="button"
+              className="saved-graph-card-thumb"
+              aria-label={`Restore ${entry.label}`}
+              onClick={restore}
+            >
               {entry.thumbnail ? (
                 <img src={entry.thumbnail} alt={entry.label} />
               ) : (
