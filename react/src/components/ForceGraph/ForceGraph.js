@@ -1117,6 +1117,25 @@ const ForceGraph = ({
 
         {status === "loading" && <LoadingBar />}
 
+        <button
+          type="button"
+          className="graph-canvas-icon-button graph-canvas-download"
+          aria-label="Download graph"
+          onClick={() => exportGraph("png")}
+        >
+          <svg
+            aria-hidden="true"
+            focusable="false"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="currentColor"
+          >
+            <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+          </svg>
+        </button>
+
         {/* biome-ignore lint/correctness/useUniqueElementIds: legacy id */}
         <div id="chart-container-wrapper" ref={wrapperRef}>
           {lassoSelectedNodeIds.length > 0 && (
