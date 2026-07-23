@@ -282,34 +282,10 @@ g.node.pinned .node-pin-marker path {
 }
 
 /* Figma Button spec (639:3059 / 685:5797): transparent resting state, gray-lighter
-   hover fill, filled primary-darkest active/pressed state, radius-md, 40px height. */
-.toggle-options-button {
-  height: 40px;
-  padding: 4px 12px;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background-color: transparent;
-  color: var(--color-gray-dark);
-  border: 1px solid var(--color-gray-light);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-}
-
-.toggle-options-button:hover {
-  background-color: var(--color-gray-lighter);
-}
-
-.toggle-options-button[aria-expanded="true"] {
-  background-color: var(--color-primary-darkest);
-  border-color: var(--color-primary-darkest);
-  color: var(--color-white);
-}
-
-/* Lasso-mode toggle now sits alongside the options toggle in the title bar. */
+   hover fill, radius-md, 40px height. The two title-bar toggles share this base;
+   only their active-state color differs (options = primary-darkest; lasso = focus).
+   The lasso toggle sits alongside the options toggle in the title bar. */
+.toggle-options-button,
 .lasso-toggle-button {
   height: 40px;
   padding: 4px 12px;
@@ -326,10 +302,19 @@ g.node.pinned .node-pin-marker path {
   font-weight: 500;
 }
 
+.toggle-options-button:hover,
 .lasso-toggle-button:hover {
   background-color: var(--color-gray-lighter);
 }
 
+/* Options panel open — filled primary-darkest. */
+.toggle-options-button[aria-expanded="true"] {
+  background-color: var(--color-primary-darkest);
+  border-color: var(--color-primary-darkest);
+  color: var(--color-white);
+}
+
+/* Lasso mode armed — distinct focus accent so the mode reads clearly. */
 .lasso-toggle-button.active {
   background-color: var(--color-focus);
   border-color: var(--color-focus);
