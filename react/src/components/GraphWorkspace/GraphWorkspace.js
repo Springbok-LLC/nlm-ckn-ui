@@ -40,8 +40,12 @@ const GraphWorkspace = ({ originDocument = null, nodeIds, settings, title }) => 
   // Resolve the current origin's full document (cached). Seed with the page's
   // originDocument so the first paint doesn't flash a loading state.
   const { document: fetchedOriginDoc } = useNodeDocument(currentOriginId);
-  const currentOriginDoc =
-    fetchedOriginDoc ?? (originDocument?._id === currentOriginId ? originDocument : null);
+  // With an active history entry, follow that entry's origin. Before any history
+  // exists, trust the page's own originDocument — its _id may differ from
+  // currentOriginId (e.g. an edge document, whose origin ids are its endpoints).
+  const currentOriginDoc = activeEntry
+    ? (fetchedOriginDoc ?? (originDocument?._id === currentOriginId ? originDocument : null))
+    : (originDocument ?? fetchedOriginDoc);
 
   // Default (no selection): show the resolved current-origin doc via originDocument.
   // If it isn't resolved yet (a host without a seed), let the inspector fetch the

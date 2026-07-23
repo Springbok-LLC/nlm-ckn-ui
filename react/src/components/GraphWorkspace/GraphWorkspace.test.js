@@ -129,4 +129,13 @@ describe("GraphWorkspace", () => {
     renderWorkspace(); // no originHistory / activeHistoryId
     expect(screen.getByTestId("inspector")).toHaveTextContent("CSD/origin");
   });
+
+  it("shows the page's own document (e.g. an edge doc) when its id differs from the origin node id and no history is active", () => {
+    renderWorkspace({
+      originDocument: { _id: "EDGE_COLL/e1" }, // edge doc: its own id
+      nodeIds: ["CS/from"], // parseId → endpoint vertex
+    });
+    // Inspector shows the edge document, not the _from vertex.
+    expect(screen.getByTestId("inspector")).toHaveTextContent("EDGE_COLL/e1");
+  });
 });
