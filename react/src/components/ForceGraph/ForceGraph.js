@@ -482,7 +482,11 @@ const ForceGraph = ({
       }
     }
 
-    if (isRestoring === true || lastActionType === "loadGraph") {
+    if (
+      isRestoring === true ||
+      lastActionType === "loadGraph" ||
+      lastActionType === "restoreGraph"
+    ) {
       if (graphInstance) {
         graphInstance.restoreGraph({
           nodes: graphData.nodes,

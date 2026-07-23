@@ -280,6 +280,40 @@ describe("ForceGraph", () => {
       expect(firstCall.collapseNodes).not.toContain(origin._id);
     });
 
+    it("routes a restore render through restoreGraph, not updateGraph", async () => {
+      const store = createStoreWithCollections();
+      const origin = { _id: "CL/0001", id: "CL/0001", x: 10, y: 20 };
+      const leaf = { _id: "GO/0010", id: "GO/0010", x: 30, y: 40 };
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+      mockGraphInstance.restoreGraph.mockClear();
+      mockGraphInstance.updateGraph.mockClear();
+
+      await act(async () => {
+        store.dispatch(
+          setGraphData({
+            graphData: {
+              nodes: [origin, leaf],
+              links: [{ source: "CL/0001", target: "GO/0010" }],
+            },
+            isRestore: true,
+          }),
+        );
+      });
+
+      await waitFor(() => expect(mockGraphInstance.restoreGraph).toHaveBeenCalled());
+      expect(mockGraphInstance.updateGraph).not.toHaveBeenCalled();
+    });
+
     it("does not show an error state when popup is closed before the fetch resolves (abort)", async () => {
       let resolveCollections;
       const deferred = new Promise((resolve) => {

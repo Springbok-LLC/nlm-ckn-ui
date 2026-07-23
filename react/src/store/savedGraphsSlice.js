@@ -89,6 +89,7 @@ export const restoreSavedGraph = (id) => (dispatch, getState) => {
       graphData: graph.graphData,
       originNodeIds: graph.originNodeIds,
       settings: graph.settings,
+      isRestore: true,
       skipUndo: true,
     }),
   );
