@@ -281,33 +281,89 @@ g.node.pinned .node-pin-marker path {
   gap: var(--spacing-sm);
 }
 
+/* Figma Button spec (639:3059 / 685:5797): transparent resting state, gray-lighter
+   hover fill, filled primary-darkest active/pressed state, radius-md, 40px height. */
 .toggle-options-button {
-  padding: 8px 12px;
+  height: 40px;
+  padding: 4px 12px;
   margin: 0;
-  background-color: var(--color-white);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: transparent;
+  color: var(--color-gray-dark);
+  border: 1px solid var(--color-gray-light);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 0.9em;
-  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.toggle-options-button:hover {
+  background-color: var(--color-gray-lighter);
+}
+
+.toggle-options-button[aria-expanded="true"] {
+  background-color: var(--color-primary-darkest);
+  border-color: var(--color-primary-darkest);
+  color: var(--color-white);
 }
 
 /* Lasso-mode toggle now sits alongside the options toggle in the title bar. */
 .lasso-toggle-button {
-  padding: 8px 12px;
+  height: 40px;
+  padding: 4px 12px;
   margin: 0;
-  background-color: var(--color-white);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: transparent;
+  color: var(--color-gray-dark);
+  border: 1px solid var(--color-gray-light);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 0.9em;
-  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.lasso-toggle-button:hover {
+  background-color: var(--color-gray-lighter);
 }
 
 .lasso-toggle-button.active {
-  background-color: #ffb74d;
-  border-color: #f9a825;
-  color: #1a1a1a;
+  background-color: var(--color-primary-darkest);
+  border-color: var(--color-primary-darkest);
+  color: var(--color-white);
+}
+
+/* Figma "Icon Button - filled" spec (639:3201 / 631:2950): filled primary-darkest
+   circular button, floated bottom-right of the canvas. */
+.graph-canvas-icon-button {
+  position: absolute;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  background-color: var(--color-primary-darkest);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: background-color var(--transition-fast);
+}
+
+.graph-canvas-icon-button:hover {
+  background-color: var(--color-primary-darker);
+}
+
+.graph-canvas-download {
+  bottom: 16px;
+  right: 16px;
 }
 
 /* Floating bar shown above the graph when there is an active lasso selection. */

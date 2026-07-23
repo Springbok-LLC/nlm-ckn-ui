@@ -15,6 +15,14 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// jsdom does not implement the Blob URL APIs used by the graph export path
+if (!global.URL.createObjectURL) {
+  global.URL.createObjectURL = jest.fn(() => "blob:mock-url");
+}
+if (!global.URL.revokeObjectURL) {
+  global.URL.revokeObjectURL = jest.fn();
+}
+
 // Capture the onNodeClick callback so tests can trigger the popup directly
 let capturedOnNodeClick = null;
 
@@ -172,6 +180,20 @@ describe("ForceGraph", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Test Graph Title" })).toBeInTheDocument();
+  });
+
+  it("renders a download button on the canvas that triggers the export handler", () => {
+    render(
+      <Provider store={createTestStore()}>
+        <ForceGraph title="Test Graph Title" />
+      </Provider>,
+    );
+
+    const downloadButton = screen.getByRole("button", { name: /download graph/i });
+    expect(downloadButton).toBeInTheDocument();
+
+    // Should not throw when clicked, even without a rendered SVG in the wrapper.
+    expect(() => fireEvent.click(downloadButton)).not.toThrow();
   });
 
   describe("Expand by Collection submenu", () => {
