@@ -18,6 +18,19 @@ jest.mock("components/NodeInspector", () => ({ selectedNodeId, originDocument })
   <div data-testid="inspector">{selectedNodeId ?? originDocument?._id ?? "empty"}</div>
 ));
 jest.mock("components/SavedGraphShelf", () => () => <div data-testid="shelf" />);
+jest.mock("hooks", () => ({
+  useNodeDocument: (nodeId) => ({
+    document: nodeId ? { _id: nodeId, __resolved: true } : null,
+    loading: false,
+    error: null,
+  }),
+}));
+// getTitle is used for the title; stub it so title is deterministic from the doc _id,
+// keeping the rest of the module intact (graphSlice depends on other utils exports).
+jest.mock("utils", () => ({
+  ...jest.requireActual("utils"),
+  getTitle: (doc) => `Title:${doc?._id}`,
+}));
 
 const renderWorkspace = (props = {}, preloadedGraph) => {
   const store = configureStore({
@@ -51,7 +64,7 @@ describe("GraphWorkspace", () => {
 
   it("defaults the inspector to the first origin node when no origin document is given", () => {
     renderWorkspace(
-      { originDocument: undefined },
+      { originDocument: undefined, nodeIds: undefined },
       { past: [], present: { originNodeIds: ["CS/first", "CS/second"] }, future: [] },
     );
     expect(screen.getByTestId("inspector")).toHaveTextContent("CS/first");
@@ -59,7 +72,7 @@ describe("GraphWorkspace", () => {
 
   it("shows an empty inspector when there is neither an origin document nor origin nodes", () => {
     renderWorkspace(
-      { originDocument: undefined },
+      { originDocument: undefined, nodeIds: undefined },
       { past: [], present: { originNodeIds: [] }, future: [] },
     );
     expect(screen.getByTestId("inspector")).toHaveTextContent("empty");
@@ -72,15 +85,48 @@ describe("GraphWorkspace", () => {
 
   it("derives the title from the origin document when no title prop is given", () => {
     renderWorkspace({ originDocument: { _id: "CSD/origin" } });
-    // getTitle prefixes the collection display name ("Cell set dataset").
-    expect(screen.getByTestId("graph-title")).toHaveTextContent(/cell set dataset/i);
+    expect(screen.getByTestId("graph-title")).toHaveTextContent("Title:CSD/origin");
   });
 
   it('falls back to "Graph" with no title and no origin document', () => {
     renderWorkspace(
-      { originDocument: undefined, title: undefined },
+      { originDocument: undefined, nodeIds: undefined, title: undefined },
       { past: [], present: { originNodeIds: [] }, future: [] },
     );
     expect(screen.getByTestId("graph-title")).toHaveTextContent("Graph");
+  });
+
+  it("titles + inspects the active history entry's origin", () => {
+    const store = configureStore({
+      reducer: { graph: graphReducer, savedGraphs: savedGraphsReducer },
+      preloadedState: {
+        savedGraphs: {
+          savedGraphs: [],
+          activeGraphId: null,
+          originHistory: [
+            {
+              id: "hist-CS/active",
+              originId: "CS/active",
+              label: "A",
+              subgraph: { nodes: [], links: [] },
+              thumbnail: null,
+            },
+          ],
+          activeHistoryId: "hist-CS/active",
+        },
+      },
+    });
+    render(
+      <Provider store={store}>
+        <GraphWorkspace originDocument={{ _id: "CSD/page" }} nodeIds={["CSD/page"]} settings={{}} />
+      </Provider>,
+    );
+    expect(screen.getByTestId("graph-title")).toHaveTextContent("Title:CS/active");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("CS/active");
+  });
+
+  it("falls back to the page origin document before any history entry", () => {
+    renderWorkspace(); // no originHistory / activeHistoryId
+    expect(screen.getByTestId("inspector")).toHaveTextContent("CSD/origin");
   });
 });
