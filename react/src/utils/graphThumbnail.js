@@ -9,6 +9,8 @@ export const captureGraphThumbnail = async (svgElement, { width = 240 } = {}) =>
   try {
     if (!svgElement || typeof svgElement.cloneNode !== "function") return null;
     const clone = svgElement.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
     clone.setAttribute("width", String(width));
     const serialized = new XMLSerializer().serializeToString(clone);
     const encoded = encodeURIComponent(serialized);
