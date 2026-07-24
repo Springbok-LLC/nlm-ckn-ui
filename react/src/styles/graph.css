@@ -307,15 +307,19 @@ g.node.pinned .node-pin-marker path {
   background-color: var(--color-gray-lighter);
 }
 
-/* Options panel open — filled primary-darkest. */
-.toggle-options-button[aria-expanded="true"] {
+/* Options panel open — filled primary-darkest. Pair :hover so the active color
+   wins by specificity, not cascade order. */
+.toggle-options-button[aria-expanded="true"],
+.toggle-options-button[aria-expanded="true"]:hover {
   background-color: var(--color-primary-darkest);
   border-color: var(--color-primary-darkest);
   color: var(--color-white);
 }
 
-/* Lasso mode armed — distinct focus accent so the mode reads clearly. */
-.lasso-toggle-button.active {
+/* Lasso mode armed — distinct focus accent so the mode reads clearly. Pair
+   :hover so the active color wins by specificity, not cascade order. */
+.lasso-toggle-button.active,
+.lasso-toggle-button.active:hover {
   background-color: var(--color-focus);
   border-color: var(--color-focus);
   color: var(--color-white);

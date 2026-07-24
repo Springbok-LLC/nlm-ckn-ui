@@ -1117,27 +1117,29 @@ const ForceGraph = ({
 
         {status === "loading" && <LoadingBar />}
 
-        <button
-          type="button"
-          className="graph-canvas-icon-button graph-canvas-download"
-          aria-label="Download graph"
-          onClick={() => exportGraph("png")}
-        >
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="currentColor"
-          >
-            <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
-          </svg>
-        </button>
-
         {/* biome-ignore lint/correctness/useUniqueElementIds: legacy id */}
         <div id="chart-container-wrapper" ref={wrapperRef}>
+          {/* Floating download button: kept inside the positioned wrapper so its
+              absolute bottom-right placement is scoped to the canvas. */}
+          <button
+            type="button"
+            className="graph-canvas-icon-button graph-canvas-download"
+            aria-label="Download graph"
+            onClick={() => exportGraph("png")}
+          >
+            <svg
+              aria-hidden="true"
+              focusable="false"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="currentColor"
+            >
+              <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+            </svg>
+          </button>
+
           {lassoSelectedNodeIds.length > 0 && (
             <div className="lasso-action-bar" role="toolbar" aria-label="Selection actions">
               <span className="lasso-action-bar-count">{lassoSelectedNodeIds.length} selected</span>
