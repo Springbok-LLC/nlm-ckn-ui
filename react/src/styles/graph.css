@@ -408,6 +408,32 @@ g.node.pinned .node-pin-marker path {
   right: 16px;
 }
 
+/* Options collapse handle on the panel's left edge (Figma "Close arrow" 682:3573):
+   light-gray tab with a right chevron, attached to the panel boundary. */
+.options-collapse-arrow {
+  position: absolute;
+  top: 8px;
+  /* Reach across the graph-main-area right margin (10px) + panel left margin
+     (--spacing-lg) so the tab attaches to the panel's left edge. */
+  right: calc(-10px - var(--spacing-lg));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  background-color: var(--color-gray-lightest);
+  border: 1px solid var(--color-gray-lighter);
+  border-radius: var(--radius-sm, 4px) 0 0 var(--radius-sm, 4px);
+  color: var(--color-gray);
+  cursor: pointer;
+}
+
+.options-collapse-arrow:hover {
+  background-color: var(--color-gray-lighter);
+}
+
 /* Floating bar shown above the graph when there is an active lasso selection. */
 .lasso-action-bar {
   position: absolute;
