@@ -163,6 +163,16 @@ const ForceGraph = ({
   const collectionMenuTriggerRef = useRef(null);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [lassoMode, setLassoMode] = useState(false);
+  // Focus management for the options collapse control: the panel's collapse arrow
+  // unmounts when the panel closes, so restore focus to the "Show Options" button.
+  const showOptionsButtonRef = useRef(null);
+  const restoreFocusOnCloseRef = useRef(false);
+  useEffect(() => {
+    if (!optionsVisible && restoreFocusOnCloseRef.current) {
+      showOptionsButtonRef.current?.focus();
+      restoreFocusOnCloseRef.current = false;
+    }
+  }, [optionsVisible]);
 
   // State for two-tiered tab navigation.
   const [activePrimaryTab, setActivePrimaryTab] = useState("settings");
@@ -1071,7 +1081,17 @@ const ForceGraph = ({
     handlePopupClose();
   };
 
-  const toggleOptionsVisibility = () => setOptionsVisible(!optionsVisible);
+  // Opening the panel exits lasso mode, since the lasso toggle is hidden while
+  // the panel is open (Figma's expanded title bar carries no controls).
+  const openOptions = () => {
+    setLassoMode(false);
+    setOptionsVisible(true);
+  };
+  // Closing via the panel's collapse arrow returns focus to "Show Options".
+  const closeOptions = () => {
+    restoreFocusOnCloseRef.current = true;
+    setOptionsVisible(false);
+  };
 
   return (
     <div
@@ -1087,7 +1107,8 @@ const ForceGraph = ({
             {!optionsVisible && (
               <button
                 type="button"
-                onClick={toggleOptionsVisibility}
+                ref={showOptionsButtonRef}
+                onClick={openOptions}
                 className="toggle-options-button"
                 aria-expanded={optionsVisible}
                 aria-controls="graph-options-panel"
@@ -1129,7 +1150,7 @@ const ForceGraph = ({
           <button
             type="button"
             className="options-collapse-arrow"
-            onClick={toggleOptionsVisibility}
+            onClick={closeOptions}
             aria-expanded={optionsVisible}
             aria-controls="graph-options-panel"
             aria-label="Hide options"
