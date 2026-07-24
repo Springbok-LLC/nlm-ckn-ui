@@ -99,18 +99,24 @@ g.node.pinned .node-pin-marker path {
 .options-tabs-nav {
   display: flex;
   flex-wrap: wrap;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-gray-lighter);
   padding: 5px 5px 0 5px;
-  background-color: var(--color-light-bg);
+  background-color: var(--color-gray-lightest);
   flex-shrink: 0;
 }
 
+/* Primary/secondary tab rows stay on one line (Figma shows all tabs in a row). */
+.options-tabs-nav.primary-tabs,
+.options-tabs-nav.secondary-tabs {
+  flex-wrap: nowrap;
+}
+
 .tab-button {
-  padding: 10px 15px;
+  padding: 10px 10px;
   cursor: pointer;
   background-color: transparent;
   border: none;
-  color: var(--color-gray);
+  color: var(--color-gray-dark);
   font-size: 0.9em;
   font-weight: 500;
   border-radius: var(--radius-md);
@@ -124,11 +130,12 @@ g.node.pinned .node-pin-marker path {
   color: var(--color-gray-dark);
 }
 
+/* Active tab: blue text only — no fill, no underline (Figma 682:3576). */
 .tab-button.active,
 .tab-button.active:hover {
-  background-color: var(--color-primary-darkest);
-  color: var(--color-white);
-  font-weight: 500;
+  background-color: transparent;
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .options-tabs-content {
@@ -212,14 +219,60 @@ g.node.pinned .node-pin-marker path {
   cursor: not-allowed;
 }
 
-.font-size-picker {
+/* Options-panel field rows: label left, fixed 114px dropdown right (Figma 682:3584).
+   Values pulled from Figma — see docs/superpowers/figma-reference/design-context.md. */
+.option-group.field-row {
   display: flex;
-  gap: 15px;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.font-size-picker > div {
-  flex: 1;
+.option-group.field-row label:not(.switch) {
+  display: inline;
+  margin-bottom: 0;
+  color: var(--color-gray-dark);
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.25px;
+}
+
+.option-group.field-row select {
+  width: 114px;
+  height: 40px;
+  padding: 8px 28px 8px 16px;
+  background-color: #f9fafd;
+  border: 1px solid #e9edf0;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-base);
+  font-size: 14px;
+}
+
+/* Centered section heading (Figma "Toggle Labels" — Body Large 16px Medium). */
+.group-label {
+  margin: 0 0 4px;
+  text-align: center;
+  color: var(--color-gray-dark);
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.5px;
+}
+
+/* Restart-Simulation action button — filled navy (Figma 682:3640). */
+.option-group button.simulation-toggle:not(.tab-button):not(.popup-button) {
+  background-color: var(--color-primary-darkest);
+  border-color: #dce4ef;
+  color: var(--color-gray-lightest);
+  border-radius: var(--radius-sm, 4px);
+  height: 40px;
+  padding: 2px 16px;
+  font-size: 14px;
+  letter-spacing: 0.1px;
+}
+
+.option-group button.simulation-toggle:not(.tab-button):not(.popup-button):hover {
+  background-color: #1c3d63;
 }
 
 /* Label Toggles */
