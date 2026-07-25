@@ -214,25 +214,38 @@ export const getSectionedFields = (item) => {
       return null;
     }
 
-    const byKey = new Map(getDisplayFields(item).map((f) => [f.key, f]));
+    const displayFields = getDisplayFields(item);
+    const byKey = new Map(displayFields.map((f) => [f.key, f]));
+    const isPresent = (v) => v !== null && v !== undefined && v !== "";
+    const placed = new Set();
 
-    return sections
-      .map(({ section, fields }) => {
-        const resolved = fields
-          .map(({ key, label, variant }) => {
-            const configured = byKey.get(key);
-            return {
-              key,
-              label,
-              variant,
-              value: configured ? configured.value : item[key],
-              url: configured ? configured.url : null,
-            };
-          })
-          .filter((f) => f.value !== null && f.value !== undefined && f.value !== "");
-        return { section, fields: resolved };
-      })
-      .filter((s) => s.fields.length > 0);
+    const curated = sections.map(({ section, fields }) => {
+      const resolved = fields
+        .map(({ key, label, variant }) => {
+          placed.add(key);
+          const configured = byKey.get(key);
+          return {
+            key,
+            label,
+            variant,
+            value: configured ? configured.value : item[key],
+            url: configured ? configured.url : null,
+          };
+        })
+        .filter((f) => isPresent(f.value));
+      return { section, fields: resolved };
+    });
+
+    // Show-all: every configured attribute not placed in a curated section lands
+    // in a catch-all "Additional" section, so nothing is hidden.
+    const extras = displayFields
+      .filter((f) => !placed.has(f.key) && isPresent(f.value))
+      .map((f) => ({ key: f.key, label: f.label, value: f.value, url: f.url }));
+    if (extras.length > 0) {
+      curated.push({ section: "Additional", fields: extras });
+    }
+
+    return curated.filter((s) => s.fields.length > 0);
   } catch (error) {
     console.error(`getSectionedFields failed with exception: ${error}`);
     return null;

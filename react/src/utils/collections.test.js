@@ -49,6 +49,15 @@ describe("getSectionedFields", () => {
     expect(result.map((s) => s.section)).not.toContain("Provenance");
   });
 
+  it("collects configured attributes outside the curated sections into an Additional section", () => {
+    // tissue_annotation is in the CSD collection map but not in any curated
+    // fieldSections section, so it must surface under "Additional" (show-all).
+    const result = getSectionedFields(csd({ tissue_annotation: "lung parenchyma" }));
+    const additional = result.find((s) => s.section === "Additional");
+    expect(additional).toBeDefined();
+    expect(additional.fields.map((f) => f.value)).toContain("lung parenchyma");
+  });
+
   it("returns null for a collection without a section config", () => {
     expect(getSectionedFields({ _id: "PUB/xyz", label: "Some paper" })).toBeNull();
   });

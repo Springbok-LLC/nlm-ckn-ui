@@ -914,6 +914,16 @@ g.node.pinned .node-pin-marker path {
   padding: var(--spacing-sm);
 }
 
+/* History strip heading = the graph's origin (Figma Body Small 12px Medium). */
+.graph-history-title {
+  margin: 0 0 8px;
+  color: var(--color-gray-dark);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+
 @media (max-width: 768px) {
   .graph-workspace-body {
     flex-direction: column;

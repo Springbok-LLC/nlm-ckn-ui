@@ -70,6 +70,8 @@ const GraphWorkspace = ({ originDocument = null, nodeIds, settings, title }) => 
             onNodeSelect={setSelectedNodeId}
           />
           <div className="graph-workspace-shelf">
+            {/* History heading = the graph's origin node(s). */}
+            <h3 className="graph-history-title">{graphTitle}</h3>
             <SavedGraphShelf />
           </div>
         </section>
