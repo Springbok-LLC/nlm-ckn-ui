@@ -115,7 +115,8 @@ test("DocumentPage shows details, renders graph, and opens/closes options", asyn
   const toggleOptions = page.locator(".graph-workspace-canvas .toggle-options-button");
   await toggleOptions.click();
   await expect(page.locator("#graph-options-panel")).toBeVisible();
-  await toggleOptions.click();
+  // When open, the collapse control is the arrow on the panel's left edge.
+  await page.locator(".graph-workspace-canvas .options-collapse-arrow").click();
   await expect(page.locator("#graph-options-panel")).toBeHidden();
 
   // Verify no "split of undefined" errors occurred
