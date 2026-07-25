@@ -449,9 +449,9 @@ g.node.pinned .node-pin-marker path {
 .options-collapse-arrow {
   position: absolute;
   top: 8px;
-  /* Reach across the graph-main-area right margin (10px) + panel left margin
-     (--spacing-lg) so the tab attaches to the panel's left edge. */
-  right: calc(-10px - var(--spacing-lg));
+  /* Tuck the tab flush against the panel's left edge (its right edge meets the
+     panel). Offset measured across the graph-main-area + panel margins. */
+  right: -50px;
   z-index: 15;
   display: flex;
   align-items: center;
