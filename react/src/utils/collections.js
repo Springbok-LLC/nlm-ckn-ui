@@ -1,6 +1,7 @@
 /**
  * Collection and label utilities for processing collection data and generating labels/URLs.
  */
+import { fieldSections } from "config/fieldSections";
 import collMaps from "../assets/nlm-ckn-collection-maps.json";
 import { capitalCase } from "./strings";
 
@@ -178,6 +179,48 @@ export const getDisplayFields = (item) => {
   } catch (error) {
     console.error(`getDisplayFields failed with exception: ${error}`);
     return [];
+  }
+};
+
+/**
+ * Groups an item's fields into UI-local sidebar sections.
+ * Configured keys resolve their value/URL via getDisplayFields (DRY URLs);
+ * keys absent from the collection map resolve their plain value from the
+ * document. Empty values and empty sections are dropped.
+ * @param {object} item - Data object. Must contain `_id`.
+ * @returns {Array<{section: string, fields: Array<object>}>|null} Sections, or
+ *   null when the item's collection has no section config (caller falls back).
+ */
+export const getSectionedFields = (item) => {
+  try {
+    const itemCollection = item._id.split("/")[0];
+    const sections = fieldSections[itemCollection];
+    if (!Array.isArray(sections)) {
+      return null;
+    }
+
+    const byKey = new Map(getDisplayFields(item).map((f) => [f.key, f]));
+
+    return sections
+      .map(({ section, fields }) => {
+        const resolved = fields
+          .map(({ key, label, variant }) => {
+            const configured = byKey.get(key);
+            return {
+              key,
+              label,
+              variant,
+              value: configured ? configured.value : item[key],
+              url: configured ? configured.url : null,
+            };
+          })
+          .filter((f) => f.value !== null && f.value !== undefined && f.value !== "");
+        return { section, fields: resolved };
+      })
+      .filter((s) => s.fields.length > 0);
+  } catch (error) {
+    console.error(`getSectionedFields failed with exception: ${error}`);
+    return null;
   }
 };
 
