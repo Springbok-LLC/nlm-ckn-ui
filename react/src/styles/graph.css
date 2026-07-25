@@ -746,6 +746,43 @@ g.node.pinned .node-pin-marker path {
   letter-spacing: 0.4px;
 }
 
+/* Learn & Explore footer */
+
+.learn-explore {
+  border: 0.4px solid #f2f3f7; /* untokenized */
+  border-radius: 4px;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.learn-explore-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 0.4px solid #f2f3f7; /* hairline under the header */
+  color: var(--color-gray-dark); /* #323A45 */
+  font-weight: 500; /* Roboto Medium */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+.learn-explore-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-primary); /* #0071BC */
+  font-weight: 400; /* Roboto Regular */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-decoration: none; /* Figma shows no underline */
+}
+.learn-explore-link:hover {
+  text-decoration: underline; /* hover affordance only (not in the static frame) */
+}
+
 /* Desktop and up: Side-by-Side Layout */
 @media (min-width: 1024px) {
   .graph-component-wrapper {

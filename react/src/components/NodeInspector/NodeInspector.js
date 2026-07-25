@@ -1,4 +1,5 @@
 import DocumentCard from "components/DocumentCard";
+import LearnExplore from "components/LearnExplore";
 import { useNodeDocument } from "hooks";
 
 /**
@@ -25,6 +26,7 @@ const NodeInspector = ({ selectedNodeId, originDocument = null }) => {
     return (
       <div className="node-inspector">
         <DocumentCard document={originDocument} />
+        <LearnExplore />
       </div>
     );
   }
@@ -50,6 +52,7 @@ const NodeInspector = ({ selectedNodeId, originDocument = null }) => {
   return (
     <div className="node-inspector">
       <DocumentCard document={document} />
+      <LearnExplore />
     </div>
   );
 };

@@ -10,6 +10,9 @@ jest.mock("components/DocumentCard", () => ({ document }) => (
   <div data-testid="doc-card">{document?._id}</div>
 ));
 
+// LearnExplore uses react-router Link; stub it so this test stays router-free.
+jest.mock("components/LearnExplore", () => () => <div data-testid="learn-explore" />);
+
 describe("NodeInspector", () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -17,6 +20,7 @@ describe("NodeInspector", () => {
     useNodeDocument.mockReturnValue({ document: null, loading: false, error: null });
     render(<NodeInspector selectedNodeId={null} originDocument={{ _id: "CSD/origin" }} />);
     expect(screen.getByTestId("doc-card")).toHaveTextContent("CSD/origin");
+    expect(screen.getByTestId("learn-explore")).toBeInTheDocument();
   });
 
   it("renders an empty-state placeholder when there is no selection and no origin document", () => {
@@ -24,6 +28,7 @@ describe("NodeInspector", () => {
     const { container } = render(<NodeInspector selectedNodeId={null} originDocument={null} />);
     expect(container.querySelector(".node-inspector-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("doc-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("learn-explore")).not.toBeInTheDocument();
   });
 
   it("renders a loading skeleton while fetching a selected node", () => {
@@ -32,12 +37,14 @@ describe("NodeInspector", () => {
       <NodeInspector selectedNodeId="CS/abc" originDocument={{ _id: "CSD/origin" }} />,
     );
     expect(container.querySelector(".node-inspector-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("learn-explore")).not.toBeInTheDocument();
   });
 
   it("renders the selected node's document when loaded", () => {
     useNodeDocument.mockReturnValue({ document: { _id: "CS/abc" }, loading: false, error: null });
     render(<NodeInspector selectedNodeId="CS/abc" originDocument={{ _id: "CSD/origin" }} />);
     expect(screen.getByTestId("doc-card")).toHaveTextContent("CS/abc");
+    expect(screen.getByTestId("learn-explore")).toBeInTheDocument();
   });
 
   it("renders a fallback card on fetch error", () => {
@@ -46,5 +53,6 @@ describe("NodeInspector", () => {
       <NodeInspector selectedNodeId="CS/err" originDocument={{ _id: "CSD/origin" }} />,
     );
     expect(container.querySelector(".node-inspector-fallback")).toHaveTextContent("CS/err");
+    expect(screen.queryByTestId("learn-explore")).not.toBeInTheDocument();
   });
 });
