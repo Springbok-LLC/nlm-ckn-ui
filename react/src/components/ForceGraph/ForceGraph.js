@@ -165,6 +165,8 @@ const ForceGraph = ({
   const [lassoMode, setLassoMode] = useState(false);
   // Transient "feature disabled" popup for the (not-yet-enabled) full-screen button.
   const [showDisabledMsg, setShowDisabledMsg] = useState(false);
+  const disabledMsgTimeoutRef = useRef(null);
+  useEffect(() => () => window.clearTimeout(disabledMsgTimeoutRef.current), []);
   // Focus management for the options collapse control: the panel's collapse arrow
   // unmounts when the panel closes, so restore focus to the "Show Options" button.
   const showOptionsButtonRef = useRef(null);
@@ -1167,8 +1169,12 @@ const ForceGraph = ({
             aria-disabled="true"
             title="Full screen"
             onClick={() => {
+              window.clearTimeout(disabledMsgTimeoutRef.current);
               setShowDisabledMsg(true);
-              window.setTimeout(() => setShowDisabledMsg(false), 2500);
+              disabledMsgTimeoutRef.current = window.setTimeout(
+                () => setShowDisabledMsg(false),
+                2500,
+              );
             }}
           >
             <svg

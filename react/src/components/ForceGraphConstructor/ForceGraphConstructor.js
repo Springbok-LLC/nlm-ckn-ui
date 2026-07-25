@@ -428,7 +428,11 @@ function ForceGraphConstructor(
 
   // Positions legend in bottom-left corner of SVG viewbox.
   function placeLegend(svgWidth, svgHeight) {
-    const legendHeight = legendItemCount * (legendSize + legendSpacing);
+    // No trailing gap after the last item, so the legend keeps its 20px inset.
+    const legendHeight =
+      legendItemCount > 0
+        ? legendItemCount * legendSize + (legendItemCount - 1) * legendSpacing
+        : 0;
     legend.attr(
       "transform",
       `translate(${-(svgWidth / 2) + 20}, ${svgHeight / 2 - 20 - legendHeight})`,
