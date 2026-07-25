@@ -687,6 +687,65 @@ g.node.pinned .node-pin-marker path {
   padding: var(--spacing-xs) 0;
 }
 
+/* Sectioned Inspector Card */
+
+.inspector-card {
+  background: var(--color-white); /* #FEFEFE */
+  border: 1px solid #e9edf0; /* untokenized */
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 12px;
+}
+.inspector-card-title {
+  color: var(--color-base); /* #212121 */
+  font-weight: 500; /* Roboto Medium */
+  font-size: 12px;
+  line-height: 1.125;
+  margin: 0;
+}
+.inspector-section {
+  background: #f7fbfd; /* untokenized section surface */
+  border: 0.4px solid #f2f3f7; /* untokenized */
+  border-radius: 4px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inspector-section-title {
+  color: var(--color-gray-dark); /* #323A45 */
+  font-weight: 500; /* Roboto Medium */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+.inspector-section-description {
+  color: var(--color-gray); /* #5B616B */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+/* Field rows within a section: label #5B616B, value #212121, both 12px; hairline divider. */
+.inspector-section .document-attributes-table {
+  width: 100%;
+}
+.inspector-section .attribute-key {
+  color: var(--color-gray); /* #5B616B */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+.inspector-section .attribute-value {
+  color: var(--color-base); /* #212121 */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+
 /* Desktop and up: Side-by-Side Layout */
 @media (min-width: 1024px) {
   .graph-component-wrapper {
