@@ -17,6 +17,14 @@ const DocumentCard = ({ document }) => {
    */
   const formatValue = (value) => {
     if (typeof value === "boolean") return value.toString();
+    // Round fractional numbers — including numeric strings (silhouette / F-beta
+    // scores come back as strings) — to 2 decimals: "0.45", not "0.446437834295082".
+    if (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) {
+      const num = Number(value);
+      if (Number.isFinite(num) && !Number.isInteger(num)) {
+        return Number(num.toFixed(2));
+      }
+    }
     if (Array.isArray(value)) return value.join(", ");
     if (value !== null && typeof value === "object") {
       return JSON.stringify(value, null, 2);
