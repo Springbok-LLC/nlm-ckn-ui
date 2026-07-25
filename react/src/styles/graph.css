@@ -745,6 +745,20 @@ g.node.pinned .node-pin-marker path {
   line-height: 16px;
   letter-spacing: 0.4px;
 }
+/* Flat rows to match Figma 682:3499: no zebra striping (overrides the global
+   tr:nth-of-type(even) rule), thin #F2F3F7 hairline dividers, tight vertical
+   padding. Horizontal label/value spacing is left to the base table rules. */
+.inspector-section .document-attributes-table tr {
+  background-color: transparent;
+}
+.inspector-section .document-attributes-table td {
+  border-bottom: 0.4px solid #f2f3f7;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.inspector-section .document-attributes-table tr:last-child td {
+  border-bottom: none;
+}
 
 /* Inspector FTU illustration */
 
