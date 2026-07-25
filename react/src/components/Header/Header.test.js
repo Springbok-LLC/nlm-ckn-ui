@@ -26,7 +26,7 @@ describe("Header", () => {
     expect(screen.getByAltText(/NLM Cell Knowledge Network logo/i)).toBeInTheDocument();
     expect(screen.getByText("NLM Cell Knowledge Network")).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Search gene, tissue, cell set, publication..."),
+      screen.getByPlaceholderText("Search"),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Collections" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Graph" })).toBeInTheDocument();

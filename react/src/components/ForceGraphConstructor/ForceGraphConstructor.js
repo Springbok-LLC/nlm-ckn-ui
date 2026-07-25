@@ -418,10 +418,12 @@ function ForceGraphConstructor(
     .append("g")
     .attr("class", "legend")
     .style("font-family", "sans-serif")
-    .style("font-size", "10px");
+    /* Figma legend (682:3646): 12px Body Small, gray-text, 20px swatches. */
+    .style("font-size", "12px")
+    .style("fill", "#5b616b");
 
-  const legendSize = 12;
-  const legendSpacing = 4;
+  const legendSize = 20;
+  const legendSpacing = 8;
   let legendItemCount = 0;
 
   // Positions legend in bottom-left corner of SVG viewbox.
@@ -494,11 +496,16 @@ function ForceGraphConstructor(
       .attr("class", "legend-item")
       .attr("transform", (_d, i) => `translate(0, ${i * (legendSize + legendSpacing)})`);
 
-    legendEnter.append("rect").attr("x", 0).attr("width", legendSize).attr("height", legendSize);
+    legendEnter
+      .append("rect")
+      .attr("x", 0)
+      .attr("rx", 2)
+      .attr("width", legendSize)
+      .attr("height", legendSize);
 
     legendEnter
       .append("text")
-      .attr("x", legendSize + 5)
+      .attr("x", legendSize + 8)
       .attr("y", legendSize / 2)
       .attr("dy", "0.35em");
 

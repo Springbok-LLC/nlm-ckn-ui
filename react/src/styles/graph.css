@@ -914,14 +914,20 @@ g.node.pinned .node-pin-marker path {
   padding: var(--spacing-sm);
 }
 
-/* History strip heading = the graph's origin (Figma Body Small 12px Medium). */
+/* History strip heading = the graph's origin (Figma Body Small 12px Medium).
+   Single-line box that ellipsis-truncates when too long, so long/multi-origin
+   titles don't wrap and disturb the strip spacing. */
 .graph-history-title {
   margin: 0 0 8px;
+  max-width: 100%;
   color: var(--color-gray-dark);
   font-weight: 500;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {
