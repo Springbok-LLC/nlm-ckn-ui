@@ -1,4 +1,4 @@
-import { getDisplayFields, getSectionedFields, getTitle, getUrl } from "utils";
+import { formatFieldValue, getDisplayFields, getSectionedFields, getTitle, getUrl } from "utils";
 
 /**
  * Renders a structured inspector card for a single document.
@@ -11,38 +11,16 @@ const DocumentCard = ({ document }) => {
   const sections = getSectionedFields(document);
 
   /**
-   * Formats attribute value for display in a table cell.
-   * @param {*} value - The value to format.
-   * @returns {string} Formatted value for rendering.
-   */
-  const formatValue = (value) => {
-    if (typeof value === "boolean") return value.toString();
-    // Round fractional numbers — including numeric strings (silhouette / F-beta
-    // scores come back as strings) — to 2 decimals: "0.45", not "0.446437834295082".
-    if (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) {
-      const num = Number(value);
-      if (Number.isFinite(num) && !Number.isInteger(num)) {
-        return Number(num.toFixed(2));
-      }
-    }
-    if (Array.isArray(value)) return value.join(", ");
-    if (value !== null && typeof value === "object") {
-      return JSON.stringify(value, null, 2);
-    }
-    return value;
-  };
-
-  /**
    * Renders a field's value, as an external link when it carries a URL.
    * @param {object} field - { value, url }
    */
   const renderValue = (field) =>
     field.url ? (
       <a href={field.url} target="_blank" rel="noopener noreferrer" className="external-link">
-        {formatValue(field.value)}
+        {formatFieldValue(field.value)}
       </a>
     ) : (
-      formatValue(field.value)
+      formatFieldValue(field.value)
     );
 
   // Sectioned path (configured collections, e.g. CSD).
@@ -58,7 +36,7 @@ const DocumentCard = ({ document }) => {
               <h4 className="inspector-section-title">{section}</h4>
               {descriptions.map((f) => (
                 <p className="inspector-section-description" key={f.key}>
-                  {formatValue(f.value)}
+                  {formatFieldValue(f.value)}
                 </p>
               ))}
               {rows.length > 0 && (
@@ -89,6 +67,7 @@ const DocumentCard = ({ document }) => {
       <h3 className="inspector-overview-title">Overview</h3>
       <fieldset className="document-info-fieldset">
         <legend className="document-info-legend">
+          {/* Render legend as link only if primary URL exists. */}
           {url ? (
             <a
               href={url}
