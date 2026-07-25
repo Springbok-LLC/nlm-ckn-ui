@@ -408,6 +408,42 @@ g.node.pinned .node-pin-marker path {
   right: 16px;
 }
 
+/* Bottom-right canvas action group: full screen (disabled), lasso, download. */
+.graph-canvas-actions {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.graph-canvas-actions .graph-canvas-icon-button {
+  position: static;
+}
+/* Full screen isn't enabled yet — dim it, but keep it clickable for the notice. */
+.graph-canvas-fullscreen[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* Lasso armed — distinct focus accent (matches the old lasso-active treatment). */
+.graph-canvas-lasso.active {
+  background-color: var(--color-focus);
+}
+.graph-canvas-disabled-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  padding: 6px 10px;
+  background-color: var(--color-primary-darkest);
+  color: var(--color-white);
+  font-size: 12px;
+  line-height: 16px;
+  border-radius: var(--radius-sm, 4px);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
 /* Options collapse handle on the panel's left edge (Figma "Close arrow" 682:3573):
    light-gray tab with a right chevron, attached to the panel boundary. */
 .options-collapse-arrow {
@@ -676,15 +712,34 @@ g.node.pinned .node-pin-marker path {
   border-collapse: collapse;
 }
 
+/* Flat fallback table — same flat, hairline-divider, Figma-coloured rows as the
+   sectioned inspector (overrides the global tr:nth-of-type(even) striping). */
+.inspector-overview .document-attributes-table tr {
+  background-color: transparent;
+}
+.inspector-overview .document-attributes-table td {
+  border-bottom: 0.4px solid #f2f3f7;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.inspector-overview .document-attributes-table tr:last-child td {
+  border-bottom: none;
+}
 .inspector-overview .document-attributes-table .attribute-key {
-  color: var(--color-text-muted);
+  color: var(--color-gray); /* #5B616B */
   font-weight: 500;
-  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) 0;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  padding-right: var(--spacing-sm);
   vertical-align: top;
 }
 
 .inspector-overview .document-attributes-table .attribute-value {
-  padding: var(--spacing-xs) 0;
+  color: var(--color-base); /* #212121 */
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
 }
 
 /* Sectioned Inspector Card */
