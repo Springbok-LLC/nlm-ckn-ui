@@ -746,6 +746,19 @@ g.node.pinned .node-pin-marker path {
   letter-spacing: 0.4px;
 }
 
+/* Inspector FTU illustration */
+
+.inspector-ftu {
+  width: 100%;
+}
+.inspector-ftu :is(svg, img, canvas, hra-medical-illustration) {
+  max-width: 100%;
+  height: auto;
+}
+.inspector-ftu .max-height-limited {
+  height: 220px;
+}
+
 /* Learn & Explore footer */
 
 .learn-explore {

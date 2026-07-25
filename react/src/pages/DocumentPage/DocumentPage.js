@@ -1,22 +1,17 @@
 import collectionDefaults from "assets/collection-defaults.json";
-import FTUIllustration from "components/FTUIllustration";
 import GraphWorkspace from "components/GraphWorkspace";
-import { FTU_ILLUSTRATIONS_JSONLD_URL } from "constants/index";
-import { useFtuParts } from "contexts";
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useParams } from "react-router-dom";
 import { fetchDocument } from "services";
 import { initializeGraph } from "store";
-import { findFtuUrlById, parseId } from "utils";
+import { parseId } from "utils";
 
 const DocumentPage = () => {
   const dispatch = useDispatch();
   const { coll, id } = useParams();
   const [document, setDocument] = useState(null);
   const [nodeIds, setNodeIds] = useState(null);
-
-  const { ftuParts } = useFtuParts();
 
   useEffect(() => {
     let cancelled = false;
@@ -43,14 +38,6 @@ const DocumentPage = () => {
       cancelled = true;
     };
   }, [id, coll, dispatch]);
-
-  const ftuIllustrationUrl = useMemo(() => {
-    if (!document || !ftuParts || ftuParts.length === 0) {
-      return null;
-    }
-    const ftuUrl = findFtuUrlById(ftuParts, `${coll}_${id}`);
-    return ftuUrl;
-  }, [document, ftuParts, id, coll]);
 
   const forceGraphSettings = useMemo(() => {
     // Use collection-specific defaults, falling back to _defaults for unknown collections
@@ -97,12 +84,6 @@ const DocumentPage = () => {
         <div className="document-item-header">
           {document.term && <span>Term: {document.term}</span>}{" "}
         </div>
-        {ftuIllustrationUrl && (
-          <FTUIllustration
-            selectedIllustration={ftuIllustrationUrl}
-            illustrations={FTU_ILLUSTRATIONS_JSONLD_URL}
-          />
-        )}
         <div className="document-page-main-content-area">
           <GraphWorkspace
             originDocument={document}
