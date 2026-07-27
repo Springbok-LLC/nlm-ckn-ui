@@ -709,6 +709,10 @@ const ForceGraph = ({
             resetData: false,
             labelStates: settings.labelStates,
           });
+          // Redraw origin donut markers for the new origin set: the merged
+          // render reuses existing node elements, so a just-promoted node needs
+          // its donut applied here.
+          currentInstance.setOriginNodeIds?.(originNodeIds);
           lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
           lastRenderedLinkIdsRef.current = new Set(
             graphData.links.map((l) => l._id || `${l.source}-${l.target}`),
@@ -743,6 +747,9 @@ const ForceGraph = ({
               labelStates: settings.labelStates,
             });
           }
+          // Redraw origin donut markers: a node demoted from origin (that
+          // survived because it is shared) must lose its donut.
+          currentInstance.setOriginNodeIds?.(originNodeIds);
           lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
           lastRenderedLinkIdsRef.current = new Set(
             graphData.links.map((l) => l._id || `${l.source}-${l.target}`),
