@@ -1,5 +1,6 @@
 // Graph slice actions and thunks
 export {
+  addOriginNode,
   addToLassoSelection,
   clearAllPins,
   clearGraphData,
@@ -14,6 +15,7 @@ export {
   initializeGraph,
   loadGraph,
   loadGraphFromJson,
+  removeOriginNode,
   setAllCollections,
   setAvailableCollections,
   setEdgeFilterMode,
