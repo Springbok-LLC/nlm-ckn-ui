@@ -657,6 +657,20 @@ const graphSlice = createSlice({
         }
 
         state.rawData = action.payload;
+        // Capture each origin's neighborhood so the compositional add/remove-origin
+        // flow can recompose from a graph built by the ordinary bulk fetch, not
+        // only from graphs assembled via "Add as origin". The standard-traversal
+        // payload is keyed by origin id; shortest-path/advanced payloads are not,
+        // so we leave originSubgraphs empty for those.
+        const capturedSubgraphs = {};
+        if (!state.settings.findShortestPaths && !state.isAdvancedMode && action.payload) {
+          for (const id of state.originNodeIds) {
+            if (action.payload[id]) {
+              capturedSubgraphs[id] = action.payload[id];
+            }
+          }
+        }
+        state.originSubgraphs = capturedSubgraphs;
         state.lastActionType = "fetch/fulfilled";
       })
       .addCase(fetchAndProcessGraph.rejected, (state, action) => {

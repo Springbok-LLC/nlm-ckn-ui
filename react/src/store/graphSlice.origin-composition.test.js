@@ -1,5 +1,10 @@
 import { configureStore } from "@reduxjs/toolkit";
-import graphReducer, { addOriginNode, removeOriginNode } from "./graphSlice";
+import graphReducer, {
+  addOriginNode,
+  fetchAndProcessGraph,
+  initializeGraph,
+  removeOriginNode,
+} from "./graphSlice";
 
 // Mock the services the thunks call.
 jest.mock("../services", () => ({
@@ -9,7 +14,7 @@ jest.mock("../services", () => ({
   fetchEdgeFilterOptions: jest.fn(),
 }));
 
-import { fetchEdgesBetween, fetchNodeExpansion } from "../services";
+import { fetchEdgesBetween, fetchGraphData, fetchNodeExpansion } from "../services";
 
 const node = (id) => ({ _id: id, label: id });
 const link = (from, to) => ({ _id: `${from}->${to}`, _from: from, _to: to, _key: `${from}-${to}` });
@@ -94,4 +99,37 @@ test("removeOriginNode drops the origin's unshared nodes and clears when last or
   expect(present.originNodeIds).toEqual([]);
   expect(present.graphData).toEqual({ nodes: [], links: [] });
   expect(present.originSubgraphs).toEqual({});
+});
+
+test("bulk fetch captures each origin's subgraph so removeOriginNode works on a normally-built graph", async () => {
+  const A = "cs/A";
+  const B = "cs/B";
+  fetchGraphData.mockResolvedValue({
+    [A]: {
+      nodes: [node(A), node("cs/SHARED"), node("cs/A_ONLY")],
+      links: [link(A, "cs/SHARED"), link(A, "cs/A_ONLY")],
+    },
+    [B]: {
+      nodes: [node(B), node("cs/SHARED"), node("cs/B_ONLY")],
+      links: [link(B, "cs/SHARED"), link(B, "cs/B_ONLY")],
+    },
+  });
+  fetchEdgesBetween.mockResolvedValue([]);
+
+  const store = makeStore();
+  store.dispatch(initializeGraph({ nodeIds: [A, B], isAdvancedMode: false, perNodeSettings: {} }));
+  await store.dispatch(fetchAndProcessGraph());
+
+  let present = store.getState().graph.present;
+  expect(Object.keys(present.originSubgraphs).sort()).toEqual([A, B].sort());
+
+  // Remove B on a bulk-built graph: A + shared survive, B_ONLY drops, graph NOT emptied.
+  await store.dispatch(removeOriginNode(B));
+  present = store.getState().graph.present;
+  expect(present.originNodeIds).toEqual([A]);
+  expect(present.graphData.nodes.map((n) => n._id).sort()).toEqual([
+    "cs/A",
+    "cs/A_ONLY",
+    "cs/SHARED",
+  ]);
 });
