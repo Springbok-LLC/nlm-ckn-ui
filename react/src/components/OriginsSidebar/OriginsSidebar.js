@@ -16,7 +16,7 @@ const OriginsSidebar = ({ isOpen, onClose }) => {
   const { originNodeIds, nodes } = useSelector(
     (state) => ({
       originNodeIds: state.graph.present.originNodeIds,
-      nodes: state.graph.present.graphData.nodes,
+      nodes: state.graph.present.graphData?.nodes,
     }),
     shallowEqual,
   );
