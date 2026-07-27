@@ -50,6 +50,22 @@ import {
 } from "./panels";
 
 /**
+ * Ids of nodes that were in the graph before a recompose but not after — the
+ * nodes a "remove as origin" made vanish. Used to drop them from the live D3
+ * instance without resetting the layout of survivors.
+ * @param {{ nodes: object[] } | null} beforeGraph
+ * @param {{ nodes: object[] }} afterGraph
+ * @returns {string[]}
+ */
+export function computeDroppedNodeIds(beforeGraph, afterGraph) {
+  if (!beforeGraph?.nodes?.length) return [];
+  const surviving = new Set((afterGraph?.nodes || []).map((n) => n._id ?? n.id));
+  return beforeGraph.nodes
+    .map((n) => n._id ?? n.id)
+    .filter((id) => id != null && !surviving.has(id));
+}
+
+/**
  * Main React component for D3 force-directed graph visualization.
  * Orchestrates Redux state, user interactions, and D3 instance.
  */
@@ -642,6 +658,45 @@ const ForceGraph = ({
               labelStates: settings.labelStates,
             });
           }
+          break;
+        }
+        case "recompose/add": {
+          const currentInstance = graphInstanceRef.current;
+          if (!currentInstance || !graphData?.nodes?.length) break;
+          // Merge the composed graph in place: processGraphData filters out
+          // nodes that already exist, so only the new origin's nodes are added
+          // and every survivor keeps its position (auto-pinned during settle).
+          currentInstance.updateGraph({
+            newOriginNodeIds: originNodeIds,
+            newNodes: graphData.nodes,
+            newLinks: graphData.links,
+            resetData: false,
+            collapseNodes: [],
+            labelStates: settings.labelStates,
+          });
+          lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
+          lastRenderedLinkIdsRef.current = new Set(
+            graphData.links.map((l) => l._id || `${l.source}-${l.target}`),
+          );
+          break;
+        }
+        case "recompose/remove": {
+          const currentInstance = graphInstanceRef.current;
+          if (!currentInstance) break;
+          const before = currentInstance.getCurrentGraph?.();
+          const dropped = computeDroppedNodeIds(before, graphData);
+          if (dropped.length > 0) {
+            currentInstance.updateGraph({
+              collapseNodes: dropped,
+              removeNode: true,
+              resetData: false,
+              labelStates: settings.labelStates,
+            });
+          }
+          lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
+          lastRenderedLinkIdsRef.current = new Set(
+            graphData.links.map((l) => l._id || `${l.source}-${l.target}`),
+          );
           break;
         }
         default:
