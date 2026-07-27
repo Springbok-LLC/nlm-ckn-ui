@@ -3,6 +3,7 @@ import graphReducer, {
   addOriginNode,
   fetchAndProcessGraph,
   initializeGraph,
+  pruneOrigins,
   removeOriginNode,
   setGraphData,
 } from "./graphSlice";
@@ -185,4 +186,41 @@ test("removeOriginNode self-heals missing subgraphs instead of emptying the grap
   // A's neighborhood was re-fetched → graph is NOT empty.
   expect(present.graphData.nodes.map((n) => n._id).sort()).toEqual(["cs/A", "cs/SHARED"]);
   expect(present.originSubgraphs[A]).toBeTruthy();
+});
+
+test("pruneOrigins removes ids from originNodeIds and originSubgraphs", async () => {
+  fetchNodeExpansion.mockResolvedValueOnce({
+    "cs/A": { nodes: [node("cs/A"), node("cs/N")], links: [link("cs/A", "cs/N")] },
+  });
+  fetchEdgesBetween.mockResolvedValue([]);
+  const store = makeStore();
+  await store.dispatch(addOriginNode("cs/A"));
+  expect(store.getState().graph.present.originNodeIds).toEqual(["cs/A"]);
+  store.dispatch(pruneOrigins(["cs/A"]));
+  const present = store.getState().graph.present;
+  expect(present.originNodeIds).toEqual([]);
+  expect(present.originSubgraphs["cs/A"]).toBeUndefined();
+});
+
+test("after pruneOrigins, a later removeOriginNode does not resurrect the deleted origin", async () => {
+  const A = "cs/A";
+  const B = "cs/B";
+  fetchNodeExpansion
+    .mockResolvedValueOnce({
+      [A]: { nodes: [node(A), node("cs/SHARED")], links: [link(A, "cs/SHARED")] },
+    })
+    .mockResolvedValueOnce({
+      [B]: { nodes: [node(B), node("cs/SHARED")], links: [link(B, "cs/SHARED")] },
+    });
+  fetchEdgesBetween.mockResolvedValue([]);
+  const store = makeStore();
+  await store.dispatch(addOriginNode(A));
+  await store.dispatch(addOriginNode(B));
+  // Simulate "Remove Node" deleting origin A from the view + pruning its bookkeeping.
+  store.dispatch(pruneOrigins([A]));
+  // Now remove B as origin: A must NOT reappear (it was pruned).
+  await store.dispatch(removeOriginNode(B));
+  const present = store.getState().graph.present;
+  expect(present.originNodeIds).toEqual([]);
+  expect(present.graphData.nodes.map((n) => n._id)).not.toContain(A);
 });

@@ -15,6 +15,7 @@ export {
   initializeGraph,
   loadGraph,
   loadGraphFromJson,
+  pruneOrigins,
   removeOriginNode,
   setAllCollections,
   setAvailableCollections,

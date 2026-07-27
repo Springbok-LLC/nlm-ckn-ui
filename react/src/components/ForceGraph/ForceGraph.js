@@ -21,6 +21,7 @@ import {
   expandNode,
   fetchAndProcessGraph,
   initializeGraph,
+  pruneOrigins,
   removeNodeFromSlice,
   removeOriginNode,
   saveGraph,
@@ -882,6 +883,8 @@ const ForceGraph = ({
       removeNode: true,
       labelStates: settings.labelStates,
     });
+    dispatch(pruneOrigins(ids));
+    for (const id of ids) dispatch(removeNodeFromSlice(id));
     dispatch(clearLassoSelection());
   }, [dispatch, lassoSelectedNodeIds, settings.labelStates]);
 
@@ -1146,6 +1149,8 @@ const ForceGraph = ({
       removeNode: true,
       labelStates: settings.labelStates,
     });
+    dispatch(pruneOrigins([targetId]));
+    dispatch(removeNodeFromSlice(targetId));
     handlePopupClose();
   };
 

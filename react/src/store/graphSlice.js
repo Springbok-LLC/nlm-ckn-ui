@@ -682,6 +682,19 @@ const graphSlice = createSlice({
       }
       state.lastActionType = "clearAllPins";
     },
+    // Removes node ids from the compositional origin bookkeeping without
+    // recomposing. Used when nodes are deleted from the view directly (context
+    // menu "Remove Node", lasso bulk delete) so a later add/remove-origin
+    // recompose can't resurrect a node the user already deleted.
+    pruneOrigins: (state, action) => {
+      const ids = new Set(action.payload || []);
+      if (ids.size === 0) return;
+      state.originNodeIds = state.originNodeIds.filter((id) => !ids.has(id));
+      for (const id of ids) {
+        delete state.originSubgraphs[id];
+      }
+      state.lastActionType = "pruneOrigins";
+    },
   },
   // Reducers for handling async thunk lifecycle actions.
   extraReducers: (builder) => {
@@ -851,6 +864,7 @@ export const {
   clearLassoSelection,
   syncSettingsToLastApplied,
   clearAllPins,
+  pruneOrigins,
 } = graphSlice.actions;
 
 // Wrap base reducer with redux-undo.
