@@ -4,6 +4,7 @@ import graphReducer, {
   fetchAndProcessGraph,
   initializeGraph,
   removeOriginNode,
+  setGraphData,
 } from "./graphSlice";
 
 // Mock the services the thunks call.
@@ -132,4 +133,40 @@ test("bulk fetch captures each origin's subgraph so removeOriginNode works on a 
     "cs/A_ONLY",
     "cs/SHARED",
   ]);
+});
+
+test("restore (setGraphData with graphData, no originNodeIds) clears stale originSubgraphs", async () => {
+  fetchNodeExpansion.mockResolvedValueOnce({ "cs/A": { nodes: [node("cs/A")], links: [] } });
+  fetchEdgesBetween.mockResolvedValue([]);
+  const store = makeStore();
+  await store.dispatch(addOriginNode("cs/A"));
+  expect(store.getState().graph.present.originSubgraphs["cs/A"]).toBeTruthy();
+  // Simulate a history restore replacing the graph.
+  store.dispatch(
+    setGraphData({
+      graphData: { nodes: [node("cs/Z")], links: [] },
+      isRestore: true,
+      skipUndo: true,
+    }),
+  );
+  expect(store.getState().graph.present.originSubgraphs).toEqual({});
+});
+
+test("removeOriginNode self-heals missing subgraphs instead of emptying the graph", async () => {
+  const A = "cs/A";
+  const B = "cs/B";
+  // Simulate a post-restore state: originNodeIds set, but originSubgraphs empty.
+  const store = makeStore();
+  store.dispatch(initializeGraph({ nodeIds: [A, B], isAdvancedMode: false, perNodeSettings: {} }));
+  // originSubgraphs is {} here (initializeGraph resets it). Remove B; A must be re-fetched.
+  fetchNodeExpansion.mockResolvedValueOnce({
+    [A]: { nodes: [node(A), node("cs/SHARED")], links: [link(A, "cs/SHARED")] },
+  });
+  fetchEdgesBetween.mockResolvedValue([]);
+  await store.dispatch(removeOriginNode(B));
+  const present = store.getState().graph.present;
+  expect(present.originNodeIds).toEqual([A]);
+  // A's neighborhood was re-fetched → graph is NOT empty.
+  expect(present.graphData.nodes.map((n) => n._id).sort()).toEqual(["cs/A", "cs/SHARED"]);
+  expect(present.originSubgraphs[A]).toBeTruthy();
 });
