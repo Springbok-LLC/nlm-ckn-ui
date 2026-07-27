@@ -1,5 +1,4 @@
 import collMaps from "assets/nlm-ckn-collection-maps.json";
-import AddToGraphButton from "components/AddToGraphButton";
 import DocumentPopup from "components/DocumentPopup";
 import ForceGraphConstructor from "components/ForceGraphConstructor/ForceGraphConstructor";
 import LoadGraphModal from "components/LoadGraphModal";
@@ -10,6 +9,8 @@ import { ActionCreators } from "redux-undo";
 import { fetchNeighborCollections } from "services";
 import {
   addHistoryEntry,
+  addNodesToSlice,
+  addOriginNode,
   addToLassoSelection,
   clearAllPins,
   clearGraphData,
@@ -20,6 +21,8 @@ import {
   expandNode,
   fetchAndProcessGraph,
   initializeGraph,
+  removeNodeFromSlice,
+  removeOriginNode,
   saveGraph,
   selectOriginHistory,
   setGraphData,
@@ -63,6 +66,17 @@ export function computeDroppedNodeIds(beforeGraph, afterGraph) {
   return beforeGraph.nodes
     .map((n) => n._id ?? n.id)
     .filter((id) => id != null && !surviving.has(id));
+}
+
+/**
+ * Context-menu label for the origin toggle on a node: an existing origin can be
+ * removed, any other node can be added.
+ * @param {string} nodeId
+ * @param {string[]} originNodeIds
+ * @returns {"Add as origin" | "Remove as origin"}
+ */
+export function originMenuLabel(nodeId, originNodeIds) {
+  return originNodeIds?.includes(nodeId) ? "Remove as origin" : "Add as origin";
 }
 
 /**
@@ -1140,6 +1154,21 @@ const ForceGraph = ({
     handlePopupClose();
   };
 
+  // "Add as origin" / "Remove as origin" from the node context menu. Both keep
+  // the nodesSlice staging cart coherent with the live compositional set.
+  const handleOriginToggle = () => {
+    if (!popup.nodeId || popup.isEdge) return;
+    const nodeId = popup.nodeId;
+    if (originNodeIds.includes(nodeId)) {
+      dispatch(removeOriginNode(nodeId));
+      dispatch(removeNodeFromSlice(nodeId));
+    } else {
+      dispatch(addOriginNode(nodeId));
+      dispatch(addNodesToSlice(nodeId));
+    }
+    handlePopupClose();
+  };
+
   const openOptions = () => {
     setOptionsVisible(true);
   };
@@ -1449,7 +1478,14 @@ const ForceGraph = ({
           >
             Remove Edge
           </button>
-          <AddToGraphButton nodeId={popup.nodeId} text="Add to Graph" />
+          <button
+            type="button"
+            className="document-popup-button"
+            onClick={handleOriginToggle}
+            style={{ display: !popup.isEdge ? "block" : "none" }}
+          >
+            {originMenuLabel(popup.nodeId, originNodeIds)}
+          </button>
         </DocumentPopup>
       </div>
 
