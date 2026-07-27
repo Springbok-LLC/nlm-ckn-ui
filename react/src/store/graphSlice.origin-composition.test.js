@@ -152,6 +152,22 @@ test("restore (setGraphData with graphData, no originNodeIds) clears stale origi
   expect(store.getState().graph.present.originSubgraphs).toEqual({});
 });
 
+test("history restore clears stale live origins so the sidebar shows none", async () => {
+  fetchNodeExpansion.mockResolvedValueOnce({ "cs/A": { nodes: [node("cs/A")], links: [] } });
+  fetchEdgesBetween.mockResolvedValue([]);
+  const store = makeStore();
+  await store.dispatch(addOriginNode("cs/A"));
+  expect(store.getState().graph.present.originNodeIds).toEqual(["cs/A"]);
+  store.dispatch(
+    setGraphData({
+      graphData: { nodes: [node("cs/Z")], links: [] },
+      isRestore: true,
+      skipUndo: true,
+    }),
+  );
+  expect(store.getState().graph.present.originNodeIds).toEqual([]);
+});
+
 test("removeOriginNode self-heals missing subgraphs instead of emptying the graph", async () => {
   const A = "cs/A";
   const B = "cs/B";

@@ -404,6 +404,12 @@ const graphSlice = createSlice({
           } catch (_err) {
             state.lastAppliedSettings = { ...state.settings };
           }
+        } else if (action.payload.isRestore) {
+          // A history restore replaces graphData without carrying origins;
+          // clear the live origins so the OriginsSidebar doesn't list phantom
+          // origins from the pre-restore composition (matches loadGraphFromJson).
+          state.originNodeIds = [];
+          state.lastAppliedOriginNodeIds = [];
         }
       } else {
         const graphData = action.payload.nodes

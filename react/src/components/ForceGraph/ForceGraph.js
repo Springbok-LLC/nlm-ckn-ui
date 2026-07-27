@@ -4,7 +4,7 @@ import ForceGraphConstructor from "components/ForceGraphConstructor/ForceGraphCo
 import LoadGraphModal from "components/LoadGraphModal";
 import { useGraphDataInit, useHotkeyHold, useHotkeys } from "hooks";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shallowEqual, useDispatch, useSelector } from "react-redux";
+import { shallowEqual, useDispatch, useSelector, useStore } from "react-redux";
 import { ActionCreators } from "redux-undo";
 import { fetchNeighborCollections } from "services";
 import {
@@ -28,6 +28,7 @@ import {
   setGraphData,
   setInitialCollapseList,
   setLassoSelection,
+  setNodesSlice,
   syncSettingsToLastApplied,
   uncollapseNode,
   updateNodePositions,
@@ -91,6 +92,7 @@ const ForceGraph = ({
   title,
 }) => {
   const dispatch = useDispatch();
+  const store = useStore();
 
   // Refs for DOM elements and D3 graph instance.
   const wrapperRef = useRef();
@@ -677,15 +679,15 @@ const ForceGraph = ({
         case "recompose/add": {
           const currentInstance = graphInstanceRef.current;
           if (!currentInstance || !graphData?.nodes?.length) break;
-          // Merge the composed graph in place: processGraphData filters out
-          // nodes that already exist, so only the new origin's nodes are added
-          // and every survivor keeps its position (auto-pinned during settle).
+          const before = currentInstance.getCurrentGraph?.();
+          const dropped = computeDroppedNodeIds(before, graphData);
           currentInstance.updateGraph({
             newOriginNodeIds: originNodeIds,
             newNodes: graphData.nodes,
             newLinks: graphData.links,
+            collapseNodes: dropped,
+            removeNode: dropped.length > 0,
             resetData: false,
-            collapseNodes: [],
             labelStates: settings.labelStates,
           });
           lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
@@ -703,6 +705,21 @@ const ForceGraph = ({
             currentInstance.updateGraph({
               collapseNodes: dropped,
               removeNode: true,
+              resetData: false,
+              labelStates: settings.labelStates,
+            });
+          }
+          // Drop edges the recompose removed whose endpoints both survived
+          // (e.g. an edge contributed only by the removed origin between two
+          // shared nodes). removeNode above already dropped edges of removed
+          // nodes; these removeLink calls are no-ops for those.
+          const composedLinkIds = new Set((graphData.links || []).map((l) => l._id));
+          const staleLinks = (before?.links || []).filter(
+            (l) => l._id && !composedLinkIds.has(l._id),
+          );
+          for (const staleLink of staleLinks) {
+            currentInstance.updateGraph({
+              removeLink: staleLink._id,
               resetData: false,
               labelStates: settings.labelStates,
             });
@@ -873,13 +890,15 @@ const ForceGraph = ({
     setIsRestoring(true);
     dispatch(ActionCreators.undo());
     dispatch(syncSettingsToLastApplied());
-  }, [dispatch]);
+    dispatch(setNodesSlice(store.getState().graph.present.originNodeIds));
+  }, [dispatch, store]);
 
   const handleRedo = useCallback(() => {
     setIsRestoring(true);
     dispatch(ActionCreators.redo());
     dispatch(syncSettingsToLastApplied());
-  }, [dispatch]);
+    dispatch(setNodesSlice(store.getState().graph.present.originNodeIds));
+  }, [dispatch, store]);
 
   const handleSave = useCallback(() => {
     const graphName = window.prompt("Please enter a name for your graph:");
