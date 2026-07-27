@@ -30,6 +30,7 @@ import {
   setInitialCollapseList,
   setLassoSelection,
   setNodesSlice,
+  syncActiveHistoryEntry,
   syncSettingsToLastApplied,
   uncollapseNode,
   updateNodePositions,
@@ -154,6 +155,14 @@ const ForceGraph = ({
 
   // Origins already captured as history entries (used to auto-append new ones below).
   const originHistory = useSelector(selectOriginHistory);
+  // The active history entry gets its snapshot + thumbnail kept current on every
+  // settle (see handleSimulationEnd). Mirror it into a ref so the constructor's
+  // onSimulationEnd closure reads the latest value, not a stale one.
+  const activeHistoryId = useSelector((state) => state.savedGraphs.activeHistoryId);
+  const activeHistoryIdRef = useRef(null);
+  useEffect(() => {
+    activeHistoryIdRef.current = activeHistoryId;
+  }, [activeHistoryId]);
 
   // Use extracted hooks
   const { nodeNameMap, cachedNames } = useNodeNames(graphData, originNodeIds, settings.graphType);
@@ -367,6 +376,15 @@ const ForceGraph = ({
       // and clobber the drag's gentle warmup.
       if (graphInstanceRef.current?.isDragging?.()) return;
       dispatch(setGraphData({ nodes: finalNodes, links: finalLinks, skipUndo: true }));
+      // Keep the active history entry's snapshot + thumbnail current, so
+      // restoring it later shows the most recent version of the graph rather
+      // than its first-resolve capture. Only do the (async, best-effort)
+      // thumbnail work when an entry is actually active.
+      if (!activeHistoryIdRef.current) return;
+      const subgraph = { nodes: finalNodes, links: finalLinks };
+      captureGraphThumbnail(svgRef.current)
+        .then((thumbnail) => dispatch(syncActiveHistoryEntry(subgraph, thumbnail)))
+        .catch(() => dispatch(syncActiveHistoryEntry(subgraph, null)));
     },
     [dispatch],
   );

@@ -53,6 +53,8 @@ export {
   selectSavedGraphs,
   setActiveGraph as setActiveSavedGraph,
   setActiveHistory,
+  syncActiveHistoryEntry,
+  updateHistoryEntry,
 } from "./savedGraphsSlice";
 // Store configuration
 export { persistor, store } from "./store";
