@@ -59,6 +59,9 @@
 .origins-sidebar-label {
   font-size: 14px;
   color: var(--color-base, #212121);
+  /* min-width:0 lets the label shrink inside the flex row so the ellipsis
+     engages instead of a long label pushing the Remove control out of view. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

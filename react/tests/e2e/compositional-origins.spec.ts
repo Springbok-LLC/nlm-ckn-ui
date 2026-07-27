@@ -345,12 +345,11 @@ test("Expanding a node then adding a new origin drops the expand-introduced stra
   }).toPass({ timeout: 5000 });
   await expect(page.locator("g.node").filter({ hasText: "Straggler Node" })).toHaveCount(1);
 
-  // Add ORIGIN_B as a second origin via the Shared Node — right-clicking any
-  // node already in D3 opens the same "Add as origin" action, and the origin
-  // added is resolved by fetching ORIGIN_B's own id directly is not exposed
-  // in-canvas, so add SHARED's neighbor set is not applicable either; instead
-  // promote SHARED itself, whose captured neighborhood is defined below to
-  // equal the full A ∪ B union so the composed set drops the straggler.
+  // Promote SHARED (a node already in the canvas) to a second origin via its
+  // "Add as origin" action. SHARED's mocked neighborhood mirrors A's set
+  // ({SHARED, ORIGIN_A, A_ONLY}), so the composed union stays those three nodes
+  // and drops STRAGGLER — which only ever entered D3 via the plain expand and
+  // belongs to no origin's captured subgraph.
   const sharedNode = page.locator("g.node").filter({ hasText: "Shared Node" }).first();
   const popup = await openNodeContextMenu(page, sharedNode);
   const addButton = popup.getByRole("button", { name: "Add as origin", exact: true });

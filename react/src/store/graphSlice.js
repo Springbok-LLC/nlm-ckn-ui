@@ -59,8 +59,13 @@ async function composeWithCrossOriginEdges(originNodeIds, originSubgraphs, query
  * neighborhood for any that are missing (e.g. after a history restore/load
  * cleared originSubgraphs). Returns a new subgraphs map covering all ids so
  * composeGraph never recomposes over stale/partial data.
+ *
+ * When a fetched neighborhood omits its own seed node, fall back to the live
+ * rendered node from `existingNodes` (which carries the full document —
+ * collection, label, position) before resorting to a bare `{ _id }` stub, so
+ * a healed origin never contributes a display-less node to the composed graph.
  */
-async function ensureOriginSubgraphs(originIds, subgraphs, settings) {
+async function ensureOriginSubgraphs(originIds, subgraphs, settings, existingNodes = []) {
   const { include, exclude } = splitEdgeFiltersByMode(
     settings.edgeFilters,
     settings.edgeFilterModes,
@@ -79,7 +84,8 @@ async function ensureOriginSubgraphs(originIds, subgraphs, settings) {
     const fetched = expansion?.[id] ?? { nodes: [], links: [] };
     const nodes = [...(fetched.nodes || [])];
     if (!nodes.some((n) => (n._id ?? n.id) === id)) {
-      nodes.push({ _id: id });
+      const existing = existingNodes.find((n) => (n._id ?? n.id) === id);
+      nodes.push(existing ?? { _id: id });
     }
     result[id] = { nodes, links: fetched.links || [] };
   }
@@ -235,7 +241,12 @@ export const addOriginNode = createAsyncThunk(
       : [...originNodeIds, nodeId];
     const nextSubgraphs = { ...originSubgraphs, [nodeId]: subgraph };
 
-    const healedSubgraphs = await ensureOriginSubgraphs(nextOriginIds, nextSubgraphs, settings);
+    const healedSubgraphs = await ensureOriginSubgraphs(
+      nextOriginIds,
+      nextSubgraphs,
+      settings,
+      graphData.nodes,
+    );
     const graph = await composeWithCrossOriginEdges(nextOriginIds, healedSubgraphs, {
       graphType: settings.graphType,
       edgeFilters: include,
@@ -257,7 +268,7 @@ export const addOriginNode = createAsyncThunk(
 export const removeOriginNode = createAsyncThunk(
   "graph/removeOriginNode",
   async (nodeId, { getState }) => {
-    const { settings, originNodeIds, originSubgraphs } = getState().graph.present;
+    const { settings, originNodeIds, originSubgraphs, graphData } = getState().graph.present;
     const { include, exclude } = splitEdgeFiltersByMode(
       settings.edgeFilters,
       settings.edgeFilterModes,
@@ -275,7 +286,12 @@ export const removeOriginNode = createAsyncThunk(
       };
     }
 
-    const healedSubgraphs = await ensureOriginSubgraphs(nextOriginIds, nextSubgraphs, settings);
+    const healedSubgraphs = await ensureOriginSubgraphs(
+      nextOriginIds,
+      nextSubgraphs,
+      settings,
+      graphData.nodes,
+    );
     const graph = await composeWithCrossOriginEdges(nextOriginIds, healedSubgraphs, {
       graphType: settings.graphType,
       edgeFilters: include,

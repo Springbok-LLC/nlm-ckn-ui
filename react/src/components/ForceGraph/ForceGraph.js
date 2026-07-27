@@ -695,9 +695,15 @@ const ForceGraph = ({
           }
           break;
         }
-        case "recompose/add": {
+        // Add and remove reconcile the D3 view to the composed graph the same
+        // way: merge in composed nodes/links (covering additions a self-heal
+        // re-fetch introduced), drop nodes no longer composed, drop stale edges
+        // between survivors, and redraw origin donut markers. resetData:false
+        // preserves the positions of nodes that persist.
+        case "recompose/add":
+        case "recompose/remove": {
           const currentInstance = graphInstanceRef.current;
-          if (!currentInstance || !graphData?.nodes?.length) break;
+          if (!currentInstance) break;
           const before = currentInstance.getCurrentGraph?.();
           const dropped = computeDroppedNodeIds(before, graphData);
           currentInstance.updateGraph({
@@ -709,31 +715,8 @@ const ForceGraph = ({
             resetData: false,
             labelStates: settings.labelStates,
           });
-          // Redraw origin donut markers for the new origin set: the merged
-          // render reuses existing node elements, so a just-promoted node needs
-          // its donut applied here.
-          currentInstance.setOriginNodeIds?.(originNodeIds);
-          lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
-          lastRenderedLinkIdsRef.current = new Set(
-            graphData.links.map((l) => l._id || `${l.source}-${l.target}`),
-          );
-          break;
-        }
-        case "recompose/remove": {
-          const currentInstance = graphInstanceRef.current;
-          if (!currentInstance) break;
-          const before = currentInstance.getCurrentGraph?.();
-          const dropped = computeDroppedNodeIds(before, graphData);
-          if (dropped.length > 0) {
-            currentInstance.updateGraph({
-              collapseNodes: dropped,
-              removeNode: true,
-              resetData: false,
-              labelStates: settings.labelStates,
-            });
-          }
           // Drop edges the recompose removed whose endpoints both survived
-          // (e.g. an edge contributed only by the removed origin between two
+          // (e.g. an edge contributed only by a removed origin between two
           // shared nodes). removeNode above already dropped edges of removed
           // nodes; these removeLink calls are no-ops for those.
           const composedLinkIds = new Set((graphData.links || []).map((l) => l._id));
@@ -747,8 +730,9 @@ const ForceGraph = ({
               labelStates: settings.labelStates,
             });
           }
-          // Redraw origin donut markers: a node demoted from origin (that
-          // survived because it is shared) must lose its donut.
+          // Redraw origin donut markers for the new origin set: the merged
+          // render reuses existing node elements, so a promoted node gains its
+          // donut and a demoted (but surviving/shared) node loses it.
           currentInstance.setOriginNodeIds?.(originNodeIds);
           lastRenderedNodeIdsRef.current = new Set(graphData.nodes.map((n) => n._id || n.id));
           lastRenderedLinkIdsRef.current = new Set(
