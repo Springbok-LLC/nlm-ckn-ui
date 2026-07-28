@@ -266,50 +266,6 @@ a.document-popup-button {
 
 /* AboutPage */
 
-.about-section-container {
-  background-color: var(--color-white);
-  padding: 25px 30px;
-  border-radius: 8px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  text-align: left;
-}
-
-.about-title {
-  font-size: 1.5em;
-  color: var(--color-dark);
-  margin-top: 0;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--color-light);
-}
-
-.about-section-container p {
-  font-size: 1em;
-  line-height: 1.7;
-  color: var(--color-text);
-  margin-bottom: 1.2em;
-}
-
-.about-section-container .internal-learn-more {
-  margin-left: 5px;
-  font-size: 0.95em;
-  color: var(--color-focus);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.about-section-container .internal-learn-more:hover {
-  text-decoration: underline;
-  color: var(--color-main);
-}
-
-.about-section-container p:last-child {
-  margin-bottom: 0;
-}
-
 .about-content-box {
   max-width: 900px;
   text-align: left;

@@ -20,13 +20,9 @@ const SearchIcon = () => (
   </svg>
 );
 
-const SearchBar = ({ placeholder = "Search NLM-CKN...", search: externalSearch = null }) => {
-  const { graphType } = useContext(GraphContext);
-
-  const internalSearch = useSearch(graphType);
-  const { query, setQuery, results, isOpen, setIsOpen, containerRef } =
-    externalSearch ?? internalSearch;
-
+// Presentational bar driven by a provided search object (from useSearch).
+const SearchBarView = ({ placeholder, search }) => {
+  const { query, setQuery, results, isOpen, setIsOpen, containerRef } = search;
   const shouldDropdownBeVisible = isOpen && query.trim() !== "";
 
   return (
@@ -50,5 +46,19 @@ const SearchBar = ({ placeholder = "Search NLM-CKN...", search: externalSearch =
     </div>
   );
 };
+
+// Owns the search hook when no external search is provided.
+const UncontrolledSearchBar = ({ placeholder }) => {
+  const { graphType } = useContext(GraphContext);
+  const search = useSearch(graphType);
+  return <SearchBarView placeholder={placeholder} search={search} />;
+};
+
+const SearchBar = ({ placeholder = "Search NLM-CKN...", search = null }) =>
+  search ? (
+    <SearchBarView placeholder={placeholder} search={search} />
+  ) : (
+    <UncontrolledSearchBar placeholder={placeholder} />
+  );
 
 export default SearchBar;
