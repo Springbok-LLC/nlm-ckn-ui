@@ -41,6 +41,8 @@ const PLAIN_NUMBER = /^-?(0|[1-9]\d*)(\.\d+)?$/;
  * Joins arrays, serialises objects, and renders numbers readably: large integers
  * get thousands separators, decimals are rounded to two places. Four digit
  * integers are left as-is so years are not rendered as "2,021".
+ * Exception: magnitudes below 0.01 would round away to "0", so they keep two
+ * significant digits instead and can exceed two decimals (0.004 stays "0.004").
  * @param {*} value - Raw attribute value.
  * @returns {string} Display-ready value.
  */

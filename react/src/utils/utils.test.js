@@ -345,6 +345,13 @@ describe("Utils Module", () => {
     it("should keep significant digits for values below the rounding threshold", () => {
       expect(formatFieldValue("0.0000123456")).toBe("0.000012");
       expect(formatFieldValue("0.004")).toBe("0.004");
+      expect(formatFieldValue("-0.004")).toBe("-0.004");
+      expect(formatFieldValue("0.009")).toBe("0.009");
+    });
+
+    it("should round at the threshold itself", () => {
+      expect(formatFieldValue("0.01")).toBe("0.01");
+      expect(formatFieldValue("0.014")).toBe("0.01");
     });
 
     it("should add thousands separators to large integers only", () => {
