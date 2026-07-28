@@ -430,6 +430,34 @@ g.node.pinned .node-pin-marker path {
 .graph-canvas-lasso.active {
   background-color: var(--color-focus);
 }
+/* Origins panel open — same armed treatment as the lasso. */
+.graph-canvas-origins.active {
+  background-color: var(--color-focus);
+}
+/* Needs the group-level specificity to beat `.graph-canvas-actions
+   .graph-canvas-icon-button { position: static }` — the badge anchors here. */
+.graph-canvas-actions .graph-canvas-origins {
+  position: relative;
+}
+/* Origin count badge, pinned to the button's top-right corner. */
+.graph-canvas-origins-count {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-white);
+  color: var(--color-primary-darkest);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.25));
+}
 .graph-canvas-disabled-popup {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -961,29 +989,10 @@ g.node.pinned .node-pin-marker path {
   padding: 0 var(--spacing-md) var(--spacing-md);
 }
 
-.graph-workspace-canvas-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 8px 12px 0;
-}
-
-.origins-toggle-button {
-  border: 1px solid var(--color-gray-lightest, #f1f1f1);
-  background: var(--color-white, #ffffff);
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--color-primary-darkest, #112e51);
-}
-
-.origins-toggle-button[aria-pressed="true"] {
-  background: var(--color-primary, #0071bc);
-  color: var(--color-white, #ffffff);
-  border-color: var(--color-primary, #0071bc);
-}
-
+/* position:relative anchors the OriginsSidebar overlay, which floats over the
+   graph instead of taking a flex column of its own. */
 .graph-workspace-canvas-body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
