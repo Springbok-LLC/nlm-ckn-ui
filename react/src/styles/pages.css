@@ -734,3 +734,43 @@ a.document-popup-button {
   color: var(--color-text-secondary);
   margin-top: var(--spacing-md);
 }
+
+/* Search landing — example searches */
+.example-searches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 16px 0 0;
+}
+.example-searches-label {
+  font-size: 14px;
+  color: var(--color-gray, #5b616b);
+}
+.example-searches-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.example-search-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-gray-lightest, #f1f1f1);
+  border-radius: 16px;
+  background: var(--color-white, #ffffff);
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-primary, #0071bc);
+}
+.example-search-chip:hover {
+  border-color: var(--color-primary, #0071bc);
+}
+.example-search-type {
+  font-size: 12px;
+  color: var(--color-gray, #5b616b);
+}
