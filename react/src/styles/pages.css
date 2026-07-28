@@ -774,3 +774,28 @@ a.document-popup-button {
   font-size: 12px;
   color: var(--color-gray, #5b616b);
 }
+
+/* Search landing — network stats */
+.network-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 40px;
+  margin: 24px 0 0;
+  padding: 0;
+}
+.network-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.network-stat-value {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--color-primary-darkest, #112e51);
+  font-variant-numeric: tabular-nums;
+}
+.network-stat-label {
+  font-size: 13px;
+  color: var(--color-gray, #5b616b);
+}
