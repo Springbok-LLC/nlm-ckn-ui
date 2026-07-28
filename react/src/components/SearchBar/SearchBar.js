@@ -20,10 +20,12 @@ const SearchIcon = () => (
   </svg>
 );
 
-const SearchBar = ({ placeholder = "Search NLM-CKN..." }) => {
+const SearchBar = ({ placeholder = "Search NLM-CKN...", search: externalSearch = null }) => {
   const { graphType } = useContext(GraphContext);
 
-  const { query, setQuery, results, isOpen, setIsOpen, containerRef } = useSearch(graphType);
+  const internalSearch = useSearch(graphType);
+  const { query, setQuery, results, isOpen, setIsOpen, containerRef } =
+    externalSearch ?? internalSearch;
 
   const shouldDropdownBeVisible = isOpen && query.trim() !== "";
 
