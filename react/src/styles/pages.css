@@ -257,6 +257,13 @@ a.document-popup-button {
   color: var(--color-secondary-red);
 }
 
+.search-page-about {
+  margin: 24px 0 0;
+  max-width: 70ch;
+  font-size: 14px;
+  color: var(--color-gray, #5b616b);
+}
+
 /* AboutPage */
 
 .about-section-container {
