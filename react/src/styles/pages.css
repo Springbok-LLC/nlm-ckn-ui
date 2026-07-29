@@ -257,11 +257,48 @@ a.document-popup-button {
   color: var(--color-secondary-red);
 }
 
-.search-page-about {
-  margin: 24px 0 0;
-  max-width: 70ch;
-  font-size: 14px;
-  color: var(--color-gray, #5b616b);
+.about-section-container {
+  background-color: var(--color-white);
+  padding: 25px 30px;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  max-width: 900px;
+  margin: 24px auto 0;
+  text-align: left;
+}
+
+.about-title {
+  font-size: 1.5em;
+  color: var(--color-dark);
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-light);
+}
+
+.about-section-container p {
+  font-size: 1em;
+  line-height: 1.7;
+  color: var(--color-text);
+  margin-bottom: 1.2em;
+}
+
+.about-section-container .internal-learn-more {
+  margin-left: 5px;
+  font-size: 0.95em;
+  color: var(--color-focus);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.about-section-container .internal-learn-more:hover {
+  text-decoration: underline;
+  color: var(--color-main);
+}
+
+.about-section-container p:last-child {
+  margin-bottom: 0;
 }
 
 /* AboutPage */
@@ -699,30 +736,19 @@ a.document-popup-button {
 }
 
 /* Search landing — example searches */
-.example-searches {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin: 16px 0 0;
-}
-.example-searches-label {
-  font-size: 14px;
-  color: var(--color-gray, #5b616b);
-}
 .example-searches-list {
   list-style: none;
-  margin: 0;
+  margin: 16px 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 10px;
 }
 .example-search-chip {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   border: 1px solid var(--color-gray-lightest, #f1f1f1);
   border-radius: 16px;
   background: var(--color-white, #ffffff);
@@ -733,8 +759,8 @@ a.document-popup-button {
 .example-search-chip:hover {
   border-color: var(--color-primary, #0071bc);
 }
-.example-search-type {
-  font-size: 12px;
+.example-search-icon {
+  font-size: 14px;
   color: var(--color-gray, #5b616b);
 }
 

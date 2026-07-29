@@ -36,8 +36,11 @@ test("clicking an example chip fills the search box", () => {
   expect(screen.getByPlaceholderText(/search/i)).toHaveValue("KCNK3");
 });
 
-test("does not render the long About paragraphs (condensed to a link)", () => {
+test("renders the About section with a Learn more link", () => {
   renderPage();
+  expect(screen.getByRole("heading", { name: /about nlm-ckn/i })).toBeInTheDocument();
+  expect(
+    screen.getByText(/structured as a knowledge graph of biomedical entities/i),
+  ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /learn more/i })).toBeInTheDocument();
-  expect(screen.queryByText(/structured as a knowledge graph of biomedical entities/i)).toBeNull();
 });
