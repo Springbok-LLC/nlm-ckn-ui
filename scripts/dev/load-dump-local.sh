@@ -137,7 +137,12 @@ done
 # 5. Stamp the dataset version so the running app can report what is loaded
 #    rather than what ETL_VERSION pins. Non-fatal: a missing marker shows as
 #    "unknown" in the UI, which is accurate.
-echo "==> Stamping dataset version ($VERSION)"
+# A full s3:// URI leaves VERSION as the tarball filename (see the S3 source
+# resolution above), which would surface in the UI as a filename rather than a
+# version. Strip the wrapper so the stamped value is a version either way.
+STAMP_VERSION="${VERSION%.tar.gz}"
+STAMP_VERSION="${STAMP_VERSION##*golden-dump-}"
+echo "==> Stamping dataset version ($STAMP_VERSION)"
 STAMP_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 for DB in Cell-KN-Ontologies Cell-KN-Phenotypes; do
   curl -s -o /dev/null -X POST \
@@ -146,7 +151,7 @@ for DB in Cell-KN-Ontologies Cell-KN-Phenotypes; do
     "http://localhost:$PORT/_db/$DB/_api/collection" || true
   STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
     -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
-    -d "{\"_key\":\"dataset\",\"etl_version\":\"$VERSION\",\"restored_at\":\"$STAMP_AT\"}" \
+    -d "{\"_key\":\"dataset\",\"etl_version\":\"$STAMP_VERSION\",\"restored_at\":\"$STAMP_AT\"}" \
     "http://localhost:$PORT/_db/$DB/_api/document/ckn_meta?overwriteMode=replace") || true
   [[ "$STATUS" =~ ^20[0-9]$ ]] || echo "  WARNING: $DB stamp returned HTTP ${STATUS:-000} (non-fatal)"
 done
