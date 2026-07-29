@@ -738,10 +738,13 @@ a.document-popup-button {
 /* Search landing — example searches */
 .example-searches-list {
   list-style: none;
-  margin: 16px 0 0;
+  /* Match the search box: same 700px centered column and offset. */
+  max-width: 700px;
+  margin: 16px auto 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px 10px;
 }
 .example-search-chip {
