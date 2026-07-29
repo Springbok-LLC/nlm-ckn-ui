@@ -456,6 +456,11 @@ echo "$VERSION" > "$GREEN_DATA/.dataset-version"
 # the wrong trade. A missing marker surfaces as "unknown" in the UI, which is
 # honest, and the next deploy repairs it.
 echo "==> Stamping dataset version into green databases..."
+# In this remote script VERSION is the S3 key (runs/<version>/06-golden-dump.tar.gz),
+# not a version string — see the download above. Extract the version for the marker
+# so the UI reports a version rather than a storage path.
+STAMP_VERSION="${VERSION#runs/}"
+STAMP_VERSION="${STAMP_VERSION%%/*}"
 STAMP_AUTH="$(printf 'root:%s' "$ARANGO_PASSWORD" | base64 | tr -d '\n')"
 STAMP_URL="http://localhost:8530"
 STAMP_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -467,10 +472,10 @@ for STAMP_DB in $EXPECTED_DBS; do
     "$STAMP_URL/_db/$STAMP_DB/_api/collection" || true
   STAMP_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
     -H "Authorization: Basic $STAMP_AUTH" -H "Content-Type: application/json" \
-    -d "{\"_key\":\"dataset\",\"etl_version\":\"$VERSION\",\"restored_at\":\"$STAMP_AT\"}" \
+    -d "{\"_key\":\"dataset\",\"etl_version\":\"$STAMP_VERSION\",\"restored_at\":\"$STAMP_AT\"}" \
     "$STAMP_URL/_db/$STAMP_DB/_api/document/ckn_meta?overwriteMode=replace") || true
   if [[ "$STAMP_STATUS" =~ ^20[0-9]$ ]]; then
-    echo "  $STAMP_DB: stamped $VERSION"
+    echo "  $STAMP_DB: stamped $STAMP_VERSION"
   else
     echo "  WARNING: $STAMP_DB stamp returned HTTP ${STAMP_STATUS:-000} (non-fatal; UI will show 'unknown')"
   fi

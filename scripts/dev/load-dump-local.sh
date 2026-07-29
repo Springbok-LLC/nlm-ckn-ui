@@ -137,14 +137,18 @@ done
 # 5. Stamp the dataset version so the running app can report what is loaded
 #    rather than what ETL_VERSION pins. Non-fatal: a missing marker shows as
 #    "unknown" in the UI, which is accurate.
-# A full s3:// URI leaves VERSION as the tarball filename (see the S3 source
-# resolution above), which would surface in the UI as a filename rather than a
-# version. The default layout carries the version in the key's directory
-# component; other layouts carry it in the filename. Handle both.
+# A full s3:// URI (whether passed as $1 or via DUMP_S3_URI) leaves VERSION
+# unrelated to the actual dump (the tarball filename, or the ETL_VERSION pin
+# when $1 was omitted), which would surface in the UI as a filename — or worse,
+# assert the pin was actually loaded. The default layout carries the version in
+# the key's directory component; other layouts carry it in the filename. Derive
+# from S3_URI (the source of truth) rather than VERSION so both custom-layout
+# entry points (bare $1 URI, or DUMP_S3_URI) are handled identically.
 if [[ "$S3_URI" =~ /runs/([^/]+)/06-golden-dump\.tar\.gz$ ]]; then
   STAMP_VERSION="${BASH_REMATCH[1]}"
 else
-  STAMP_VERSION="${VERSION%.tar.gz}"
+  STAMP_VERSION="${S3_URI##*/}"          # basename of the key
+  STAMP_VERSION="${STAMP_VERSION%.tar.gz}"
   STAMP_VERSION="${STAMP_VERSION##*golden-dump-}"
 fi
 echo "==> Stamping dataset version ($STAMP_VERSION)"
@@ -161,5 +165,5 @@ for DB in Cell-KN-Ontologies Cell-KN-Phenotypes; do
   [[ "$STATUS" =~ ^20[0-9]$ ]] || echo "  WARNING: $DB stamp returned HTTP ${STATUS:-000} (non-fatal)"
 done
 
-echo "==> Done. $VERSION is live on :$PORT (databases: Cell-KN-Ontologies, Cell-KN-Phenotypes)."
+echo "==> Done. $STAMP_VERSION is live on :$PORT (databases: Cell-KN-Ontologies, Cell-KN-Phenotypes)."
 echo "    If on :8529, restart the Django server so it reconnects to the new data."

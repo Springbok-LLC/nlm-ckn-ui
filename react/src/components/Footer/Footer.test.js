@@ -68,6 +68,19 @@ describe("Footer Component", () => {
     expect(await screen.findByText(/ETL unknown \(pinned v1\.5\.0-rc\.1\)/)).toBeInTheDocument();
   });
 
+  test("does not render an ETL label when pinned_etl_version is absent (old backend)", async () => {
+    fetchVersionInfo.mockResolvedValue({
+      ui_version: "v1.0.0",
+      etl_version: "v1.5.0-rc.1",
+    });
+
+    render(<Footer />);
+
+    expect(await screen.findByText(/v1\.0\.0/)).toBeInTheDocument();
+    expect(screen.queryByText(/ETL/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pinned/)).not.toBeInTheDocument();
+  });
+
   test("still renders the footer when the version fetch fails", async () => {
     fetchVersionInfo.mockResolvedValue(null);
 

@@ -20,12 +20,20 @@ const Footer = () => {
   // The pin (ETL_VERSION in the repo) is what this checkout intends to run; the
   // loaded version is what the database actually holds. They agree in normal
   // operation, so show the pin only when it would tell the user something.
+  //
+  // pinned_etl_version is only absent when the response comes from a backend
+  // that predates this feature (frontend and backend deploy independently, so
+  // a new bundle can briefly run against an old backend). Its etl_version is
+  // the pin itself, not a loaded version, so it cannot be substantiated —
+  // don't render the ETL half at all rather than assert it.
   const etlVersion = versions?.etl_version;
   const pinnedEtlVersion = versions?.pinned_etl_version;
   const etlLabel =
-    etlVersion && pinnedEtlVersion && etlVersion !== pinnedEtlVersion
-      ? `ETL ${etlVersion} (pinned ${pinnedEtlVersion})`
-      : etlVersion && `ETL ${etlVersion}`;
+    pinnedEtlVersion && etlVersion
+      ? etlVersion !== pinnedEtlVersion
+        ? `ETL ${etlVersion} (pinned ${pinnedEtlVersion})`
+        : `ETL ${etlVersion}`
+      : undefined;
 
   return (
     <footer className="site-footer">
