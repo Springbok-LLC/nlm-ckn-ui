@@ -36,6 +36,7 @@ from arango_api.serializers import (
 )
 from arango_api.services import collection_service, graph_service, search_service
 from arango_api.services import document_service, sunburst_service, workflow_service
+from arango_api.services import version_service
 from arango_api.services.sunburst_service import SunburstServiceError
 
 logger = logging.getLogger(__name__)
@@ -381,27 +382,37 @@ class WorkflowPresetsView(APIView):
 
 
 class VersionView(APIView):
-    """Return the UI and ETL versions for display to the user.
+    """Return the backend, dataset, and pinned dataset versions.
 
-    The UI version comes from the ``UI_VERSION`` setting (injected at deploy time).
-    The ETL version is read from the committed ``ETL_VERSION`` file at the project
-    root. Reads only a setting and a file, so it responds even when ArangoDB is
-    unreachable. Deliberately unauthenticated.
+    ``backend_version`` is the backend image tag (the ``UI_VERSION`` setting,
+    injected at build time). It is reported for diagnosis but not displayed: the
+    UI version users see is baked into the frontend bundle, which deploys
+    independently of this image.
+
+    The ETL version is read from the ``ckn_meta`` marker stamped into ArangoDB by
+    whichever script restored the data, so it describes the dataset actually
+    loaded. ``pinned_etl_version`` is the committed ``ETL_VERSION`` file — the
+    dataset this checkout intends to run — which lets the UI flag drift between
+    the two.
+
+    Answers even when ArangoDB is unreachable: the marker read collapses to
+    "unknown" rather than raising. Deliberately unauthenticated.
     """
 
     permission_classes = []
 
     def get(self, request):
         try:
-            etl_version = (
+            pinned_etl_version = (
                 settings.BASE_DIR / "ETL_VERSION"
             ).read_text().strip() or "unknown"
         except OSError:
-            etl_version = "unknown"
+            pinned_etl_version = "unknown"
 
         return Response(
             {
-                "ui_version": settings.UI_VERSION,
-                "etl_version": etl_version,
+                "backend_version": settings.UI_VERSION,
+                "etl_version": version_service.get_loaded_etl_version(),
+                "pinned_etl_version": pinned_etl_version,
             }
         )
