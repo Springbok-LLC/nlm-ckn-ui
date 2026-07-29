@@ -25,7 +25,7 @@ import {
   removeNodeFromSlice,
   removeOriginNode,
   saveGraph,
-  selectOriginHistory,
+  setActiveHistory,
   setGraphData,
   setInitialCollapseList,
   setLassoSelection,
@@ -44,6 +44,7 @@ import {
   LoadingBar,
   performSetOperation,
 } from "utils";
+import { v4 as uuidv4 } from "uuid";
 // Import extracted hooks
 import { useGraphExport, useNodeNames, usePerNodeSettings } from "./hooks";
 // Import extracted panels
@@ -153,8 +154,6 @@ const ForceGraph = ({
     shallowEqual,
   );
 
-  // Origins already captured as history entries (used to auto-append new ones below).
-  const originHistory = useSelector(selectOriginHistory);
   // The active history entry gets its snapshot + thumbnail kept current on every
   // settle (see handleSimulationEnd). Mirror it into a ref so the constructor's
   // onSimulationEnd closure reads the latest value, not a stale one.
@@ -746,36 +745,70 @@ const ForceGraph = ({
     }
   }, [rawData, graphData, settings.availableCollections]);
 
-  // Auto-captures a history entry (subgraph + thumbnail) the first time a new
-  // origin resolves. Skipped on restore renders (undo/redo/load) since those
-  // replay prior state rather than introduce a new origin. The slice reducer
-  // also dedupes by originId, but this guard avoids redundant thumbnail work.
-  // Simplification: the entry's subgraph is a snapshot of the full current
-  // graphData rather than just that origin's contribution — acceptable for
-  // this first cut since each entry restores independently.
-  const capturedOriginIdsRef = useRef(new Set());
+  // Origin-set transitions own history bookkeeping. The instant the live origin
+  // set changes, the active entry freezes: it must keep describing the graph it
+  // was captured from, so the late simulation-end sync can never overwrite it
+  // with the incoming composition. Origins added by the transition are queued
+  // rather than captured immediately — a fresh search updates originNodeIds
+  // before its data arrives (initializeGraph), so capturing at transition time
+  // would stamp the outgoing graph's thumbnail onto the new entry. Each pending
+  // origin is captured on the first graphData that actually contains it.
+  // Restores and saved-graph loads are exempt: they replay prior state, and a
+  // restore deliberately clears originNodeIds, which would otherwise read as a
+  // transition and null out the entry the restore just activated.
+  const prevOriginIdsRef = useRef(null);
+  const pendingOriginIdsRef = useRef([]);
   useEffect(() => {
-    if (isRestoring || lastActionType === "loadGraph" || lastActionType === "restoreGraph") return;
-    if (!graphData?.nodes?.length || !originNodeIds?.length) return;
+    if (isRestoring || lastActionType === "loadGraph" || lastActionType === "restoreGraph") {
+      // Adopt the current origin-id key silently rather than leaving it stale.
+      // The settle that immediately follows a restore dispatches its own
+      // setGraphData (without isRestore), which flips lastActionType away from
+      // "restoreGraph" on the very next render; if prevOriginIdsRef still held
+      // the pre-restore key at that point, the unrelated origin-id key change
+      // would read as a transition and spuriously freeze the entry the restore
+      // just activated, racing its own in-flight sync.
+      prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
+      return;
+    }
+    const ids = originNodeIds ?? [];
+    const key = ids.join("|");
 
-    const historyOriginIds = new Set(originHistory.map((entry) => entry.originId));
-    const newOriginIds = originNodeIds.filter(
-      (originId) => !historyOriginIds.has(originId) && !capturedOriginIdsRef.current.has(originId),
-    );
-    if (newOriginIds.length === 0) return;
+    if (prevOriginIdsRef.current === null) {
+      // First run: adopt whatever is already live without freezing anything.
+      prevOriginIdsRef.current = key;
+      pendingOriginIdsRef.current = ids;
+    } else if (prevOriginIdsRef.current !== key) {
+      const prevIds = new Set(prevOriginIdsRef.current ? prevOriginIdsRef.current.split("|") : []);
+      prevOriginIdsRef.current = key;
+      // Freeze. Write the ref directly as well as dispatching: handleSimulationEnd
+      // reads the ref, and the effect that mirrors the store into it would not run
+      // until after the next render.
+      activeHistoryIdRef.current = null;
+      dispatch(setActiveHistory(null));
+      // A pure removal adds nothing, so nothing becomes active.
+      pendingOriginIdsRef.current = ids.filter((id) => !prevIds.has(id));
+    }
+
+    const pending = pendingOriginIdsRef.current;
+    if (!pending.length || !graphData?.nodes?.length) return;
+    const renderedIds = new Set(graphData.nodes.map((n) => n._id || n.id));
+    const ready = pending.filter((id) => renderedIds.has(id));
+    if (!ready.length) return;
+    // Clear synchronously, before the async capture, so a later graphData change
+    // cannot enqueue the same origin twice.
+    pendingOriginIdsRef.current = pending.filter((id) => !renderedIds.has(id));
 
     // Capture the thumbnail once and reuse it for every origin resolving in this
     // run (a multi-origin query shares one graph image). Best-effort: a failed
     // capture yields a null thumbnail but still records each entry, so no origin
     // is silently dropped from history.
-    for (const originId of newOriginIds) capturedOriginIdsRef.current.add(originId);
     captureGraphThumbnail(svgRef.current)
       .catch(() => null)
       .then((thumbnail) => {
-        for (const originId of newOriginIds) {
+        for (const originId of ready) {
           dispatch(
             addHistoryEntry({
-              id: `hist-${originId}`,
+              id: uuidv4(),
               originId,
               label: nodeNameMap?.get(originId) ?? originId,
               subgraph: { nodes: graphData.nodes, links: graphData.links },
@@ -785,7 +818,7 @@ const ForceGraph = ({
           );
         }
       });
-  }, [dispatch, graphData, originNodeIds, originHistory, lastActionType, nodeNameMap, isRestoring]);
+  }, [dispatch, graphData, originNodeIds, lastActionType, nodeNameMap, isRestoring]);
 
   // Updates D3 node font size when setting changes.
   useEffect(() => {
