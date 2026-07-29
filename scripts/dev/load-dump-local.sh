@@ -139,9 +139,14 @@ done
 #    "unknown" in the UI, which is accurate.
 # A full s3:// URI leaves VERSION as the tarball filename (see the S3 source
 # resolution above), which would surface in the UI as a filename rather than a
-# version. Strip the wrapper so the stamped value is a version either way.
-STAMP_VERSION="${VERSION%.tar.gz}"
-STAMP_VERSION="${STAMP_VERSION##*golden-dump-}"
+# version. The default layout carries the version in the key's directory
+# component; other layouts carry it in the filename. Handle both.
+if [[ "$S3_URI" =~ /runs/([^/]+)/06-golden-dump\.tar\.gz$ ]]; then
+  STAMP_VERSION="${BASH_REMATCH[1]}"
+else
+  STAMP_VERSION="${VERSION%.tar.gz}"
+  STAMP_VERSION="${STAMP_VERSION##*golden-dump-}"
+fi
 echo "==> Stamping dataset version ($STAMP_VERSION)"
 STAMP_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 for DB in Cell-KN-Ontologies Cell-KN-Phenotypes; do
