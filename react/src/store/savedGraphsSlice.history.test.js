@@ -8,8 +8,8 @@ import reducer, {
   updateHistoryEntry,
 } from "./savedGraphsSlice";
 
-const entry = (originId, nodeIds) => ({
-  id: `h-${originId}`,
+const entry = (originId, nodeIds, id = `h-${originId}`) => ({
+  id,
   originId,
   label: originId,
   timestamp: "t",
@@ -21,12 +21,24 @@ const entry = (originId, nodeIds) => ({
 });
 
 describe("originHistory", () => {
-  it("addHistoryEntry appends and does not duplicate the same origin", () => {
+  it("addHistoryEntry appends one entry per capture", () => {
     let s = reducer(undefined, addHistoryEntry(entry("A", ["A", "n1"])));
-    s = reducer(s, addHistoryEntry(entry("A", ["A", "n1"])));
-    expect(s.originHistory).toHaveLength(1);
     s = reducer(s, addHistoryEntry(entry("B", ["B", "n2"])));
     expect(s.originHistory.map((e) => e.originId)).toEqual(["A", "B"]);
+  });
+
+  it("addHistoryEntry records a second entry when an origin is re-added", () => {
+    // History is a timeline of origin events: toggling an origin off and back
+    // on gets its own card, so the first card keeps the composition it was
+    // captured from.
+    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"], "h-A-1")));
+    s = reducer(s, addHistoryEntry(entry("B", ["B"], "h-B-1")));
+    s = reducer(s, addHistoryEntry(entry("A", ["A", "B"], "h-A-2")));
+    expect(s.originHistory.map((e) => e.id)).toEqual(["h-A-1", "h-B-1", "h-A-2"]);
+    expect(s.originHistory.map((e) => e.originId)).toEqual(["A", "B", "A"]);
+    expect(s.activeHistoryId).toBe("h-A-2");
+    // The first A card is untouched by the second capture.
+    expect(s.originHistory[0].subgraph.nodes.map((n) => n._id)).toEqual(["A"]);
   });
 
   it("addHistoryEntry does not store a checked field", () => {
@@ -37,15 +49,6 @@ describe("originHistory", () => {
   it("addHistoryEntry marks the new entry active", () => {
     const s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
     expect(s.activeHistoryId).toBe("h-A");
-  });
-
-  it("addHistoryEntry re-activates an already-tracked origin without duplicating", () => {
-    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
-    s = reducer(s, addHistoryEntry(entry("B", ["B"])));
-    expect(s.activeHistoryId).toBe("h-B");
-    s = reducer(s, addHistoryEntry(entry("A", ["A"]))); // dup origin
-    expect(s.originHistory).toHaveLength(2);
-    expect(s.activeHistoryId).toBe("h-A"); // focus returns to A
   });
 
   it("deleteHistoryEntry removes it", () => {

@@ -40,11 +40,11 @@ const savedGraphsSlice = createSlice({
       // entries never persist it.
       // biome-ignore lint/correctness/noUnusedVariables: destructured only to omit it from entry
       const { checked, ...entry } = action.payload;
-      // One entry per origin; re-adding an already-tracked origin doesn't
-      // duplicate it, but still focuses it as the active version.
-      if (!state.originHistory.some((e) => e.originId === entry.originId)) {
-        state.originHistory.push({ thumbnail: null, ...entry });
-      }
+      // History is a timeline of origin events, not a set of unique origins:
+      // an origin toggled off and back on is captured again, so the earlier
+      // card keeps describing the composition it was captured from. Callers
+      // supply a unique id.
+      state.originHistory.push({ thumbnail: null, ...entry });
       state.activeHistoryId = entry.id;
     },
     deleteHistoryEntry: (state, action) => {
