@@ -38,3 +38,24 @@ test("a failed stat does not throw or block the others", async () => {
   // The failed stat shows a dash, not a number, and the app didn't crash.
   expect(screen.getByText("Genes")).toBeInTheDocument();
 });
+
+test("clears prior counts when graphType changes so stale numbers aren't shown", async () => {
+  fetchCollectionCount.mockResolvedValue(5);
+  const { rerender } = render(
+    <GraphContext.Provider value={{ graphType: "phenotypes" }}>
+      <NetworkStats />
+    </GraphContext.Provider>,
+  );
+  await waitFor(() => expect(screen.getAllByText("5").length).toBe(5));
+
+  // Switch graph; the new fetches stay pending during this window.
+  fetchCollectionCount.mockImplementation(() => new Promise(() => {}));
+  rerender(
+    <GraphContext.Provider value={{ graphType: "ontologies" }}>
+      <NetworkStats />
+    </GraphContext.Provider>,
+  );
+  // The prior graph's counts are cleared to dashes rather than lingering.
+  await waitFor(() => expect(screen.queryByText("5")).toBeNull());
+  expect(screen.getAllByText("—").length).toBe(5);
+});
