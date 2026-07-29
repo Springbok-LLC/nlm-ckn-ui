@@ -17,6 +17,16 @@ const Footer = () => {
     };
   }, []);
 
+  // The pin (ETL_VERSION in the repo) is what this checkout intends to run; the
+  // loaded version is what the database actually holds. They agree in normal
+  // operation, so show the pin only when it would tell the user something.
+  const etlVersion = versions?.etl_version;
+  const pinnedEtlVersion = versions?.pinned_etl_version;
+  const etlLabel =
+    etlVersion && pinnedEtlVersion && etlVersion !== pinnedEtlVersion
+      ? `ETL ${etlVersion} (pinned ${pinnedEtlVersion})`
+      : etlVersion && `ETL ${etlVersion}`;
+
   return (
     <footer className="site-footer">
       <div className="footer-content-wrapper">
@@ -49,11 +59,11 @@ const Footer = () => {
           </a>
         </div>
 
-        {versions && (versions.ui_version || versions.etl_version) && (
+        {versions && (versions.ui_version || etlLabel) && (
           <div className="footer-section footer-versions">
             {versions.ui_version && <span>UI {versions.ui_version}</span>}
-            {versions.ui_version && versions.etl_version && <span> · </span>}
-            {versions.etl_version && <span>ETL {versions.etl_version}</span>}
+            {versions.ui_version && etlLabel && <span> · </span>}
+            {etlLabel && <span>{etlLabel}</span>}
           </div>
         )}
 
