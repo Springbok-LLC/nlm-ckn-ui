@@ -51,7 +51,9 @@ describe("Footer Component", () => {
 
     render(<Footer />);
 
-    expect(await screen.findByText(/ETL v1\.4\.6-rc\.6 \(pinned v1\.5\.0-rc\.1\)/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/ETL v1\.4\.6-rc\.6 \(pinned v1\.5\.0-rc\.1\)/),
+    ).toBeInTheDocument();
   });
 
   test("flags the pinned version when the loaded dataset is unknown", async () => {
