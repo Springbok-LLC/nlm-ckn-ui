@@ -25,6 +25,7 @@ import {
   removeNodeFromSlice,
   removeOriginNode,
   saveGraph,
+  selectOriginHistory,
   setActiveHistory,
   setGraphData,
   setInitialCollapseList,
@@ -753,21 +754,41 @@ const ForceGraph = ({
   // before its data arrives (initializeGraph), so capturing at transition time
   // would stamp the outgoing graph's thumbnail onto the new entry. Each pending
   // origin is captured on the first graphData that actually contains it.
-  // Restores and saved-graph loads are exempt: they replay prior state, and a
-  // restore deliberately clears originNodeIds, which would otherwise read as a
-  // transition and null out the entry the restore just activated.
+  // Restores replay prior state and are exempt: a restore deliberately clears
+  // originNodeIds, which would otherwise read as a transition and null out the
+  // entry the restore just activated. Saved-graph loads are a different case —
+  // a deliberate wholesale replacement of the origin set with nothing else
+  // re-pointing activeHistoryId — so a load freezes the active entry (same as
+  // any other transition) but queues no captures: a loaded graph is not an
+  // origin-history event.
   const prevOriginIdsRef = useRef(null);
   const pendingOriginIdsRef = useRef([]);
   useEffect(() => {
-    if (isRestoring || lastActionType === "loadGraph" || lastActionType === "restoreGraph") {
+    if (isRestoring || lastActionType === "restoreGraph") {
       // Adopt the current origin-id key silently rather than leaving it stale.
       // The settle that immediately follows a restore dispatches its own
       // setGraphData (without isRestore), which flips lastActionType away from
       // "restoreGraph" on the very next render; if prevOriginIdsRef still held
       // the pre-restore key at that point, the unrelated origin-id key change
       // would read as a transition and spuriously freeze the entry the restore
-      // just activated, racing its own in-flight sync.
+      // just activated, racing its own in-flight sync. Also clear any pending
+      // origin so a stale queue entry can't be captured against the restored
+      // graphData and hijack the entry the restore just activated.
       prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
+      pendingOriginIdsRef.current = [];
+      return;
+    }
+    if (lastActionType === "loadGraph") {
+      // A loaded graph replaces the origin set wholesale, but nothing re-points
+      // activeHistoryId the way a restore does — so, unlike a restore, the
+      // previously active entry must freeze here or the late settle-sync would
+      // stamp the loaded graph into it. Adopt the key and clear any pending
+      // origin (same reasoning as the restore branch above) but queue nothing:
+      // a load creates no history card of its own.
+      prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
+      pendingOriginIdsRef.current = [];
+      activeHistoryIdRef.current = null;
+      dispatch(setActiveHistory(null));
       return;
     }
     const ids = originNodeIds ?? [];
@@ -775,8 +796,19 @@ const ForceGraph = ({
 
     if (prevOriginIdsRef.current === null) {
       // First run: adopt whatever is already live without freezing anything.
+      // Skip origins that already have a history entry — graph/savedGraphs
+      // state survives route changes (only nodesSlice is persistence-
+      // whitelisted), so ForceGraph remounting on a return to /graph would
+      // otherwise re-queue every live origin and, since Task 1 removed the
+      // reducer's originId dedupe, produce a duplicate card for a graph that
+      // already has one. Read history non-reactively (via the store, not
+      // useSelector) so this stays a one-time check that doesn't change the
+      // effect's dependencies or make it re-run when history changes.
       prevOriginIdsRef.current = key;
-      pendingOriginIdsRef.current = ids;
+      const coveredOriginIds = new Set(
+        selectOriginHistory(store.getState()).map((entry) => entry.originId),
+      );
+      pendingOriginIdsRef.current = ids.filter((id) => !coveredOriginIds.has(id));
     } else if (prevOriginIdsRef.current !== key) {
       const prevIds = new Set(prevOriginIdsRef.current ? prevOriginIdsRef.current.split("|") : []);
       prevOriginIdsRef.current = key;
