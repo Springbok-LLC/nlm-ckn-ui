@@ -77,4 +77,13 @@ describe("SavedGraphShelf", () => {
     fireEvent.click(screen.getByRole("button", { name: /delete/i }));
     expect(store.getState().savedGraphs.originHistory).toHaveLength(0);
   });
+
+  it("labels each card with its capture time so repeated origins are distinguishable", () => {
+    const timestamp = "2026-07-29T15:04:05.000Z";
+    renderWithState([entry({ label: "pericyte", timestamp })]);
+    const card = screen
+      .getByRole("button", { name: /restore pericyte/i })
+      .closest(".saved-graph-card");
+    expect(card).toHaveAttribute("title", new Date(timestamp).toLocaleString());
+  });
 });

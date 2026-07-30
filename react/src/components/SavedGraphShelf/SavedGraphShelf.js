@@ -24,9 +24,13 @@ const SavedGraphShelf = () => {
     <div className="saved-graph-shelf">
       {originHistory.map((entry) => {
         const restore = () => dispatch(restoreHistoryEntry(entry.id));
+        // Repeated captures of one origin share a label, so surface the capture
+        // time to tell them apart.
+        const capturedAt = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : undefined;
         return (
           <div
             key={entry.id}
+            title={capturedAt}
             className={`saved-graph-card ${entry.id === activeHistoryId ? "saved-graph-card--active" : ""}`}
           >
             <button
