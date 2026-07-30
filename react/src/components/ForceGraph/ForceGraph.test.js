@@ -256,15 +256,20 @@ describe("ForceGraph", () => {
     it("stays armed after a shift-drag so consecutive drags accumulate", () => {
       const { store, lassoButton } = renderArmed();
       expect(lassoButton()).toHaveAttribute("aria-pressed", "true");
+      const callsAtArming = mockGraphInstance.setLassoMode.mock.calls.length;
 
       act(() => {
         capturedOpts.onLassoSelection(["CL/A"], { shift: true });
       });
       expect(store.getState().graph.present.lassoSelectedNodeIds).toEqual(["CL/A"]);
-      // Still armed, and the D3 layer was told so — without this the next
-      // shift-drag never reaches the lasso at all.
+      // Still armed — without this the next shift-drag never reaches the lasso.
       expect(lassoButton()).toHaveAttribute("aria-pressed", "true");
-      expect(mockGraphInstance.setLassoMode).toHaveBeenLastCalledWith(true);
+      // And the D3 layer was never disarmed. Assert on what happened SINCE
+      // arming: staying armed is a no-op state update that React bails out of,
+      // so there is no fresh setLassoMode(true) call to look for — checking the
+      // last call would just re-read the arming click and pass vacuously.
+      const sinceArming = mockGraphInstance.setLassoMode.mock.calls.slice(callsAtArming).flat();
+      expect(sinceArming).not.toContain(false);
 
       // A second shift-drag, with no re-arming click in between.
       act(() => {
