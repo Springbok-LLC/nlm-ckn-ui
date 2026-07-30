@@ -507,7 +507,7 @@ WORKFLOW_PRESETS = [
             "anatomical locations."
         ),
         "category": "Use Cases",
-        "layoutMode": "force",
+        "layoutMode": "big-dipper",
         "phases": [
             {
                 "id": "preset-uc6-phase-1",
@@ -583,7 +583,7 @@ WORKFLOW_PRESETS = [
             "present in the current ETL release."
         ),
         "category": "Use Cases",
-        "layoutMode": "force",
+        "layoutMode": "big-dipper",
         "phases": [
             {
                 "id": "preset-uc7-phase-1",
@@ -658,7 +658,7 @@ WORKFLOW_PRESETS = [
             "types and their anatomical locations."
         ),
         "category": "Use Cases",
-        "layoutMode": "strict-cluster",
+        "layoutMode": "big-dipper",
         "phases": [
             {
                 "id": "preset-uc8-phase-1",
@@ -735,7 +735,7 @@ WORKFLOW_PRESETS = [
             "cell types that selectively express it (lung pericyte)."
         ),
         "category": "Use Cases",
-        "layoutMode": "clustered",
+        "layoutMode": "big-dipper",
         "phases": [
             {
                 "id": "preset-uc9-phase-1",
@@ -1414,7 +1414,7 @@ WORKFLOW_PRESETS = [
             "no extra diseases."
         ),
         "category": "Disease Analysis",
-        "layoutMode": "force",
+        "layoutMode": "big-dipper",
         "phases": [
             # The cell leg is built FIRST and cleaned, so the final phase
             # (what the viewer shows) carries only bridging cell sets. A plain
