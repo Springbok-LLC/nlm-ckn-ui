@@ -114,13 +114,23 @@ export const restoreHistoryEntry = (id) => (dispatch, getState) => {
 /**
  * Keeps the currently active history entry's captured graph and thumbnail in
  * sync with the live graph, so restoring it later shows the most recent version
- * instead of the first-resolve snapshot. No-op when no entry is active.
+ * instead of the first-resolve snapshot.
+ *
+ * Callers capture the active entry id at the moment the graph settled and pass
+ * it as `targetId`; the sync is dropped unless that entry is *still* the active
+ * one. The thumbnail capture that precedes this dispatch is async, so the
+ * active entry can be frozen and another one activated while it is in flight —
+ * comparing ids (rather than merely checking that something is active) is what
+ * keeps a settle's graph out of a card it never described.
+ *
+ * No-op when no entry is active, or when `targetId` is omitted.
  * @param {{ nodes: Array, links: Array }} subgraph
- * @param {string|null} [thumbnail]
+ * @param {string|null} thumbnail
+ * @param {string} targetId - the entry that was active when the settle fired
  */
-export const syncActiveHistoryEntry = (subgraph, thumbnail) => (dispatch, getState) => {
+export const syncActiveHistoryEntry = (subgraph, thumbnail, targetId) => (dispatch, getState) => {
   const activeId = getState().savedGraphs.activeHistoryId;
-  if (!activeId) return;
+  if (!activeId || activeId !== targetId) return;
   dispatch(updateHistoryEntry({ id: activeId, subgraph, thumbnail }));
 };
 

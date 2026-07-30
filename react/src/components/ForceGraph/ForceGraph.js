@@ -380,11 +380,17 @@ const ForceGraph = ({
       // restoring it later shows the most recent version of the graph rather
       // than its first-resolve capture. Only do the (async, best-effort)
       // thumbnail work when an entry is actually active.
-      if (!activeHistoryIdRef.current) return;
+      // Pin the sync to the entry that was active when this settle fired. The
+      // thumbnail capture is async, and the active entry can be frozen (and a
+      // different one activated) while it is in flight — without the pin, this
+      // settle's graph would land in whatever card happened to be active when
+      // the capture resolved.
+      const targetId = activeHistoryIdRef.current;
+      if (!targetId) return;
       const subgraph = { nodes: finalNodes, links: finalLinks };
       captureGraphThumbnail(svgRef.current)
-        .then((thumbnail) => dispatch(syncActiveHistoryEntry(subgraph, thumbnail)))
-        .catch(() => dispatch(syncActiveHistoryEntry(subgraph, null)));
+        .then((thumbnail) => dispatch(syncActiveHistoryEntry(subgraph, thumbnail, targetId)))
+        .catch(() => dispatch(syncActiveHistoryEntry(subgraph, null, targetId)));
     },
     [dispatch],
   );
@@ -746,7 +752,7 @@ const ForceGraph = ({
     }
   }, [rawData, graphData, settings.availableCollections]);
 
-  // Origin-set transitions own history bookkeeping. The instant the live origin
+  // Origin-set transitions own history bookkeeping. Whenever the live origin
   // set changes, the active entry freezes: it must keep describing the graph it
   // was captured from, so the late simulation-end sync can never overwrite it
   // with the incoming composition. Origins added by the transition are queued
@@ -754,21 +760,44 @@ const ForceGraph = ({
   // before its data arrives (initializeGraph), so capturing at transition time
   // would stamp the outgoing graph's thumbnail onto the new entry. Each pending
   // origin is captured on the first graphData that actually contains it.
-  // Restores replay prior state and are exempt: a restore deliberately clears
-  // originNodeIds, which would otherwise read as a transition and null out the
-  // entry the restore just activated. Saved-graph loads are a different case —
-  // a deliberate wholesale replacement of the origin set with nothing else
-  // re-pointing activeHistoryId — so a load freezes the active entry (same as
-  // any other transition) but queues no captures: a loaded graph is not an
-  // origin-history event. The first run also freezes before queuing: graph and
-  // savedGraphs state both survive route changes (only nodesSlice is
-  // persistence-whitelisted), so ForceGraph can mount fresh — via GraphPage's
-  // initializeGraph from the URL — with an origin already live and an
-  // unrelated (possibly stale, possibly restored) entry still active. Freezing
-  // first detaches that entry before any settle can reach it; on a genuine
-  // first mount nothing is active yet, so the freeze is a no-op. Only origins
-  // not already covered by an existing history entry are then queued, so a
-  // remount of an origin that already has a card doesn't duplicate it.
+  //
+  // Branch by branch:
+  //
+  // - Undo/redo (isRestoring, set only by handleUndo/handleRedo): replays an
+  //   earlier state and, unlike a restore, does not re-point activeHistoryId.
+  //   So it freezes on the same rule as any other transition — when the
+  //   origin-id key actually changed — but queues nothing, since replaying a
+  //   past composition is not a new origin event. An undo that leaves the
+  //   origin set alone freezes nothing and keeps the active entry syncing.
+  //
+  // - Restore (lastActionType === "restoreGraph"): exempt, because the restore
+  //   itself re-points activeHistoryId at the entry being restored. It also
+  //   deliberately clears originNodeIds, which would otherwise read as a
+  //   transition and null out the entry just activated. Adopt the key, clear
+  //   the pending queue, and leave the restored entry active and syncing.
+  //
+  // - Saved-graph load (lastActionType === "loadGraph"): a deliberate wholesale
+  //   replacement of the origin set with nothing else re-pointing
+  //   activeHistoryId, so it freezes like any other transition but queues no
+  //   captures — a loaded graph is not an origin-history event.
+  //
+  // - First run: graph and savedGraphs state both survive route changes (only
+  //   nodesSlice is persistence-whitelisted), so ForceGraph can mount fresh —
+  //   via GraphPage's initializeGraph from the URL — with an origin already
+  //   live and an unrelated (possibly stale, possibly restored) entry still
+  //   active. Freeze first, detaching that entry before any settle can reach
+  //   it (on a genuine first mount nothing is active, so the freeze is a
+  //   no-op), then queue only origins no existing history entry already covers,
+  //   so a remount of an origin that already has a card doesn't duplicate it.
+  //   Deliberate tradeoff: on such a remount the freeze detaches and nothing is
+  //   re-queued, so the recomposed graph runs with no active card until the
+  //   origin set next changes — re-adopting the existing card would re-attach a
+  //   card whose snapshot may describe a different composition, reintroducing
+  //   the very bug this code prevents.
+  //
+  // - Origin-set change: freeze, then queue the ids that are new relative to
+  //   the previous set. A pure removal queues nothing, so nothing becomes
+  //   active.
   const prevOriginIdsRef = useRef(null);
   const pendingOriginIdsRef = useRef([]);
   useEffect(() => {
@@ -784,7 +813,26 @@ const ForceGraph = ({
         dispatch(setActiveHistory(null));
       }
     };
-    if (isRestoring || lastActionType === "restoreGraph") {
+    if (isRestoring) {
+      // Undo/redo. Checked before the restoreGraph branch below because an undo
+      // can land on a past state whose lastActionType happens to be
+      // "restoreGraph", and an undo must never take the restore exemption: a
+      // restore re-points activeHistoryId, an undo does not. Freeze only when
+      // the origin key actually changed — an undo that leaves origins alone is
+      // not a transition and must keep the active entry syncing — and queue
+      // nothing either way, since replaying a past composition is not a new
+      // origin event.
+      const undoKey = (originNodeIds ?? []).join("|");
+      const originsChanged =
+        prevOriginIdsRef.current !== null && prevOriginIdsRef.current !== undoKey;
+      prevOriginIdsRef.current = undoKey;
+      if (originsChanged) {
+        pendingOriginIdsRef.current = [];
+        freezeActiveHistoryIfAny();
+      }
+      return;
+    }
+    if (lastActionType === "restoreGraph") {
       // Adopt the current origin-id key silently rather than leaving it stale.
       // The settle that immediately follows a restore dispatches its own
       // setGraphData (without isRestore), which flips lastActionType away from
@@ -864,7 +912,10 @@ const ForceGraph = ({
           );
         }
       });
-  }, [dispatch, graphData, originNodeIds, lastActionType, nodeNameMap, isRestoring]);
+    // `store` (useStore's return) is a stable reference, so listing it changes
+    // nothing at runtime — the history read above stays a one-time,
+    // non-subscribed lookup.
+  }, [dispatch, store, graphData, originNodeIds, lastActionType, nodeNameMap, isRestoring]);
 
   // Updates D3 node font size when setting changes.
   useEffect(() => {

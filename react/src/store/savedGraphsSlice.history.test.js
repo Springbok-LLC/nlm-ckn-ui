@@ -144,7 +144,7 @@ describe("originHistory", () => {
       ],
       links: [],
     };
-    syncActiveHistoryEntry(latest, "thumb-1")(dispatch, getState);
+    syncActiveHistoryEntry(latest, "thumb-1", "h-A")(dispatch, getState);
 
     expect(state.originHistory[0].subgraph.nodes.map((n) => n._id)).toEqual(["A", "n5"]);
     expect(state.originHistory[0].thumbnail).toBe("thumb-1");
@@ -161,7 +161,31 @@ describe("originHistory", () => {
     });
     const getState = () => ({ savedGraphs: state });
 
-    syncActiveHistoryEntry({ nodes: [], links: [] }, "thumb")(dispatch, getState);
+    syncActiveHistoryEntry({ nodes: [], links: [] }, "thumb", "h-A")(dispatch, getState);
+
+    expect(JSON.stringify(state.originHistory)).toBe(before);
+  });
+
+  it("syncActiveHistoryEntry is a no-op when a different entry became active after the settle", () => {
+    // The thumbnail capture between the settle and this dispatch is async, so
+    // the entry that was active at settle time can be frozen and another one
+    // activated meanwhile. The stale graph must land in neither card.
+    let state = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    state = reducer(state, addHistoryEntry(entry("B", ["B"]))); // B is now active
+    const before = JSON.stringify(state.originHistory);
+    const dispatch = jest.fn((action) => {
+      if (typeof action === "function") return action(dispatch, getState);
+      state = reducer(state, action);
+      return action;
+    });
+    const getState = () => ({ savedGraphs: state });
+
+    // The settle fired while A was active.
+    syncActiveHistoryEntry(
+      { nodes: [{ _id: "stale", id: "stale" }], links: [] },
+      "thumb",
+      "h-A",
+    )(dispatch, getState);
 
     expect(JSON.stringify(state.originHistory)).toBe(before);
   });
@@ -186,7 +210,7 @@ describe("originHistory", () => {
       ],
       links: [],
     };
-    syncActiveHistoryEntry(evolved, "thumb-latest")(dispatch, getState);
+    syncActiveHistoryEntry(evolved, "thumb-latest", "h-A")(dispatch, getState);
 
     // Restoring the card now yields the evolved graph.
     restoreHistoryEntry("h-A")(dispatch, getState);

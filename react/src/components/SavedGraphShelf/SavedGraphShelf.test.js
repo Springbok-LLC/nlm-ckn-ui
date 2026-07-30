@@ -78,12 +78,20 @@ describe("SavedGraphShelf", () => {
     expect(store.getState().savedGraphs.originHistory).toHaveLength(0);
   });
 
-  it("labels each card with its capture time so repeated origins are distinguishable", () => {
+  it("folds the capture time into the restore button's accessible name so repeated origins are distinguishable", () => {
     const timestamp = "2026-07-29T15:04:05.000Z";
+    const capturedAt = new Date(timestamp).toLocaleString();
     renderWithState([entry({ label: "pericyte", timestamp })]);
-    const card = screen
-      .getByRole("button", { name: /restore pericyte/i })
-      .closest(".saved-graph-card");
-    expect(card).toHaveAttribute("title", new Date(timestamp).toLocaleString());
+    const restoreButton = screen.getByRole("button", {
+      name: `Restore pericyte, captured ${capturedAt}`,
+    });
+    // The title stays as a hover affordance for sighted users, but the
+    // accessible name is what actually reaches assistive tech.
+    expect(restoreButton.closest(".saved-graph-card")).toHaveAttribute("title", capturedAt);
+  });
+
+  it("falls back to the plain restore label when an entry has no timestamp", () => {
+    renderWithState([entry({ label: "pericyte", timestamp: undefined })]);
+    expect(screen.getByRole("button", { name: "Restore pericyte" })).toBeInTheDocument();
   });
 });

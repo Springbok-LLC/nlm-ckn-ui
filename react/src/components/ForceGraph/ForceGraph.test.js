@@ -893,6 +893,228 @@ describe("ForceGraph", () => {
       expect(selectOriginHistory(store.getState())).toHaveLength(1);
     });
 
+    it("captures a card on first mount when an origin is already live and history is empty", async () => {
+      // The production path: GraphPage/workflow populate graphData and
+      // originNodeIds before ForceGraph mounts, so the first-run branch — not
+      // the transition branch — is what has to queue and capture the card.
+      const store = createTestStore();
+      const origin = { _id: "CL/0001", id: "CL/0001" };
+      const leaf = { _id: "GO/0010", id: "GO/0010" };
+      store.dispatch(setAvailableCollections(["CL", "UBERON", "GO"]));
+      store.dispatch(
+        setGraphData({
+          graphData: {
+            nodes: [origin, leaf],
+            links: [{ source: origin._id, target: leaf._id }],
+          },
+          originNodeIds: [origin._id],
+        }),
+      );
+      expect(selectOriginHistory(store.getState())).toHaveLength(0);
+
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+
+      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(1));
+      const [entry] = selectOriginHistory(store.getState());
+      expect(entry.originId).toBe(origin._id);
+      expect(entry.subgraph.nodes.map((n) => n._id)).toEqual([origin._id, leaf._id]);
+      expect(store.getState().savedGraphs.activeHistoryId).toBe(entry.id);
+    });
+
+    it("freezes the active entry when an undo reverts across an origin change", async () => {
+      // isRestoring is set only by handleUndo/handleRedo, and an undo — unlike
+      // a restore — does not re-point activeHistoryId. So undoing across an
+      // origin add must freeze, or the next settle stamps the reverted
+      // (A-only) graph into card B, leaving a card labelled B whose snapshot
+      // contains no B.
+      const store = createStoreWithCollections();
+      const originA = { _id: "CL/0001", id: "CL/0001" };
+      const originB = { _id: "CL/0002", id: "CL/0002" };
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+      await act(async () => {
+        store.dispatch(
+          setGraphData({
+            graphData: { nodes: [originA], links: [] },
+            originNodeIds: [originA._id],
+          }),
+        );
+      });
+      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(1));
+      await act(async () => {
+        store.dispatch(
+          setGraphData({
+            graphData: { nodes: [originA, originB], links: [] },
+            originNodeIds: [originA._id, originB._id],
+          }),
+        );
+      });
+      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(2));
+      const entryB = selectOriginHistory(store.getState())[1];
+      expect(store.getState().savedGraphs.activeHistoryId).toBe(entryB.id);
+
+      // Cmd+Z, the same path the user takes (both recompose thunks are in the
+      // redux-undo filter, so this is reachable from the normal UI).
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "z", metaKey: true });
+      });
+
+      expect(store.getState().graph.present.originNodeIds).toEqual([originA._id]);
+      expect(store.getState().savedGraphs.activeHistoryId).toBeNull();
+
+      // The settle that follows the undo must reach neither card.
+      await act(async () => {
+        capturedOnSimulationEnd([{ ...originA, x: 99, y: 99 }], []);
+      });
+
+      const afterUndo = selectOriginHistory(store.getState()).find((e) => e.id === entryB.id);
+      expect(afterUndo.subgraph.nodes.map((n) => n._id)).toEqual([originA._id, originB._id]);
+      expect(store.getState().savedGraphs.activeHistoryId).toBeNull();
+      expect(selectOriginHistory(store.getState())).toHaveLength(2);
+    });
+
+    it("keeps the active entry syncing through an undo that does not change the origin set", async () => {
+      // The freeze keys off the origin set, not off isRestoring: an undo that
+      // only rolls back graph edits leaves the card describing the same
+      // composition, so it must stay active and keep syncing.
+      const store = createStoreWithCollections();
+      const originA = { _id: "CL/0001", id: "CL/0001" };
+      const leaf = { _id: "GO/0010", id: "GO/0010" };
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+      await act(async () => {
+        store.dispatch(
+          setGraphData({
+            graphData: { nodes: [originA], links: [] },
+            originNodeIds: [originA._id],
+          }),
+        );
+      });
+      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(1));
+      const entryA = selectOriginHistory(store.getState())[0];
+
+      // An undoable graph edit that carries no originNodeIds, so the origin set
+      // is untouched.
+      await act(async () => {
+        store.dispatch(setGraphData({ nodes: [originA, leaf], links: [] }));
+      });
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "z", metaKey: true });
+      });
+
+      expect(store.getState().graph.present.originNodeIds).toEqual([originA._id]);
+      expect(store.getState().savedGraphs.activeHistoryId).toBe(entryA.id);
+
+      // Still syncing: the settle after the undo updates the active card.
+      await act(async () => {
+        capturedOnSimulationEnd([{ ...originA, x: 99, y: 99 }], []);
+      });
+      await waitFor(() => {
+        const synced = selectOriginHistory(store.getState()).find((e) => e.id === entryA.id);
+        expect(synced.subgraph.nodes[0].x).toBe(99);
+      });
+      expect(selectOriginHistory(store.getState())).toHaveLength(1);
+    });
+
+    it("drops a settle whose thumbnail resolves after a different entry became active", async () => {
+      // handleSimulationEnd awaits captureGraphThumbnail before dispatching the
+      // sync. If the active entry is frozen and another activated during that
+      // window, the settle's (now stale) graph must land in neither card.
+      const store = createStoreWithCollections();
+      const originA = { _id: "CL/0001", id: "CL/0001" };
+      const originB = { _id: "CL/0002", id: "CL/0002" };
+
+      captureGraphThumbnail.mockImplementationOnce(() => Promise.resolve("thumbnail-A"));
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+      await act(async () => {
+        store.dispatch(
+          setGraphData({
+            graphData: { nodes: [originA], links: [] },
+            originNodeIds: [originA._id],
+          }),
+        );
+      });
+      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(1));
+      const entryA = selectOriginHistory(store.getState())[0];
+      expect(entryA.thumbnail).toBe("thumbnail-A");
+      expect(store.getState().savedGraphs.activeHistoryId).toBe(entryA.id);
+
+      // A settle on the A-only graph, held open at the thumbnail capture.
+      let resolveSettleThumbnail;
+      const settleThumbnail = new Promise((resolve) => {
+        resolveSettleThumbnail = resolve;
+      });
+      captureGraphThumbnail.mockImplementationOnce(() => settleThumbnail);
+      await act(async () => {
+        capturedOnSimulationEnd([{ ...originA, x: 77, y: 77 }], []);
+      });
+
+      // While it is in flight, compose in B: A freezes and B's card takes over.
+      captureGraphThumbnail.mockImplementationOnce(() => Promise.resolve("thumbnail-B"));
+      await act(async () => {
+        store.dispatch(
+          setGraphData({
+            graphData: { nodes: [originA, originB], links: [] },
+            originNodeIds: [originA._id, originB._id],
+          }),
+        );
+      });
+      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(2));
+      const entryB = selectOriginHistory(store.getState())[1];
+      expect(store.getState().savedGraphs.activeHistoryId).toBe(entryB.id);
+
+      // Only now does the settle's capture resolve.
+      await act(async () => {
+        resolveSettleThumbnail("stale-thumbnail");
+        await settleThumbnail;
+      });
+
+      const finalA = selectOriginHistory(store.getState()).find((e) => e.id === entryA.id);
+      const finalB = selectOriginHistory(store.getState()).find((e) => e.id === entryB.id);
+      expect(finalA.subgraph.nodes[0].x).toBeUndefined();
+      expect(finalA.thumbnail).toBe("thumbnail-A");
+      expect(finalB.subgraph.nodes.map((n) => n._id)).toEqual([originA._id, originB._id]);
+      expect(finalB.thumbnail).toBe("thumbnail-B");
+    });
+
     it("does not show an error state when popup is closed before the fetch resolves (abort)", async () => {
       let resolveCollections;
       const deferred = new Promise((resolve) => {

@@ -25,8 +25,14 @@ const SavedGraphShelf = () => {
       {originHistory.map((entry) => {
         const restore = () => dispatch(restoreHistoryEntry(entry.id));
         // Repeated captures of one origin share a label, so surface the capture
-        // time to tell them apart.
+        // time to tell them apart. It goes into the restore button's accessible
+        // name — a title on the non-interactive card is not keyboard-reachable
+        // and is announced inconsistently — with the title kept alongside it as
+        // a hover affordance for sighted users.
         const capturedAt = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : undefined;
+        const restoreLabel = capturedAt
+          ? `Restore ${entry.label}, captured ${capturedAt}`
+          : `Restore ${entry.label}`;
         return (
           <div
             key={entry.id}
@@ -36,7 +42,7 @@ const SavedGraphShelf = () => {
             <button
               type="button"
               className="saved-graph-card-thumb"
-              aria-label={`Restore ${entry.label}`}
+              aria-label={restoreLabel}
               onClick={restore}
             >
               {entry.thumbnail ? (
