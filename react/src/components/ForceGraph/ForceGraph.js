@@ -1293,7 +1293,7 @@ const ForceGraph = ({
               className={`graph-canvas-icon-button graph-canvas-origins${originsOpen ? " active" : ""}`}
               aria-label={`Origins (${originCount})`}
               aria-pressed={originsOpen}
-              title={`Origins (${originCount})`}
+              data-tooltip={`Origins (${originCount})`}
               onClick={onToggleOrigins}
             >
               <svg
@@ -1326,7 +1326,7 @@ const ForceGraph = ({
             className="graph-canvas-icon-button graph-canvas-fullscreen"
             aria-label="Full screen"
             aria-disabled="true"
-            title="Full screen"
+            data-tooltip="Full screen (currently disabled)"
             onClick={() => {
               window.clearTimeout(disabledMsgTimeoutRef.current);
               setShowDisabledMsg(true);
@@ -1353,7 +1353,7 @@ const ForceGraph = ({
             className={`graph-canvas-icon-button graph-canvas-lasso${lassoMode ? " active" : ""}`}
             aria-label="Lasso select"
             aria-pressed={lassoMode}
-            title="Drag to select multiple nodes (shift to add to selection, Esc to exit)"
+            data-tooltip="Drag to select multiple nodes (Esc to exit)"
             onClick={() => setLassoMode((m) => !m)}
           >
             <svg
@@ -1378,6 +1378,7 @@ const ForceGraph = ({
             type="button"
             className="graph-canvas-icon-button graph-canvas-download"
             aria-label="Download graph"
+            data-tooltip="Download graph as PNG"
             onClick={() => exportGraph("png")}
           >
             <svg
