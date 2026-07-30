@@ -2,6 +2,31 @@
  * Graph and tree data structure utilities.
  */
 
+import { DEFAULT_LABEL_STATES } from "constants/graph";
+
+/**
+ * Resolve the label states a preset asks for, layered over the defaults.
+ *
+ * Presets declare only what they want to change — a dense preset such as the
+ * Big Dipper explorer turns off "link-label", because rendering an edge label
+ * on each of its ~150 edges buries the graph it is trying to show.
+ *
+ * @param {object} preset - Workflow preset, possibly with a labelStates key.
+ * @returns {object|null} Merged label states, or null if the preset declares none.
+ */
+export function resolvePresetLabelStates(preset) {
+  const declared = preset?.labelStates;
+  if (!declared) return null;
+
+  const resolved = { ...DEFAULT_LABEL_STATES };
+  for (const labelClass of Object.keys(DEFAULT_LABEL_STATES)) {
+    if (labelClass in declared) {
+      resolved[labelClass] = Boolean(declared[labelClass]);
+    }
+  }
+  return resolved;
+}
+
 /**
  * Check if data has any nodes for a specific nodeId.
  * @param {object} data - Graph data object.

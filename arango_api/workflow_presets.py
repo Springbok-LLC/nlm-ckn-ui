@@ -508,6 +508,10 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "big-dipper",
+        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
+        # Labeling every one of them buries the shape, so start with
+        # edge labels off; the Labels panel can turn them back on.
+        "labelStates": {"link-label": False},
         "phases": [
             {
                 "id": "preset-uc6-phase-1",
@@ -584,6 +588,10 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "big-dipper",
+        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
+        # Labeling every one of them buries the shape, so start with
+        # edge labels off; the Labels panel can turn them back on.
+        "labelStates": {"link-label": False},
         "phases": [
             {
                 "id": "preset-uc7-phase-1",
@@ -659,6 +667,10 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "big-dipper",
+        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
+        # Labeling every one of them buries the shape, so start with
+        # edge labels off; the Labels panel can turn them back on.
+        "labelStates": {"link-label": False},
         "phases": [
             {
                 "id": "preset-uc8-phase-1",
@@ -736,6 +748,10 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "big-dipper",
+        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
+        # Labeling every one of them buries the shape, so start with
+        # edge labels off; the Labels panel can turn them back on.
+        "labelStates": {"link-label": False},
         "phases": [
             {
                 "id": "preset-uc9-phase-1",
@@ -1415,6 +1431,10 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Disease Analysis",
         "layoutMode": "big-dipper",
+        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
+        # Labeling every one of them buries the shape, so start with
+        # edge labels off; the Labels panel can turn them back on.
+        "labelStates": {"link-label": False},
         "phases": [
             # The cell leg is built FIRST and cleaned, so the final phase
             # (what the viewer shows) carries only bridging cell sets. A plain
