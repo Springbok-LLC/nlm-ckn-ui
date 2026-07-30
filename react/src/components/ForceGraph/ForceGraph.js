@@ -760,10 +760,30 @@ const ForceGraph = ({
   // a deliberate wholesale replacement of the origin set with nothing else
   // re-pointing activeHistoryId — so a load freezes the active entry (same as
   // any other transition) but queues no captures: a loaded graph is not an
-  // origin-history event.
+  // origin-history event. The first run also freezes before queuing: graph and
+  // savedGraphs state both survive route changes (only nodesSlice is
+  // persistence-whitelisted), so ForceGraph can mount fresh — via GraphPage's
+  // initializeGraph from the URL — with an origin already live and an
+  // unrelated (possibly stale, possibly restored) entry still active. Freezing
+  // first detaches that entry before any settle can reach it; on a genuine
+  // first mount nothing is active yet, so the freeze is a no-op. Only origins
+  // not already covered by an existing history entry are then queued, so a
+  // remount of an origin that already has a card doesn't duplicate it.
   const prevOriginIdsRef = useRef(null);
   const pendingOriginIdsRef = useRef([]);
   useEffect(() => {
+    // Freezes the active entry: writes the ref directly (handleSimulationEnd
+    // reads it, and the effect that mirrors the store into it wouldn't run
+    // until after the next render) as well as dispatching, but only when
+    // there is actually something active — otherwise this would needlessly
+    // re-fire setActiveHistory(null) on every render a freeze branch below is
+    // reached (e.g. every render while lastActionType stays "loadGraph").
+    const freezeActiveHistoryIfAny = () => {
+      if (activeHistoryIdRef.current !== null) {
+        activeHistoryIdRef.current = null;
+        dispatch(setActiveHistory(null));
+      }
+    };
     if (isRestoring || lastActionType === "restoreGraph") {
       // Adopt the current origin-id key silently rather than leaving it stale.
       // The settle that immediately follows a restore dispatches its own
@@ -787,24 +807,22 @@ const ForceGraph = ({
       // a load creates no history card of its own.
       prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
       pendingOriginIdsRef.current = [];
-      activeHistoryIdRef.current = null;
-      dispatch(setActiveHistory(null));
+      freezeActiveHistoryIfAny();
       return;
     }
     const ids = originNodeIds ?? [];
     const key = ids.join("|");
 
     if (prevOriginIdsRef.current === null) {
-      // First run: adopt whatever is already live without freezing anything.
-      // Skip origins that already have a history entry — graph/savedGraphs
-      // state survives route changes (only nodesSlice is persistence-
-      // whitelisted), so ForceGraph remounting on a return to /graph would
-      // otherwise re-queue every live origin and, since Task 1 removed the
-      // reducer's originId dedupe, produce a duplicate card for a graph that
-      // already has one. Read history non-reactively (via the store, not
-      // useSelector) so this stays a one-time check that doesn't change the
-      // effect's dependencies or make it re-run when history changes.
+      // First run: freeze whatever is active (see comment above the effect —
+      // a remount can leave a stale/restored entry active for an origin that
+      // is about to compose differently), then queue only origins not already
+      // covered by a history entry. Read history non-reactively (via the
+      // store, not useSelector) so this stays a one-time check that doesn't
+      // change the effect's dependencies or make it re-run when history
+      // changes.
       prevOriginIdsRef.current = key;
+      freezeActiveHistoryIfAny();
       const coveredOriginIds = new Set(
         selectOriginHistory(store.getState()).map((entry) => entry.originId),
       );
@@ -812,11 +830,7 @@ const ForceGraph = ({
     } else if (prevOriginIdsRef.current !== key) {
       const prevIds = new Set(prevOriginIdsRef.current ? prevOriginIdsRef.current.split("|") : []);
       prevOriginIdsRef.current = key;
-      // Freeze. Write the ref directly as well as dispatching: handleSimulationEnd
-      // reads the ref, and the effect that mirrors the store into it would not run
-      // until after the next render.
-      activeHistoryIdRef.current = null;
-      dispatch(setActiveHistory(null));
+      freezeActiveHistoryIfAny();
       // A pure removal adds nothing, so nothing becomes active.
       pendingOriginIdsRef.current = ids.filter((id) => !prevIds.has(id));
     }

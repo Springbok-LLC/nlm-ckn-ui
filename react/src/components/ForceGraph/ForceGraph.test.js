@@ -9,6 +9,7 @@ import graphReducer, {
 } from "../../store/graphSlice";
 import nodesReducer from "../../store/nodesSlice";
 import savedGraphsReducer, {
+  addHistoryEntry,
   restoreHistoryEntry,
   selectOriginHistory,
   setActiveHistory,
@@ -523,6 +524,14 @@ describe("ForceGraph", () => {
       });
 
       expect(interceptSettle).toBeNull(); // confirms the settle actually fired mid-dispatch
+      // This length check is a proxy for the real thing under test: if the
+      // direct activeHistoryIdRef write is missing, the intercepted settle
+      // sees a stale ref still pointing at A, so handleSimulationEnd treats A
+      // as active and (via the mocked capture queue) causes B's entry to be
+      // created here instead of staying pending — history grows to 2. A
+      // failure on this line means the settle landed on the wrong/stale
+      // active entry, not literally that a second card is undesirable in
+      // isolation.
       expect(selectOriginHistory(store.getState())).toHaveLength(1);
       const afterFreeze = selectOriginHistory(store.getState()).find((e) => e.id === entryA.id);
       expect(afterFreeze.subgraph.nodes.map((n) => n._id)).toEqual([originA._id]);
@@ -673,6 +682,63 @@ describe("ForceGraph", () => {
         );
       });
 
+      expect(selectOriginHistory(store.getState())).toHaveLength(1);
+    });
+
+    it("freezes a stale active entry on a fresh mount when its origin is already live", async () => {
+      // GraphPage dispatches initializeGraph from the URL on mount, and
+      // graph/savedGraphs both survive route changes. So ForceGraph can mount
+      // fresh with an origin already live in the store and an unrelated (or
+      // stale, or previously restored) entry still active for that same
+      // origin. The first-run branch must freeze that entry before any
+      // settle can reach it, even though it also decides not to re-queue a
+      // capture for the already-covered origin.
+      const store = createTestStore();
+      store.dispatch(setAvailableCollections(["CL", "UBERON", "GO"]));
+      const origin = { _id: "CL/0001", id: "CL/0001" };
+      store.dispatch(
+        addHistoryEntry({
+          id: "entry-a",
+          originId: origin._id,
+          label: "Origin A",
+          subgraph: { nodes: [origin], links: [] },
+          thumbnail: "thumbnail-A",
+          timestamp: new Date().toISOString(),
+        }),
+      );
+      store.dispatch(
+        setGraphData({
+          graphData: { nodes: [origin], links: [] },
+          originNodeIds: [origin._id],
+        }),
+      );
+      expect(store.getState().savedGraphs.activeHistoryId).toBe("entry-a");
+
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+
+      // The first-run freeze must have already detached the stale entry —
+      // no need to wait for a settle.
+      expect(store.getState().savedGraphs.activeHistoryId).toBeNull();
+
+      // A settle with a different node set must not reach entry-a.
+      const differentNode = { _id: "CL/0001", id: "CL/0001", x: 50, y: 50 };
+      await act(async () => {
+        capturedOnSimulationEnd([differentNode], []);
+      });
+
+      const entryA = selectOriginHistory(store.getState()).find((e) => e.id === "entry-a");
+      expect(entryA.subgraph.nodes).toEqual([origin]);
+      expect(store.getState().savedGraphs.activeHistoryId).toBeNull();
       expect(selectOriginHistory(store.getState())).toHaveLength(1);
     });
 
