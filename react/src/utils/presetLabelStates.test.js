@@ -44,4 +44,19 @@ describe("resolvePresetLabelStates", () => {
   it("returns null when labelStates is not an object", () => {
     expect(resolvePresetLabelStates({ labelStates: "link-label" })).toBeNull();
   });
+
+  // Boolean("false") is true, so coercing a string-valued override would apply
+  // the opposite of what the preset author wrote AND reset the user's other
+  // labels — the exact outcome this resolver exists to prevent.
+  it("rejects a non-boolean value rather than coercing it", () => {
+    expect(resolvePresetLabelStates({ labelStates: { "link-label": "false" } })).toBeNull();
+  });
+
+  it("keeps valid overrides when another key has a non-boolean value", () => {
+    const resolved = resolvePresetLabelStates({
+      labelStates: { "link-label": false, "node-label": "nope" },
+    });
+
+    expect(resolved).toEqual({ ...DEFAULT_LABEL_STATES, "link-label": false });
+  });
 });

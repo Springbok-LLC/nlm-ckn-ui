@@ -36,13 +36,37 @@ describe("computeBigDipperTargets", () => {
     }
   });
 
-  it("parks off-motif collections below the asterism instead of on a star", () => {
+  // Handle ordering alone would still pass if two bowl collections swapped
+  // corners, so pin the bowl by its shape: walking the four collections in
+  // dipper-edge order must trace a convex quadrilateral. A swap makes the
+  // polygon self-intersect and flips the sign of one cross product.
+  it("walks the bowl as a convex quadrilateral in dipper-edge order", () => {
+    const targets = computeBigDipperTargets(MOTIF, 1000, 1000);
+    const BOWL = ["GS", "PR", "CHEMBL", "MONDO"];
+
+    const crossProducts = BOWL.map((_, i) => {
+      const a = targets[BOWL[i]];
+      const b = targets[BOWL[(i + 1) % 4]];
+      const c = targets[BOWL[(i + 2) % 4]];
+      return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    });
+
+    expect(crossProducts.every((z) => z > 0)).toBe(true);
+  });
+
+  it("parks off-motif collections below the asterism, spread apart", () => {
     const targets = computeBigDipperTargets([...MOTIF, "BMC", "GO", "PATO"], 1000, 1000);
     const lowestStar = Math.max(...MOTIF.map((c) => targets[c].y));
+    const parked = ["BMC", "GO", "PATO"];
 
-    for (const coll of ["BMC", "GO", "PATO"]) {
+    for (const coll of parked) {
       expect(targets[coll].y).toBeGreaterThan(lowestStar);
     }
+
+    // Spread across the row in the order given, not stacked on one point.
+    const xs = parked.map((c) => targets[c].x);
+    expect(new Set(xs).size).toBe(parked.length);
+    expect([...xs].sort((a, b) => a - b)).toEqual(xs);
   });
 
   it("omits collections that are not in the graph", () => {

@@ -25,9 +25,11 @@ export function resolvePresetLabelStates(preset) {
   const resolved = { ...DEFAULT_LABEL_STATES };
   let overrides = 0;
   for (const labelClass of Object.keys(DEFAULT_LABEL_STATES)) {
-    if (labelClass in declared) {
+    // Booleans only — Boolean("false") is true, so coercing a string-valued
+    // override would apply the opposite of what the preset author wrote.
+    if (Object.hasOwn(declared, labelClass) && typeof declared[labelClass] === "boolean") {
       overrides += 1;
-      resolved[labelClass] = Boolean(declared[labelClass]);
+      resolved[labelClass] = declared[labelClass];
     }
   }
   return overrides > 0 ? resolved : null;
