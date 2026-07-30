@@ -356,17 +356,22 @@ export function applyLayoutMode(
     const phase2BigDipper = () => {
       simulation.force(
         "cluster-x",
-        d3.forceX((d) => targets[getCollection(d)]?.x ?? 0).strength(0.35),
+        d3.forceX((d) => targets[getCollection(d)]?.x ?? 0).strength(0.7),
       );
       simulation.force(
         "cluster-y",
-        d3.forceY((d) => targets[getCollection(d)]?.y ?? 0).strength(0.35),
+        d3.forceY((d) => targets[getCollection(d)]?.y ?? 0).strength(0.7),
       );
       // Short-range collision separates nodes within a star without the
       // long-range explosion that strong charge causes.
       simulation.force("collide", d3.forceCollide(14).strength(0.9));
-      simulation.force("charge")?.strength(-60);
-      simulation.alpha(0.5).restart();
+      simulation.force("charge")?.strength(-30);
+      // A dipper result is edge-dense (152 edges on a 70-node FLT1 dipper) and
+      // those links pull the stars toward each other hard enough to compress
+      // the asterism into a V. The star targets already encode the topology,
+      // so let them own the geometry outright.
+      if (linkForce) linkForce.strength(0);
+      simulation.alpha(0.6).restart();
       onComplete?.();
     };
 
