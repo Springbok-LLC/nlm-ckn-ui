@@ -11,20 +11,26 @@ import { DEFAULT_LABEL_STATES } from "constants/graph";
  * Big Dipper explorer turns off "link-label", because rendering an edge label
  * on each of its ~150 edges buries the graph it is trying to show.
  *
+ * A declaration that overrides nothing resolves to null rather than to the
+ * bare defaults, so loading such a preset leaves the user's current labels
+ * alone instead of dispatching a no-op that resets them.
+ *
  * @param {object} preset - Workflow preset, possibly with a labelStates key.
- * @returns {object|null} Merged label states, or null if the preset declares none.
+ * @returns {object|null} Merged label states, or null if the preset overrides nothing.
  */
 export function resolvePresetLabelStates(preset) {
   const declared = preset?.labelStates;
-  if (!declared) return null;
+  if (!declared || typeof declared !== "object") return null;
 
   const resolved = { ...DEFAULT_LABEL_STATES };
+  let overrides = 0;
   for (const labelClass of Object.keys(DEFAULT_LABEL_STATES)) {
     if (labelClass in declared) {
+      overrides += 1;
       resolved[labelClass] = Boolean(declared[labelClass]);
     }
   }
-  return resolved;
+  return overrides > 0 ? resolved : null;
 }
 
 /**
