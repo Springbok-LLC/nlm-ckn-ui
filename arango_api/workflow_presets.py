@@ -666,10 +666,13 @@ WORKFLOW_PRESETS = [
             "types and their anatomical locations."
         ),
         "category": "Use Cases",
-        "layoutMode": "big-dipper",
-        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
-        # Labeling every one of them buries the shape, so start with
-        # edge labels off; the Labels panel can turn them back on.
+        # NOT the big-dipper layout: this preset fans out to ~2,500 nodes
+        # (1,390 compounds, 737 diseases), and a single star holding 1,390
+        # nodes needs more room than the whole asterism. The dipper layout
+        # suits single-dipper results in the tens of nodes; this is a bulk
+        # scan, so it keeps the clustered layout it was built with.
+        "layoutMode": "strict-cluster",
+        # Still worth suppressing edge labels at this density.
         "labelStates": {"link-label": False},
         "phases": [
             {
