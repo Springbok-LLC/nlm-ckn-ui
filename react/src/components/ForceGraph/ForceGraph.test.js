@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import graphReducer, { setAvailableCollections, setGraphData } from "../../store/graphSlice";
@@ -544,6 +544,55 @@ describe("ForceGraph", () => {
       // Popup is closed and no error state should appear
       expect(screen.queryByText(/failed to load collections/i)).not.toBeInTheDocument();
       expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("terminal collections stay in sync with allowed collections", () => {
+    it("drops a deselected collection from terminalCollections but keeps a still-allowed one", () => {
+      const store = createStoreWithCollections();
+      render(
+        <Provider store={store}>
+          <ForceGraph title="Test Graph Title" />
+        </Provider>,
+      );
+
+      // Open the options panel, then switch to the Filters tab.
+      fireEvent.click(screen.getByRole("button", { name: /show options/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^filters$/i }));
+
+      // The real collection-maps config (assets/nlm-ckn-collection-maps.json) is
+      // wired through ForceGraph, so the UI shows display names, not raw ids:
+      // UBERON -> "Anatomical structure", GO -> "Gene ontology".
+      const UBERON_LABEL = "Anatomical structure";
+      const GO_LABEL = "Gene ontology";
+
+      // Mark both UBERON and GO as terminal via the real "Stop traversal at" control.
+      const terminalInput = screen.getByPlaceholderText(/Filter by Terminal collections/i);
+      fireEvent.focus(terminalInput);
+      const terminalList = terminalInput
+        .closest(".filterable-dropdown")
+        .querySelector(".dropdown-list");
+      fireEvent.click(within(terminalList).getByText(UBERON_LABEL));
+      fireEvent.click(within(terminalList).getByText(GO_LABEL));
+
+      expect(store.getState().graph.present.settings.terminalCollections).toEqual(["UBERON", "GO"]);
+
+      // Deselect UBERON from the main Collections control by removing its pill.
+      const collectionsInput = screen.getByPlaceholderText(/^Filter by Collections/i);
+      const collectionsWrapper = collectionsInput.closest(".filterable-dropdown");
+      const uberonPill = within(collectionsWrapper)
+        .getAllByText(UBERON_LABEL, { selector: ".pill-text" })[0]
+        .closest(".pill");
+      fireEvent.click(within(uberonPill).getByRole("button"));
+
+      const finalSettings = store.getState().graph.present.settings;
+      // UBERON is no longer allowed, so it must not still be terminal.
+      expect(finalSettings.allowedCollections).not.toContain("UBERON");
+      expect(finalSettings.terminalCollections).not.toContain("UBERON");
+      // GO is still allowed, so its terminal flag must be preserved, not wiped
+      // wholesale — this would fail if the fix cleared the entire list instead
+      // of filtering out just the deselected entry.
+      expect(finalSettings.terminalCollections).toEqual(["GO"]);
     });
   });
 });
