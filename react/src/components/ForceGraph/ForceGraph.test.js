@@ -357,7 +357,7 @@ describe("ForceGraph", () => {
       });
 
       await waitFor(() => {
-        // fetchNodeExpansion(nodeId, graphType, allowedCollections, includeInterNodeEdges, edgeFilters, excludeEdgeFilters)
+        // fetchNodeExpansion(nodeId, graphType, allowedCollections, includeInterNodeEdges, edgeFilters, excludeEdgeFilters, terminalCollections)
         expect(fetchNodeExpansion).toHaveBeenCalledWith(
           "GO/0000001",
           expect.any(String),
@@ -365,6 +365,7 @@ describe("ForceGraph", () => {
           expect.any(Boolean),
           expect.any(Object),
           {},
+          expect.any(Array),
         );
       });
     });
