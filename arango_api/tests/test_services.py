@@ -940,3 +940,90 @@ class UberonClCountQueryTestCase(TestCase):
         )
         sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
         self.assertEqual(db.aql.execute.call_count, 2)
+
+
+class TerminalCollectionsQueryTestCase(TestCase):
+    """Unit tests for terminal-collection pruning (no DB required)."""
+
+    def _run(self, **kwargs):
+        """Invoke traverse_graph with the DB layer mocked out.
+
+        Returns the (query, bind_vars) passed to aql.execute.
+        """
+        db_connection = mock.Mock()
+        db_connection.aql.execute.return_value = iter([])
+
+        params = {
+            "node_ids": ["GS/GUCY1A2"],
+            "depth": 3,
+            "edge_direction": "ANY",
+            "allowed_collections": ["BGS", "CS", "UBERON", "CSD"],
+            "graph": "phenotypes",
+            "edge_filters": None,
+            "include_inter_node_edges": False,
+        }
+        params.update(kwargs)
+
+        with mock.patch.object(
+            graph_service, "get_db_and_graph", return_value=(db_connection, "KN-Phenotypes")
+        ):
+            graph_service.traverse_graph(**params)
+
+        args, kwargs_ = db_connection.aql.execute.call_args
+        return args[0], kwargs_["bind_vars"]
+
+    def test_terminal_collections_emit_prune_on_vertex_collection(self):
+        query, bind_vars = self._run(terminal_collections=["UBERON", "CSD"])
+        # PRUNE stops descent past the vertex but still returns it, which is the
+        # whole point: the organ shows up, its 800 sibling cell sets do not.
+        self.assertIn("PRUNE", query)
+        self.assertIn("PARSE_COLLECTION(v._id) IN @terminal_collections", query)
+        # Value travels as a bind var, never interpolated into query text.
+        self.assertEqual(bind_vars.get("terminal_collections"), ["UBERON", "CSD"])
+        self.assertNotIn("UBERON", query)
+
+    def test_no_terminal_collections_emits_no_prune(self):
+        query, bind_vars = self._run()
+        self.assertNotIn("PRUNE", query)
+        self.assertNotIn("terminal_collections", bind_vars)
+
+    def test_empty_terminal_collections_emits_no_prune(self):
+        query, bind_vars = self._run(terminal_collections=[])
+        self.assertNotIn("PRUNE", query)
+        self.assertNotIn("terminal_collections", bind_vars)
+
+    def test_terminal_collections_or_compose_with_exclude_filters(self):
+        # An exclude filter already contributes a PRUNE condition. Terminal
+        # pruning must OR into it, not replace it -- otherwise turning on one
+        # feature silently disables the other.
+        query, bind_vars = self._run(
+            exclude_edge_filters={"Label": ["DERIVES_FROM"]},
+            terminal_collections=["UBERON"],
+        )
+        self.assertIn("PRUNE", query)
+        self.assertIn("PARSE_COLLECTION(v._id) IN @terminal_collections", query)
+        self.assertEqual(bind_vars.get("exclude_value_Label"), ["DERIVES_FROM"])
+        prune_line = next(
+            line for line in query.splitlines() if "PRUNE" in line
+        )
+        self.assertIn(" OR ", prune_line)
+
+    def test_terminal_collection_not_in_allowed_is_inert(self):
+        # Never visited, so nothing to prune. Accepted rather than rejected.
+        query, bind_vars = self._run(terminal_collections=["MONDO"])
+        self.assertIn("PRUNE", query)
+        self.assertEqual(bind_vars.get("terminal_collections"), ["MONDO"])
+
+    def test_terminal_collections_rejected_with_closing_edge_filters(self):
+        # The closing-edge branch deliberately avoids PRUNE (it needs complete
+        # fixed-depth paths for its endpoint check), so the two cannot compose.
+        with self.assertRaises(ValueError):
+            self._run(
+                terminal_collections=["UBERON"],
+                require_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+            )
+        with self.assertRaises(ValueError):
+            self._run(
+                terminal_collections=["UBERON"],
+                exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+            )
