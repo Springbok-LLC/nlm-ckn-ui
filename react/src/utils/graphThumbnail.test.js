@@ -50,6 +50,60 @@ describe("captureGraphThumbnail", () => {
     expect(decodeURIComponent(url)).toContain('viewBox="2 16 116 58"');
   });
 
+  it("omits the graph legend from the serialized thumbnail", async () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const content = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    content.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "circle"));
+    const legend = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    legend.setAttribute("class", "legend");
+    const swatch = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    swatch.setAttribute("class", "legend-swatch");
+    legend.appendChild(swatch);
+    svg.appendChild(content);
+    svg.appendChild(legend);
+
+    const markup = decodeURIComponent(await captureGraphThumbnail(svg));
+    expect(markup).toContain("<circle");
+    expect(markup).not.toContain("legend");
+  });
+
+  it("tight-frames on the graph content, not on the legend that is about to be dropped", async () => {
+    // The legend sits in the bottom-left of the viewBox, far from the graph. If
+    // the frame were measured on the whole SVG it would reserve empty space for
+    // a legend the thumbnail no longer contains.
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const content = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    content.getBBox = () => ({ x: 10, y: 20, width: 100, height: 50 });
+    const legend = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    legend.setAttribute("class", "legend");
+    legend.getBBox = () => ({ x: -400, y: 200, width: 120, height: 80 });
+    svg.appendChild(content);
+    svg.appendChild(legend);
+    // Whole-SVG measurement would span both; it must not be used.
+    svg.getBBox = () => ({ x: -400, y: 20, width: 510, height: 260 });
+
+    const markup = decodeURIComponent(await captureGraphThumbnail(svg));
+    // Content-only box: padX = 8, padY = 4 → "2 16 116 58".
+    expect(markup).toContain('viewBox="2 16 116 58"');
+  });
+
+  it("maps the content bounding box through the zoom group's own transform", async () => {
+    // The graph lives inside d3-zoom's <g transform="...">, so its getBBox is in
+    // the group's local space; the viewBox is in the SVG's user space.
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const content = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    content.getBBox = () => ({ x: 10, y: 20, width: 100, height: 50 });
+    // translate(5, 7) scale(2)
+    content.transform = {
+      baseVal: { consolidate: () => ({ matrix: { a: 2, b: 0, c: 0, d: 2, e: 5, f: 7 } }) },
+    };
+    svg.appendChild(content);
+
+    const markup = decodeURIComponent(await captureGraphThumbnail(svg));
+    // Mapped box: x 25..225, y 47..147 → w 200, h 100; padX = 16, padY = 8.
+    expect(markup).toContain('viewBox="9 39 232 116"');
+  });
+
   it("honors custom width/height options on the framed clone", async () => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const url = await captureGraphThumbnail(svg, { width: 300, height: 200 });

@@ -54,12 +54,18 @@ const savedGraphsSlice = createSlice({
     // Refreshes an existing history entry's captured graph (and optionally its
     // thumbnail) so it holds the most recent version rather than a stale
     // first-resolve snapshot. No-op if the entry no longer exists.
+    //
+    // Thumbnails are only ever replaced by a truthy one: captureGraphThumbnail
+    // is best-effort and resolves to null on any failure, and a failed capture
+    // must not destroy the good picture a card already holds — a card can be
+    // frozen straight after such a write and would keep the blank forever. The
+    // first real thumbnail still lands, since entries start out with none.
     updateHistoryEntry: (state, action) => {
       const { id, subgraph, thumbnail } = action.payload;
       const entry = state.originHistory.find((h) => h.id === id);
       if (!entry) return;
       if (subgraph) entry.subgraph = subgraph;
-      if (thumbnail !== undefined) entry.thumbnail = thumbnail;
+      if (thumbnail) entry.thumbnail = thumbnail;
     },
     setActiveHistory: (state, action) => {
       state.activeHistoryId = action.payload;

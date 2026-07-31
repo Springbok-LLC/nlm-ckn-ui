@@ -119,6 +119,23 @@ describe("originHistory", () => {
     expect(s.originHistory[0].thumbnail).toBe("data:image/png;base64,ZZZ");
   });
 
+  it("updateHistoryEntry keeps an existing thumbnail when the new capture failed", () => {
+    // captureGraphThumbnail is best-effort and resolves to null on any failure.
+    // A failed capture must never destroy the good picture a card already has.
+    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
+    s = reducer(s, updateHistoryEntry({ id: "h-A", thumbnail: "data:image/svg+xml,good" }));
+    s = reducer(s, updateHistoryEntry({ id: "h-A", thumbnail: null }));
+    expect(s.originHistory[0].thumbnail).toBe("data:image/svg+xml,good");
+    s = reducer(s, updateHistoryEntry({ id: "h-A", thumbnail: "" }));
+    expect(s.originHistory[0].thumbnail).toBe("data:image/svg+xml,good");
+  });
+
+  it("updateHistoryEntry still sets the first real thumbnail on an entry that has none", () => {
+    let s = reducer(undefined, addHistoryEntry(entry("A", ["A"]))); // thumbnail: null
+    s = reducer(s, updateHistoryEntry({ id: "h-A", thumbnail: "data:image/svg+xml,first" }));
+    expect(s.originHistory[0].thumbnail).toBe("data:image/svg+xml,first");
+  });
+
   it("updateHistoryEntry is a no-op for an unknown id", () => {
     const s = reducer(undefined, addHistoryEntry(entry("A", ["A"])));
     const after = reducer(

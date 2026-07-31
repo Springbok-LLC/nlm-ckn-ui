@@ -34,6 +34,7 @@ import {
   syncActiveHistoryEntry,
   syncSettingsToLastApplied,
   uncollapseNode,
+  updateHistoryEntry,
   updateNodePositions,
   updateSetting,
 } from "store";
@@ -472,6 +473,190 @@ const ForceGraph = ({
     });
   };
 
+  // Origin-set transitions own history bookkeeping. Whenever the live origin
+  // set changes, the active entry freezes: it must keep describing the graph it
+  // was captured from, so the late simulation-end sync can never overwrite it
+  // with the incoming composition. Origins added by the transition are queued
+  // rather than captured immediately — a fresh search updates originNodeIds
+  // before its data arrives (initializeGraph), so capturing at transition time
+  // would stamp the outgoing graph's thumbnail onto the new entry. Each pending
+  // origin is captured on the first graphData that actually contains it.
+  //
+  // Branch by branch:
+  //
+  // - Undo/redo (isRestoring, set only by handleUndo/handleRedo): replays an
+  //   earlier state and, unlike a restore, does not re-point activeHistoryId.
+  //   So it freezes on the same rule as any other transition — when the
+  //   origin-id key actually changed — but queues nothing, since replaying a
+  //   past composition is not a new origin event. An undo that leaves the
+  //   origin set alone freezes nothing and keeps the active entry syncing.
+  //
+  // - Restore (lastActionType === "restoreGraph"): exempt, because the restore
+  //   itself re-points activeHistoryId at the entry being restored. It also
+  //   deliberately clears originNodeIds, which would otherwise read as a
+  //   transition and null out the entry just activated. Adopt the key, clear
+  //   the pending queue, and leave the restored entry active and syncing.
+  //
+  // - Saved-graph load (lastActionType === "loadGraph"): a deliberate wholesale
+  //   replacement of the origin set with nothing else re-pointing
+  //   activeHistoryId, so it freezes like any other transition but queues no
+  //   captures — a loaded graph is not an origin-history event.
+  //
+  // - First run: graph and savedGraphs state both survive route changes (only
+  //   nodesSlice is persistence-whitelisted), so ForceGraph can mount fresh —
+  //   via GraphPage's initializeGraph from the URL — with an origin already
+  //   live and an unrelated (possibly stale, possibly restored) entry still
+  //   active. Freeze first, detaching that entry before any settle can reach
+  //   it (on a genuine first mount nothing is active, so the freeze is a
+  //   no-op), then queue only origins no existing history entry already covers,
+  //   so a remount of an origin that already has a card doesn't duplicate it.
+  //   Deliberate tradeoff: on such a remount the freeze detaches and nothing is
+  //   re-queued, so the recomposed graph runs with no active card until the
+  //   origin set next changes — re-adopting the existing card would re-attach a
+  //   card whose snapshot may describe a different composition, reintroducing
+  //   the very bug this code prevents.
+  //
+  // - Origin-set change: freeze, then queue the ids that are new relative to
+  //   the previous set. A pure removal queues nothing, so nothing becomes
+  //   active.
+  const prevOriginIdsRef = useRef(null);
+  const pendingOriginIdsRef = useRef([]);
+  useEffect(() => {
+    // Freezes the active entry: writes the ref directly (handleSimulationEnd
+    // reads it, and the effect that mirrors the store into it wouldn't run
+    // until after the next render) as well as dispatching, but only when
+    // there is actually something active — otherwise this would needlessly
+    // re-fire setActiveHistory(null) on every render a freeze branch below is
+    // reached (e.g. every render while lastActionType stays "loadGraph").
+    //
+    // Re-picture the outgoing entry before detaching it. Its creation-time
+    // capture was taken in the same commit as the D3 join, before any tick had
+    // painted node positions, so it is effectively blank; the settle sync that
+    // used to replace it is exactly what this freeze stops, and a frozen entry
+    // is never re-activated. Here, though, the SVG still shows the outgoing
+    // graph as the user last saw it. captureGraphThumbnail clones and
+    // serializes synchronously (nothing is awaited before that work), so
+    // calling it on this line snapshots that graph — only the dispatch waits
+    // on the promise. This effect is declared above the D3 render effect so
+    // React runs it first and the SVG has not yet been re-joined.
+    const freezeActiveHistoryIfAny = () => {
+      const outgoingId = activeHistoryIdRef.current;
+      if (outgoingId === null) return;
+      const outgoingCapture = captureGraphThumbnail(svgRef.current);
+      activeHistoryIdRef.current = null;
+      dispatch(setActiveHistory(null));
+      outgoingCapture
+        .catch(() => null)
+        .then((thumbnail) => {
+          // A failed capture resolves to null; the reducer ignores a falsy
+          // thumbnail rather than blanking what the card already has.
+          dispatch(updateHistoryEntry({ id: outgoingId, thumbnail }));
+        });
+    };
+    if (isRestoring) {
+      // Undo/redo. Checked before the restoreGraph branch below because an undo
+      // can land on a past state whose lastActionType happens to be
+      // "restoreGraph", and an undo must never take the restore exemption: a
+      // restore re-points activeHistoryId, an undo does not. Freeze only when
+      // the origin key actually changed — an undo that leaves origins alone is
+      // not a transition and must keep the active entry syncing — and queue
+      // nothing either way, since replaying a past composition is not a new
+      // origin event.
+      const undoKey = (originNodeIds ?? []).join("|");
+      const originsChanged =
+        prevOriginIdsRef.current !== null && prevOriginIdsRef.current !== undoKey;
+      prevOriginIdsRef.current = undoKey;
+      if (originsChanged) {
+        pendingOriginIdsRef.current = [];
+        freezeActiveHistoryIfAny();
+      }
+      return;
+    }
+    if (lastActionType === "restoreGraph") {
+      // Adopt the current origin-id key silently rather than leaving it stale.
+      // The settle that immediately follows a restore dispatches its own
+      // setGraphData (without isRestore), which flips lastActionType away from
+      // "restoreGraph" on the very next render; if prevOriginIdsRef still held
+      // the pre-restore key at that point, the unrelated origin-id key change
+      // would read as a transition and spuriously freeze the entry the restore
+      // just activated, racing its own in-flight sync. Also clear any pending
+      // origin so a stale queue entry can't be captured against the restored
+      // graphData and hijack the entry the restore just activated.
+      prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
+      pendingOriginIdsRef.current = [];
+      return;
+    }
+    if (lastActionType === "loadGraph") {
+      // A loaded graph replaces the origin set wholesale, but nothing re-points
+      // activeHistoryId the way a restore does — so, unlike a restore, the
+      // previously active entry must freeze here or the late settle-sync would
+      // stamp the loaded graph into it. Adopt the key and clear any pending
+      // origin (same reasoning as the restore branch above) but queue nothing:
+      // a load creates no history card of its own.
+      prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
+      pendingOriginIdsRef.current = [];
+      freezeActiveHistoryIfAny();
+      return;
+    }
+    const ids = originNodeIds ?? [];
+    const key = ids.join("|");
+
+    if (prevOriginIdsRef.current === null) {
+      // First run: freeze whatever is active (see comment above the effect —
+      // a remount can leave a stale/restored entry active for an origin that
+      // is about to compose differently), then queue only origins not already
+      // covered by a history entry. Read history non-reactively (via the
+      // store, not useSelector) so this stays a one-time check that doesn't
+      // change the effect's dependencies or make it re-run when history
+      // changes.
+      prevOriginIdsRef.current = key;
+      freezeActiveHistoryIfAny();
+      const coveredOriginIds = new Set(
+        selectOriginHistory(store.getState()).map((entry) => entry.originId),
+      );
+      pendingOriginIdsRef.current = ids.filter((id) => !coveredOriginIds.has(id));
+    } else if (prevOriginIdsRef.current !== key) {
+      const prevIds = new Set(prevOriginIdsRef.current ? prevOriginIdsRef.current.split("|") : []);
+      prevOriginIdsRef.current = key;
+      freezeActiveHistoryIfAny();
+      // A pure removal adds nothing, so nothing becomes active.
+      pendingOriginIdsRef.current = ids.filter((id) => !prevIds.has(id));
+    }
+
+    const pending = pendingOriginIdsRef.current;
+    if (!pending.length || !graphData?.nodes?.length) return;
+    const renderedIds = new Set(graphData.nodes.map((n) => n._id || n.id));
+    const ready = pending.filter((id) => renderedIds.has(id));
+    if (!ready.length) return;
+    // Clear synchronously, before the async capture, so a later graphData change
+    // cannot enqueue the same origin twice.
+    pendingOriginIdsRef.current = pending.filter((id) => !renderedIds.has(id));
+
+    // Capture the thumbnail once and reuse it for every origin resolving in this
+    // run (a multi-origin query shares one graph image). Best-effort: a failed
+    // capture yields a null thumbnail but still records each entry, so no origin
+    // is silently dropped from history.
+    captureGraphThumbnail(svgRef.current)
+      .catch(() => null)
+      .then((thumbnail) => {
+        for (const originId of ready) {
+          dispatch(
+            addHistoryEntry({
+              id: uuidv4(),
+              originId,
+              label: nodeNameMap?.get(originId) ?? originId,
+              subgraph: { nodes: graphData.nodes, links: graphData.links },
+              thumbnail,
+              timestamp: new Date().toISOString(),
+            }),
+          );
+        }
+      });
+    // `store` (useStore's return) is a stable reference, so listing it changes
+    // nothing at runtime — the history read above stays a one-time,
+    // non-subscribed lookup.
+  }, [dispatch, store, graphData, originNodeIds, lastActionType, nodeNameMap, isRestoring]);
+
   // Main effect for synchronizing D3 instance with Redux state.
   // biome-ignore lint/correctness/useExhaustiveDependencies: complex effect intentionally limited deps
   useEffect(() => {
@@ -751,171 +936,6 @@ const ForceGraph = ({
       }
     }
   }, [rawData, graphData, settings.availableCollections]);
-
-  // Origin-set transitions own history bookkeeping. Whenever the live origin
-  // set changes, the active entry freezes: it must keep describing the graph it
-  // was captured from, so the late simulation-end sync can never overwrite it
-  // with the incoming composition. Origins added by the transition are queued
-  // rather than captured immediately — a fresh search updates originNodeIds
-  // before its data arrives (initializeGraph), so capturing at transition time
-  // would stamp the outgoing graph's thumbnail onto the new entry. Each pending
-  // origin is captured on the first graphData that actually contains it.
-  //
-  // Branch by branch:
-  //
-  // - Undo/redo (isRestoring, set only by handleUndo/handleRedo): replays an
-  //   earlier state and, unlike a restore, does not re-point activeHistoryId.
-  //   So it freezes on the same rule as any other transition — when the
-  //   origin-id key actually changed — but queues nothing, since replaying a
-  //   past composition is not a new origin event. An undo that leaves the
-  //   origin set alone freezes nothing and keeps the active entry syncing.
-  //
-  // - Restore (lastActionType === "restoreGraph"): exempt, because the restore
-  //   itself re-points activeHistoryId at the entry being restored. It also
-  //   deliberately clears originNodeIds, which would otherwise read as a
-  //   transition and null out the entry just activated. Adopt the key, clear
-  //   the pending queue, and leave the restored entry active and syncing.
-  //
-  // - Saved-graph load (lastActionType === "loadGraph"): a deliberate wholesale
-  //   replacement of the origin set with nothing else re-pointing
-  //   activeHistoryId, so it freezes like any other transition but queues no
-  //   captures — a loaded graph is not an origin-history event.
-  //
-  // - First run: graph and savedGraphs state both survive route changes (only
-  //   nodesSlice is persistence-whitelisted), so ForceGraph can mount fresh —
-  //   via GraphPage's initializeGraph from the URL — with an origin already
-  //   live and an unrelated (possibly stale, possibly restored) entry still
-  //   active. Freeze first, detaching that entry before any settle can reach
-  //   it (on a genuine first mount nothing is active, so the freeze is a
-  //   no-op), then queue only origins no existing history entry already covers,
-  //   so a remount of an origin that already has a card doesn't duplicate it.
-  //   Deliberate tradeoff: on such a remount the freeze detaches and nothing is
-  //   re-queued, so the recomposed graph runs with no active card until the
-  //   origin set next changes — re-adopting the existing card would re-attach a
-  //   card whose snapshot may describe a different composition, reintroducing
-  //   the very bug this code prevents.
-  //
-  // - Origin-set change: freeze, then queue the ids that are new relative to
-  //   the previous set. A pure removal queues nothing, so nothing becomes
-  //   active.
-  const prevOriginIdsRef = useRef(null);
-  const pendingOriginIdsRef = useRef([]);
-  useEffect(() => {
-    // Freezes the active entry: writes the ref directly (handleSimulationEnd
-    // reads it, and the effect that mirrors the store into it wouldn't run
-    // until after the next render) as well as dispatching, but only when
-    // there is actually something active — otherwise this would needlessly
-    // re-fire setActiveHistory(null) on every render a freeze branch below is
-    // reached (e.g. every render while lastActionType stays "loadGraph").
-    const freezeActiveHistoryIfAny = () => {
-      if (activeHistoryIdRef.current !== null) {
-        activeHistoryIdRef.current = null;
-        dispatch(setActiveHistory(null));
-      }
-    };
-    if (isRestoring) {
-      // Undo/redo. Checked before the restoreGraph branch below because an undo
-      // can land on a past state whose lastActionType happens to be
-      // "restoreGraph", and an undo must never take the restore exemption: a
-      // restore re-points activeHistoryId, an undo does not. Freeze only when
-      // the origin key actually changed — an undo that leaves origins alone is
-      // not a transition and must keep the active entry syncing — and queue
-      // nothing either way, since replaying a past composition is not a new
-      // origin event.
-      const undoKey = (originNodeIds ?? []).join("|");
-      const originsChanged =
-        prevOriginIdsRef.current !== null && prevOriginIdsRef.current !== undoKey;
-      prevOriginIdsRef.current = undoKey;
-      if (originsChanged) {
-        pendingOriginIdsRef.current = [];
-        freezeActiveHistoryIfAny();
-      }
-      return;
-    }
-    if (lastActionType === "restoreGraph") {
-      // Adopt the current origin-id key silently rather than leaving it stale.
-      // The settle that immediately follows a restore dispatches its own
-      // setGraphData (without isRestore), which flips lastActionType away from
-      // "restoreGraph" on the very next render; if prevOriginIdsRef still held
-      // the pre-restore key at that point, the unrelated origin-id key change
-      // would read as a transition and spuriously freeze the entry the restore
-      // just activated, racing its own in-flight sync. Also clear any pending
-      // origin so a stale queue entry can't be captured against the restored
-      // graphData and hijack the entry the restore just activated.
-      prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
-      pendingOriginIdsRef.current = [];
-      return;
-    }
-    if (lastActionType === "loadGraph") {
-      // A loaded graph replaces the origin set wholesale, but nothing re-points
-      // activeHistoryId the way a restore does — so, unlike a restore, the
-      // previously active entry must freeze here or the late settle-sync would
-      // stamp the loaded graph into it. Adopt the key and clear any pending
-      // origin (same reasoning as the restore branch above) but queue nothing:
-      // a load creates no history card of its own.
-      prevOriginIdsRef.current = (originNodeIds ?? []).join("|");
-      pendingOriginIdsRef.current = [];
-      freezeActiveHistoryIfAny();
-      return;
-    }
-    const ids = originNodeIds ?? [];
-    const key = ids.join("|");
-
-    if (prevOriginIdsRef.current === null) {
-      // First run: freeze whatever is active (see comment above the effect —
-      // a remount can leave a stale/restored entry active for an origin that
-      // is about to compose differently), then queue only origins not already
-      // covered by a history entry. Read history non-reactively (via the
-      // store, not useSelector) so this stays a one-time check that doesn't
-      // change the effect's dependencies or make it re-run when history
-      // changes.
-      prevOriginIdsRef.current = key;
-      freezeActiveHistoryIfAny();
-      const coveredOriginIds = new Set(
-        selectOriginHistory(store.getState()).map((entry) => entry.originId),
-      );
-      pendingOriginIdsRef.current = ids.filter((id) => !coveredOriginIds.has(id));
-    } else if (prevOriginIdsRef.current !== key) {
-      const prevIds = new Set(prevOriginIdsRef.current ? prevOriginIdsRef.current.split("|") : []);
-      prevOriginIdsRef.current = key;
-      freezeActiveHistoryIfAny();
-      // A pure removal adds nothing, so nothing becomes active.
-      pendingOriginIdsRef.current = ids.filter((id) => !prevIds.has(id));
-    }
-
-    const pending = pendingOriginIdsRef.current;
-    if (!pending.length || !graphData?.nodes?.length) return;
-    const renderedIds = new Set(graphData.nodes.map((n) => n._id || n.id));
-    const ready = pending.filter((id) => renderedIds.has(id));
-    if (!ready.length) return;
-    // Clear synchronously, before the async capture, so a later graphData change
-    // cannot enqueue the same origin twice.
-    pendingOriginIdsRef.current = pending.filter((id) => !renderedIds.has(id));
-
-    // Capture the thumbnail once and reuse it for every origin resolving in this
-    // run (a multi-origin query shares one graph image). Best-effort: a failed
-    // capture yields a null thumbnail but still records each entry, so no origin
-    // is silently dropped from history.
-    captureGraphThumbnail(svgRef.current)
-      .catch(() => null)
-      .then((thumbnail) => {
-        for (const originId of ready) {
-          dispatch(
-            addHistoryEntry({
-              id: uuidv4(),
-              originId,
-              label: nodeNameMap?.get(originId) ?? originId,
-              subgraph: { nodes: graphData.nodes, links: graphData.links },
-              thumbnail,
-              timestamp: new Date().toISOString(),
-            }),
-          );
-        }
-      });
-    // `store` (useStore's return) is a stable reference, so listing it changes
-    // nothing at runtime — the history read above stays a one-time,
-    // non-subscribed lookup.
-  }, [dispatch, store, graphData, originNodeIds, lastActionType, nodeNameMap, isRestoring]);
 
   // Updates D3 node font size when setting changes.
   useEffect(() => {
