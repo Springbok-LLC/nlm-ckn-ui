@@ -618,6 +618,7 @@ const workflowBuilderSlice = createSlice({
       state.workflowId = generateId();
       state.workflowName = "";
       state.workflowDescription = "";
+      state.unknownLabels = [];
       state.phases = [createEmptyPhase(0)];
       state.phaseResults = {};
       state.nodeDetails = {};

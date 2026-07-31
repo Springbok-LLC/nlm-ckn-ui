@@ -10,7 +10,7 @@ jest.mock("../services", () => ({
 
 const services = require("../services");
 const slice = require("./workflowBuilderSlice");
-const { default: workflowBuilderReducer, executePhase, loadWorkflow } = slice;
+const { default: workflowBuilderReducer, executePhase, loadWorkflow, initializeWorkflow } = slice;
 
 const makeStore = () => configureStore({ reducer: { workflowBuilder: workflowBuilderReducer } });
 
@@ -542,5 +542,15 @@ describe("loadWorkflow unknown labels", () => {
     );
     const clean = reducer(flagged, loadWorkflow({ id: "b", phases: [] }));
     expect(clean.unknownLabels).toEqual([]);
+  });
+
+  it("clears flags when starting a new workflow from scratch", () => {
+    const reducer = workflowBuilderReducer;
+    const flagged = reducer(
+      undefined,
+      loadWorkflow({ id: "a", phases: [], unknown_labels: ["MEMBER_OF"] }),
+    );
+    const fresh = reducer(flagged, initializeWorkflow());
+    expect(fresh.unknownLabels).toEqual([]);
   });
 });

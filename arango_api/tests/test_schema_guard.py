@@ -56,6 +56,20 @@ class GetDatasetLabelsTestCase(SimpleTestCase):
         with patch_db, patch_colls:
             self.assertIsNone(schema_guard.get_dataset_labels("phenotypes"))
 
+    def test_empty_aql_result_returns_none(self):
+        patch_db, patch_colls, _ = self._patch(aql_result=([],))
+        with patch_db, patch_colls:
+            self.assertIsNone(schema_guard.get_dataset_labels("phenotypes"))
+
+    def test_empty_result_is_not_cached(self):
+        patch_db, patch_colls, fake_db = self._patch()
+        fake_db.aql.execute.side_effect = [iter([[]]), iter([["EXPRESSES"]])]
+        with patch_db, patch_colls:
+            self.assertIsNone(schema_guard.get_dataset_labels("phenotypes"))
+            self.assertEqual(
+                schema_guard.get_dataset_labels("phenotypes"), frozenset({"EXPRESSES"})
+            )
+
     def test_queries_the_requested_graph(self):
         patch_db, patch_colls, _ = self._patch()
         with patch_db as mocked_get_db, patch_colls:

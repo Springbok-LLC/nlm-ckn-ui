@@ -122,10 +122,10 @@ const PresetSelector = ({ onSelectPreset, onStartFromScratch }) => {
                 <span className="preset-name">
                   {preset.name}
                   {driftLabels.length > 0 && (
-                    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: aria-label provides accessible description for screen readers
                     <span
                       className="preset-drift-badge"
                       data-testid="preset-drift-badge"
+                      role="img"
                       title={`Filters on ${driftLabels.join(", ")}, which ${
                         driftLabels.length === 1 ? "is" : "are"
                       } not in the loaded dataset — usually a recent schema change. Results may be incomplete.`}

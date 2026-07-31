@@ -23,6 +23,10 @@ CACHE_TTL_SECONDS = 300
 # Phase settings keys whose value is a {"Label": [...]} filter.
 LABEL_FILTER_KEYS = ("edgeFilters", "excludeClosingEdges", "requireClosingEdges")
 
+# "ontologies" rather than the app's request-level default ("phenotypes", see
+# react/src/constants/graph.js) is deliberate: it carries more labels, so a
+# preset that falls back to it is checked against a strictly larger known-label
+# set, erring toward fewer false positives rather than more.
 DEFAULT_GRAPH = "ontologies"
 
 # Expiry-only, keyed by graph. Nothing to invalidate — a dataset restore
@@ -70,6 +74,14 @@ def get_dataset_labels(graph):
         labels = frozenset(label for label in (rows[0] if rows else []) if label)
     except Exception:
         logger.warning("Could not read edge labels for graph %r", graph, exc_info=True)
+        return None
+
+    if not labels:
+        # An empty result is indistinguishable from "the dataset genuinely has
+        # no labels" here, and flagging every preset on that basis is exactly
+        # the failure mode this module exists to avoid. Treat it the same as
+        # any other cannot-determine case: do not cache, do not flag.
+        logger.warning("No edge labels found in graph %r; skipping label check", graph)
         return None
 
     # Only successes are cached; a transient outage must not pin None for the
