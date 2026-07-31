@@ -339,7 +339,10 @@
   margin-left: var(--spacing-xs);
   border-radius: 50%;
   background: var(--color-warning, #b26a00);
-  color: var(--color-white);
+  /* Dark ink, not white: white on the amber background is only ~3.6:1, short
+     of the 4.5:1 AA floor for the small "!" glyph. --color-base is not
+     overridden in the dark theme, so it stays legible against both ambers. */
+  color: var(--color-base);
   font-size: 0.75em;
   font-weight: 700;
   cursor: help;
