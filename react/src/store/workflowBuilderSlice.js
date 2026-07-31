@@ -579,6 +579,10 @@ const initialState = {
   workflowName: "",
   workflowDescription: "",
 
+  // Edge labels this workflow filters on that the loaded dataset lacks.
+  // Populated from the preset API; empty for hand-built workflows.
+  unknownLabels: [],
+
   // Phases configuration
   phases: [createEmptyPhase(0)],
 
@@ -632,6 +636,7 @@ const workflowBuilderSlice = createSlice({
       state.workflowId = workflow.id || generateId();
       state.workflowName = workflow.name || "";
       state.workflowDescription = workflow.description || "";
+      state.unknownLabels = workflow.unknown_labels || [];
       // Deep clone phases to avoid mutation issues
       const rawPhases = JSON.parse(JSON.stringify(workflow.phases || [createEmptyPhase(0)]));
       // Normalize phases: apply UI defaults and runtime state for phases from

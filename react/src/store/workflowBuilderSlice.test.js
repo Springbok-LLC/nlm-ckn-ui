@@ -517,3 +517,30 @@ describe("executePhase sanitizes nulls on the Intersection with Origins path", (
     expect(action.payload.result.nodes.map((n) => n._id)).toContain("CL/origin");
   });
 });
+
+describe("loadWorkflow unknown labels", () => {
+  it("carries unknown_labels onto the workflow state", () => {
+    const reducer = workflowBuilderReducer;
+    const state = reducer(
+      undefined,
+      loadWorkflow({ id: "uc4", name: "UC4", phases: [], unknown_labels: ["MEMBER_OF"] }),
+    );
+    expect(state.unknownLabels).toEqual(["MEMBER_OF"]);
+  });
+
+  it("defaults to an empty list when the field is absent", () => {
+    const reducer = workflowBuilderReducer;
+    const state = reducer(undefined, loadWorkflow({ id: "uc4", name: "UC4", phases: [] }));
+    expect(state.unknownLabels).toEqual([]);
+  });
+
+  it("clears a previous workflow's flags", () => {
+    const reducer = workflowBuilderReducer;
+    const flagged = reducer(
+      undefined,
+      loadWorkflow({ id: "a", phases: [], unknown_labels: ["MEMBER_OF"] }),
+    );
+    const clean = reducer(flagged, loadWorkflow({ id: "b", phases: [] }));
+    expect(clean.unknownLabels).toEqual([]);
+  });
+});
