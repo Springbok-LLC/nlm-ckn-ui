@@ -443,6 +443,7 @@ def traverse_graph_advanced(
         allowed_collections = settings.get("allowedCollections", [])
         edge_filters = settings.get("edgeFilters", {})
         exclude_edge_filters = settings.get("excludeEdgeFilters", {})
+        terminal_collections = settings.get("terminalCollections", [])
 
         result_for_node = traverse_graph(
             node_ids=[node_id],
@@ -452,6 +453,7 @@ def traverse_graph_advanced(
             graph=graph,
             edge_filters=edge_filters,
             exclude_edge_filters=exclude_edge_filters,
+            terminal_collections=terminal_collections,
             include_inter_node_edges=include_inter_node_edges,
             exclude_closing_edges=settings.get("excludeClosingEdges"),
             require_closing_edges=settings.get("requireClosingEdges"),
