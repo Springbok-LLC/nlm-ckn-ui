@@ -306,6 +306,23 @@
   margin-top: var(--spacing-md);
 }
 
+/* Marks a preset whose edge filters the loaded dataset cannot satisfy —
+   usually an ETL predicate rename. The preset stays runnable; this informs. */
+.preset-drift-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1em;
+  height: 1.1em;
+  margin-left: var(--spacing-xs);
+  border-radius: 50%;
+  background: var(--color-warning, #b26a00);
+  color: var(--color-white);
+  font-size: 0.75em;
+  font-weight: 700;
+  cursor: help;
+}
+
 /* ==========================================================================
    Phases Container
    ========================================================================== */
