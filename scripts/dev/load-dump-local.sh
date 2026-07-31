@@ -44,7 +44,11 @@ elif [ "$PORT" = "8529" ]; then CONTAINER="arango-current"
 else CONTAINER="arango-ckn-$PORT"; fi
 # Default source bucket/layout. Overridden when a full s3:// URI is supplied
 # (as $1 or via DUMP_S3_URI), since other accounts use different key layouts.
-BUCKET="cell-kn-arangodb-data-952291113202"
+# Dumps moved here when the project was renamed cell-kn -> nlm-ckn (2026-07-09).
+# The old cell-kn bucket still exists and still answers, but its newest dump is
+# v1.5.0-rc.1 — pointing at it silently loads stale data under a current-looking
+# version string.
+BUCKET="nlm-ckn-arangodb-data-952291113202"
 # Pinnable for reproducibility: golden dumps are produced against a specific
 # ArangoDB; override with ARANGO_IMAGE if a future major version breaks restore.
 IMAGE="${ARANGO_IMAGE:-arangodb:latest}"
