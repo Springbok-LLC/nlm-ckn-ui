@@ -38,6 +38,13 @@ def _iter_phases():
             yield preset, phase
 
 
+def _phase_origins(phase):
+    """Every node id a phase anchors on, including per-node override keys."""
+    origins = list(phase.get("originNodeIds") or [])
+    origins += list((phase.get("perNodeSettings") or {}).keys())
+    return origins
+
+
 def _phase_labels(phase):
     """Every edge Label pinned by a phase, including per-node overrides."""
     labels = set()
@@ -137,22 +144,22 @@ class PresetSchemaDriftTests(TestCase):
         the client as a null node.
         """
         for preset, phase in _iter_phases():
-            origins = list(phase.get("originNodeIds") or [])
-            origins += list((phase.get("perNodeSettings") or {}).keys())
-            for origin in origins:
-                if origin.startswith("CSD/"):
-                    self.assertIn(
-                        "__",
-                        origin,
-                        msg=(
-                            f"{preset['id']}/{phase['id']} anchors on bare CSD key "
-                            f"{origin!r}; expected `<uuid>__<anatomy>`"
-                        ),
-                    )
+            for origin in _phase_origins(phase):
+                if not origin.startswith("CSD/"):
+                    continue
+                context = (
+                    f"{preset['id']}/{phase['id']} anchors on CSD key {origin!r}; "
+                    "expected `<uuid>__<anatomy>`"
+                )
+                key = origin.split("/", 1)[1]
+                uuid, sep, anatomy = key.partition("__")
+                self.assertTrue(sep, msg=context)
+                self.assertTrue(uuid, msg=context)
+                self.assertTrue(anatomy, msg=context)
 
     def test_origin_ids_are_well_formed(self):
-        """Every manual origin is `<COLLECTION>/<key>` with both parts present."""
+        """Every origin is `<COLLECTION>/<key>` with both parts present."""
         pattern = re.compile(r"^[A-Za-z][A-Za-z0-9_]*/.+$")
         for preset, phase in _iter_phases():
-            for origin in phase.get("originNodeIds") or []:
+            for origin in _phase_origins(phase):
                 self.assertRegex(origin, pattern, msg=f"{preset['id']}/{phase['id']}")

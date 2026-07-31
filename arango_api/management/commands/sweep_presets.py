@@ -15,9 +15,11 @@ rename dropped one preset from 104 nodes to 9 while still "passing".
 """
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from arango_api.services import workflow_service
 from arango_api.workflow_presets import WORKFLOW_PRESETS
@@ -28,6 +30,24 @@ BASELINE_PATH = Path(__file__).resolve().parents[2] / "preset_baselines.json"
 # reported. Node counts move a little between dataset releases; a quarter of the
 # result set disappearing is not drift, it is a break.
 DEFAULT_TOLERANCE = 0.25
+
+
+def _write_baseline(counts, path=None):
+    """Write the baseline atomically so an interrupted run cannot truncate it.
+
+    The destination is resolved at call time rather than bound as a default, so
+    that it honours the module attribute.
+    """
+    path = Path(path) if path is not None else BASELINE_PATH
+    payload = json.dumps(counts, indent=2, sort_keys=True) + "\n"
+    handle, tmp_name = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w") as tmp:
+            tmp.write(payload)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
 
 
 class Command(BaseCommand):
@@ -51,12 +71,17 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        tolerance = options["tolerance"]
+        if not 0 <= tolerance < 1:
+            raise CommandError(
+                f"--tolerance must be at least 0 and below 1, got {tolerance}"
+            )
+
         presets = WORKFLOW_PRESETS
         if options["preset"]:
             presets = [p for p in presets if p["id"] == options["preset"]]
             if not presets:
-                self.stderr.write(f"No preset with id {options['preset']!r}")
-                return
+                raise CommandError(f"No preset with id {options['preset']!r}")
 
         baseline = {}
         if BASELINE_PATH.exists():
@@ -76,7 +101,9 @@ class Command(BaseCommand):
 
             errors = outcome.get("errors") or {}
             phases = outcome.get("phases") or {}
-            counts = [(pid, len(data.get("nodes") or [])) for pid, data in phases.items()]
+            counts = [
+                (pid, len(data.get("nodes") or [])) for pid, data in phases.items()
+            ]
             terminal = counts[-1][1] if counts else 0
             results[preset_id] = terminal
 
@@ -101,11 +128,11 @@ class Command(BaseCommand):
                 self.stdout.write(f"EMPTY {preset_id}  [{trail}]")
             else:
                 expected = baseline.get(preset_id)
-                floor = expected * (1 - options["tolerance"]) if expected else None
+                floor = expected * (1 - tolerance) if expected else None
                 if floor is not None and terminal < floor:
                     failures.append(
                         f"{preset_id}: {terminal} nodes, baseline {expected} "
-                        f"(below the {options['tolerance']:.0%} tolerance)"
+                        f"(below the {tolerance:.0%} tolerance)"
                     )
                     self.stdout.write(
                         f"DROP  {preset_id}  [{trail}]  baseline {expected}"
@@ -114,10 +141,23 @@ class Command(BaseCommand):
                     self.stdout.write(f"ok    {preset_id}  [{trail}]")
 
         if options["update_baseline"]:
-            BASELINE_PATH.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n")
+            # Recording a broken sweep would bake the breakage in as the number
+            # to beat, so the next run would report success.
+            if failures:
+                for failure in failures:
+                    self.stderr.write(f"  {failure}")
+                raise CommandError(
+                    "Refusing to update the baseline while "
+                    f"{len(failures)} preset(s) need attention"
+                )
+            # Merge rather than replace: --preset sweeps one id, and writing
+            # only that entry would drop every other preset's baseline.
+            merged = {**baseline, **results}
+            _write_baseline(merged)
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"\nWrote baseline for {len(results)} presets to {BASELINE_PATH.name}"
+                    f"\nRecorded {len(results)} preset(s) in {BASELINE_PATH.name} "
+                    f"({len(merged)} total)"
                 )
             )
             return

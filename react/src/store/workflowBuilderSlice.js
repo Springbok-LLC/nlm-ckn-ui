@@ -417,11 +417,20 @@ export const executePhase = createAsyncThunk(
       // Drop nulls before anything downstream reads a property off a node.
       // A backend that still unions an unresolved DOCUMENT() lookup into its
       // result answers with a null entry whenever an origin id has been
-      // retired, which is routine after a key-format change.
-      const graphsArray = Object.values(rawData).map((data) => ({
-        nodes: (data.nodes || []).filter(Boolean),
-        links: (data.links || []).filter(Boolean),
-      }));
+      // retired, which is routine after a key-format change. Sanitize the
+      // whole response, not just the merged graphs: the "Intersection with
+      // Origins" branch below reads these entries by origin id.
+      const sanitizedRawData = Object.fromEntries(
+        Object.entries(rawData).map(([originId, data]) => [
+          originId,
+          {
+            nodes: (data.nodes || []).filter(Boolean),
+            links: (data.links || []).filter(Boolean),
+          },
+        ]),
+      );
+
+      const graphsArray = Object.values(sanitizedRawData);
 
       mergedResult = performSetOperation(
         graphsArray,
@@ -438,7 +447,7 @@ export const executePhase = createAsyncThunk(
 
         for (const originId of originNodeIds) {
           if (existingIds.has(originId)) continue;
-          const originData = rawData[originId];
+          const originData = sanitizedRawData[originId];
           if (originData) {
             const originNode = originData.nodes?.find((n) => (n._id || n.id) === originId);
             if (originNode) {
@@ -448,7 +457,7 @@ export const executePhase = createAsyncThunk(
           }
         }
 
-        for (const data of Object.values(rawData)) {
+        for (const data of Object.values(sanitizedRawData)) {
           for (const link of data.links || []) {
             const key = link._id || `${link._from}->${link._to}`;
             if (linkKeys.has(key)) continue;
