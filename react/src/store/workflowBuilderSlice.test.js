@@ -416,3 +416,51 @@ describe("executePhase caps collection origins at originLimit", () => {
     expect(Object.keys(params.advancedSettings)).toHaveLength(2);
   });
 });
+
+describe("executePhase drops null nodes from server responses", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // A retired origin id makes the backend's DOCUMENT() lookup yield null, and
+  // older deployments still ship that null inside the node list. Anything that
+  // reads a property off each node (the results table does) dies on it, so the
+  // store drops nulls before they reach the reducers.
+  it("filters nulls out of the phase result", async () => {
+    services.fetchGraphData.mockResolvedValue({
+      "CSD/retired": {
+        nodes: [null, { _id: "CL/real" }],
+        links: [null, { _id: "CL-CL/e1", _from: "CL/real", _to: "CL/real" }],
+      },
+    });
+    services.fetchEdgesBetween.mockResolvedValue([]);
+
+    const store = makeStore();
+    store.dispatch(
+      loadWorkflow({
+        phases: [
+          {
+            id: "p1",
+            originSource: "manual",
+            originNodeIds: ["CSD/retired"],
+            previousPhaseId: null,
+            settings: {
+              graphType: "phenotypes",
+              depth: 1,
+              edgeDirection: "INBOUND",
+              allowedCollections: ["CL"],
+              setOperation: "Union",
+              includeInterNodeEdges: false,
+            },
+          },
+        ],
+      }),
+    );
+
+    const action = await store.dispatch(executePhase({ phaseId: "p1" }));
+
+    expect(action.payload.result.nodes).not.toContain(null);
+    expect(action.payload.result.links).not.toContain(null);
+    expect(action.payload.result.nodes).toEqual([{ _id: "CL/real" }]);
+  });
+});

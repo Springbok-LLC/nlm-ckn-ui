@@ -414,9 +414,13 @@ export const executePhase = createAsyncThunk(
 
       const rawData = await fetchGraphData(params);
 
+      // Drop nulls before anything downstream reads a property off a node.
+      // A backend that still unions an unresolved DOCUMENT() lookup into its
+      // result answers with a null entry whenever an origin id has been
+      // retired, which is routine after a key-format change.
       const graphsArray = Object.values(rawData).map((data) => ({
-        nodes: data.nodes || [],
-        links: data.links || [],
+        nodes: (data.nodes || []).filter(Boolean),
+        links: (data.links || []).filter(Boolean),
       }));
 
       mergedResult = performSetOperation(
