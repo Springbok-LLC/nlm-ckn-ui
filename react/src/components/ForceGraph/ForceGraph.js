@@ -1001,8 +1001,22 @@ const ForceGraph = ({
       ? settings.allowedCollections.filter((n) => n !== name)
       : [...settings.allowedCollections, name];
     handleSettingChange("allowedCollections", newAllowed);
+    // A collection that is no longer traversed cannot be terminal.
+    const currentTerminal = settings.terminalCollections || [];
+    const newTerminal = currentTerminal.filter((n) => newAllowed.includes(n));
+    if (newTerminal.length !== currentTerminal.length) {
+      handleSettingChange("terminalCollections", newTerminal);
+    }
   };
   const handleCollectionsClearAll = () => handleSettingChange("allowedCollections", []);
+  const handleTerminalCollectionChange = (name) => {
+    const current = settings.terminalCollections || [];
+    const newTerminal = current.includes(name)
+      ? current.filter((n) => n !== name)
+      : [...current, name];
+    handleSettingChange("terminalCollections", newTerminal);
+  };
+  const handleTerminalCollectionsClearAll = () => handleSettingChange("terminalCollections", []);
   const handleLabelToggle = (labelClass) => {
     const newLabelStates = {
       ...settings.labelStates,
@@ -1702,6 +1716,8 @@ const ForceGraph = ({
                     edgeFilterStatus={edgeFilterStatus}
                     onCollectionChange={handleCollectionChange}
                     onCollectionsClearAll={handleCollectionsClearAll}
+                    onTerminalCollectionChange={handleTerminalCollectionChange}
+                    onTerminalCollectionsClearAll={handleTerminalCollectionsClearAll}
                     graphLinks={graphData.links}
                   />
                 )}
