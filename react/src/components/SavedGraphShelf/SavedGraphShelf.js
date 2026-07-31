@@ -29,7 +29,11 @@ const SavedGraphShelf = () => {
         // name — a title on the non-interactive card is not keyboard-reachable
         // and is announced inconsistently — with the title kept alongside it as
         // a hover affordance for sighted users.
-        const capturedAt = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : undefined;
+        const parsedTimestamp = entry.timestamp == null ? undefined : new Date(entry.timestamp);
+        const capturedAt =
+          parsedTimestamp && !Number.isNaN(parsedTimestamp.getTime())
+            ? parsedTimestamp.toLocaleString()
+            : undefined;
         const restoreLabel = capturedAt
           ? `Restore ${entry.label}, captured ${capturedAt}`
           : `Restore ${entry.label}`;
@@ -51,7 +55,12 @@ const SavedGraphShelf = () => {
                 <span className="thumb-placeholder" />
               )}
             </button>
-            <button type="button" className="saved-graph-card-title" onClick={restore}>
+            <button
+              type="button"
+              className="saved-graph-card-title"
+              aria-label={restoreLabel}
+              onClick={restore}
+            >
               {entry.label}
             </button>
             <button

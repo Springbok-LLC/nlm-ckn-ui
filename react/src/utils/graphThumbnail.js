@@ -105,7 +105,7 @@ export const captureGraphThumbnail = async (svgElement, { width = 240, height = 
       const content = measureGraphContent(svgElement);
       measurementAvailable = content.available;
       box = content.box;
-      if (!box && typeof svgElement.getBBox === "function") {
+      if (!measurementAvailable && typeof svgElement.getBBox === "function") {
         measurementAvailable = true;
         const svgBox = svgElement.getBBox();
         if (svgBox && svgBox.width > 0 && svgBox.height > 0) box = svgBox;

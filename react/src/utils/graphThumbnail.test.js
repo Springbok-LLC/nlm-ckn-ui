@@ -136,6 +136,27 @@ describe("captureGraphThumbnail", () => {
     expect(decodeURIComponent(url)).toContain('viewBox="0 0 100 100"');
   });
 
+  it("returns null for a legend-only SVG instead of a blank thumbnail framed on the original element", async () => {
+    // Content-only measurement runs (an empty zoom container group offers a
+    // zero-size box, so measurement is available but finds nothing) and must
+    // not fall back to measuring the whole live SVG's getBBox — that still
+    // includes the legend (removed only from the clone, not the live
+    // element), so it would yield a non-empty box and skip the "nothing to
+    // serialize" guard, producing a blank-but-truthy thumbnail framed on a
+    // legend that isn't even in the clone.
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const content = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    content.getBBox = () => ({ x: 0, y: 0, width: 0, height: 0 });
+    const legend = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    legend.setAttribute("class", "legend");
+    legend.getBBox = () => ({ x: 0, y: 0, width: 50, height: 50 });
+    svg.appendChild(content);
+    svg.appendChild(legend);
+    svg.getBBox = () => ({ x: 0, y: 0, width: 50, height: 50 });
+
+    await expect(captureGraphThumbnail(svg)).resolves.toBeNull();
+  });
+
   it("honors custom width/height options on the framed clone", async () => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const url = await captureGraphThumbnail(svg, { width: 300, height: 200 });
