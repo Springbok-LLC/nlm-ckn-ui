@@ -268,6 +268,16 @@ const ForceGraph = ({
       }
     }
 
+    // Not intersected with availableCollections: an unmatched name is inert
+    // (the collection is never visited, so there is nothing to prune), and
+    // intersecting would silently drop the marker if a dataset lacked it.
+    const incomingTerminal = settingsFromProps.terminalCollections;
+    if (Array.isArray(incomingTerminal)) {
+      if (JSON.stringify(incomingTerminal) !== JSON.stringify(settings.terminalCollections)) {
+        dispatch(updateSetting({ setting: "terminalCollections", value: incomingTerminal }));
+      }
+    }
+
     const { depth, edgeDirection, collapseOnStart, preferredPredicates } = settingsFromProps;
     if (typeof depth === "number" && depth !== settings.depth) {
       dispatch(updateSetting({ setting: "depth", value: depth }));
@@ -298,6 +308,7 @@ const ForceGraph = ({
     settings.graphType,
     settings.availableCollections,
     settings.allowedCollections,
+    settings.terminalCollections,
     settings.depth,
     settings.edgeDirection,
     settings.collapseOnStart,

@@ -595,4 +595,37 @@ describe("ForceGraph", () => {
       expect(finalSettings.terminalCollections).toEqual(["GO"]);
     });
   });
+
+  describe("terminal collections from page defaults", () => {
+    it("applies settingsFromProps.terminalCollections to the store", async () => {
+      const store = createTestStore();
+      store.dispatch(setAvailableCollections(["BGS", "CS", "UBERON", "CSD"]));
+
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph
+                  settings={{
+                    graphType: "phenotypes",
+                    depth: 3,
+                    allowedCollections: ["BGS", "CS", "UBERON", "CSD"],
+                    terminalCollections: ["UBERON", "CSD"],
+                  }}
+                />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+
+      await waitFor(() => {
+        expect(store.getState().graph.present.settings.terminalCollections).toEqual([
+          "UBERON",
+          "CSD",
+        ]);
+      });
+    });
+  });
 });
