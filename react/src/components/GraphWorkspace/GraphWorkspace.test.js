@@ -6,14 +6,27 @@ import graphReducer, { clearGraphData, initializeGraph } from "store/graphSlice"
 import savedGraphsReducer from "store/savedGraphsSlice";
 
 // Stub heavy children so the test targets composition + selection wiring.
-jest.mock("components/ForceGraph/ForceGraph", () => ({ onNodeSelect, title }) => (
-  <div>
-    <span data-testid="graph-title">{title}</span>
-    <button type="button" onClick={() => onNodeSelect("CS/clicked")}>
-      graph
-    </button>
-  </div>
-));
+jest.mock(
+  "components/ForceGraph/ForceGraph",
+  () =>
+    ({ onNodeSelect, title, originsOpen, onToggleOrigins }) => (
+      <div>
+        <span data-testid="graph-title">{title}</span>
+        <button type="button" onClick={() => onNodeSelect("CS/clicked")}>
+          graph
+        </button>
+        {/* Stands in for the canvas origins action icon the real graph renders. */}
+        {onToggleOrigins && (
+          <button
+            type="button"
+            aria-label="Origins (0)"
+            aria-pressed={originsOpen}
+            onClick={onToggleOrigins}
+          />
+        )}
+      </div>
+    ),
+);
 jest.mock("components/NodeInspector", () => ({ selectedNodeId, originDocument }) => (
   <div
     data-testid="inspector"
@@ -221,11 +234,11 @@ describe("GraphWorkspace", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("CSD/origin");
   });
 
-  it("toggles the origins panel open and closed", () => {
+  it("toggles the origins panel open and closed from the canvas action", () => {
     renderWorkspace();
     // Panel starts closed.
     expect(screen.queryByRole("complementary", { name: /current origins/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /^origins$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^origins \(\d+\)$/i }));
     expect(screen.getByRole("complementary", { name: /current origins/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /close origins panel/i }));
     expect(screen.queryByRole("complementary", { name: /current origins/i })).toBeNull();

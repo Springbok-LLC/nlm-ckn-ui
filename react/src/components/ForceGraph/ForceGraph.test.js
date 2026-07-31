@@ -37,6 +37,9 @@ if (!global.URL.revokeObjectURL) {
 let capturedOnNodeClick = null;
 // Capture the onSimulationEnd callback so tests can drive a settle directly
 let capturedOnSimulationEnd = null;
+// Capture the full options object so tests can drive callbacks the D3 layer
+// would normally fire (e.g. onLassoSelection at the end of a lasso drag).
+let capturedOpts = null;
 
 const mockGraphInstance = {
   updateGraph: jest.fn(),
@@ -50,6 +53,8 @@ const mockGraphInstance = {
   resize: jest.fn(),
   getCurrentGraph: jest.fn(() => null),
   isDragging: jest.fn(() => false),
+  setLassoMode: jest.fn(),
+  setSelectedNodeIds: jest.fn(),
 };
 
 jest.mock("components/ForceGraphConstructor/ForceGraphConstructor", () => ({
@@ -150,10 +155,12 @@ describe("ForceGraph", () => {
   beforeEach(() => {
     capturedOnNodeClick = null;
     capturedOnSimulationEnd = null;
+    capturedOpts = null;
     // Set up ForceGraphConstructor to capture callbacks and return the mock instance
     ForceGraphConstructorMock.mockImplementation((_svg, _data, opts) => {
       capturedOnNodeClick = opts.onNodeClick;
       capturedOnSimulationEnd = opts.onSimulationEnd;
+      capturedOpts = opts;
       return mockGraphInstance;
     });
     // Reset mock call counts
@@ -171,6 +178,30 @@ describe("ForceGraph", () => {
     fetchNeighborCollections.mockResolvedValue([]);
     // Re-arm the thumbnail mock (resetMocks clears implementations between tests)
     captureGraphThumbnail.mockImplementation(() => Promise.resolve("mock-thumbnail"));
+  });
+
+  // The canvas actions are icon-only, so the hover/focus note is the only thing
+  // explaining them. data-tooltip drives the CSS bubble; aria-label stays the
+  // accessible name. No native `title`, or the browser draws a second tooltip.
+  it("gives every canvas action a hover note and no native title", () => {
+    render(
+      <Provider store={createTestStore()}>
+        <ForceGraph onToggleOrigins={() => {}} />
+      </Provider>,
+    );
+
+    const expected = [
+      [/^origins \(\d+\)$/i, /^Origins \(\d+\)$/],
+      [/^full screen$/i, /^Full screen/],
+      [/^lasso select$/i, /select multiple nodes/i],
+      [/^download graph$/i, /^Download graph/],
+    ];
+
+    for (const [name, tooltip] of expected) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("data-tooltip", expect.stringMatching(tooltip));
+      expect(button).not.toHaveAttribute("title");
+    }
   });
 
   it("Should toggle options when toggle options button is clicked", () => {
@@ -228,6 +259,73 @@ describe("ForceGraph", () => {
     const exportMock = useGraphExport.mock.results.at(-1).value;
     fireEvent.click(downloadButton);
     expect(exportMock).toHaveBeenCalledWith("png");
+  });
+
+  // The lasso auto-exits after a plain drag so pan/zoom resumes, but a
+  // shift-drag means "keep adding" — disarming there strands the user, because
+  // the next shift-drag is gated out by isEnabled() and gets handled by the
+  // zoom behavior as a pan instead.
+  describe("lasso selection", () => {
+    const renderArmed = () => {
+      const store = createStoreWithCollections();
+      render(
+        <Provider store={store}>
+          <ForceGraph title="Test Graph Title" />
+        </Provider>,
+      );
+      const lassoButton = () => screen.getByRole("button", { name: /lasso select/i });
+      fireEvent.click(lassoButton());
+      return { store, lassoButton };
+    };
+
+    it("stays armed after a shift-drag so consecutive drags accumulate", () => {
+      const { store, lassoButton } = renderArmed();
+      expect(lassoButton()).toHaveAttribute("aria-pressed", "true");
+      const callsAtArming = mockGraphInstance.setLassoMode.mock.calls.length;
+
+      act(() => {
+        capturedOpts.onLassoSelection(["CL/A"], { shift: true });
+      });
+      expect(store.getState().graph.present.lassoSelectedNodeIds).toEqual(["CL/A"]);
+      // Still armed — without this the next shift-drag never reaches the lasso.
+      expect(lassoButton()).toHaveAttribute("aria-pressed", "true");
+      // And the D3 layer was never disarmed. Assert on what happened SINCE
+      // arming: staying armed is a no-op state update that React bails out of,
+      // so there is no fresh setLassoMode(true) call to look for — checking the
+      // last call would just re-read the arming click and pass vacuously.
+      const sinceArming = mockGraphInstance.setLassoMode.mock.calls.slice(callsAtArming).flat();
+      expect(sinceArming).not.toContain(false);
+
+      // A second shift-drag, with no re-arming click in between.
+      act(() => {
+        capturedOpts.onLassoSelection(["CL/B"], { shift: true });
+      });
+      expect(store.getState().graph.present.lassoSelectedNodeIds).toEqual(["CL/A", "CL/B"]);
+    });
+
+    it("exits lasso mode after a plain drag so pan and zoom resume", () => {
+      const { store, lassoButton } = renderArmed();
+
+      act(() => {
+        capturedOpts.onLassoSelection(["CL/A"], { shift: false });
+      });
+      expect(store.getState().graph.present.lassoSelectedNodeIds).toEqual(["CL/A"]);
+      expect(lassoButton()).toHaveAttribute("aria-pressed", "false");
+      expect(mockGraphInstance.setLassoMode).toHaveBeenLastCalledWith(false);
+    });
+
+    it("replaces the selection on a plain drag after a shift-drag", () => {
+      const { store, lassoButton } = renderArmed();
+
+      act(() => {
+        capturedOpts.onLassoSelection(["CL/A"], { shift: true });
+      });
+      act(() => {
+        capturedOpts.onLassoSelection(["CL/B"], { shift: false });
+      });
+      expect(store.getState().graph.present.lassoSelectedNodeIds).toEqual(["CL/B"]);
+      expect(lassoButton()).toHaveAttribute("aria-pressed", "false");
+    });
   });
 
   describe("Expand by Collection submenu", () => {
