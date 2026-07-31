@@ -502,9 +502,6 @@ describe("ForceGraph", () => {
       expect(entryA.thumbnail).toBe("thumbnail-A");
       expect(store.getState().savedGraphs.activeHistoryId).toBe(entryA.id);
 
-      // The freeze takes its own capture of the outgoing graph before
-      // detaching A, so it consumes a queued implementation first.
-      captureGraphThumbnail.mockImplementationOnce(() => Promise.resolve("thumbnail-A-freeze"));
       // B's own capture is also held open, so its addHistoryEntry cannot
       // land (and re-point activeHistoryId) as a side channel either.
       let resolveThumbnailB;
@@ -538,8 +535,7 @@ describe("ForceGraph", () => {
       expect(selectOriginHistory(store.getState())).toHaveLength(1);
       const afterFreeze = selectOriginHistory(store.getState()).find((e) => e.id === entryA.id);
       expect(afterFreeze.subgraph.nodes.map((n) => n._id)).toEqual([originA._id]);
-      // Re-pictured by the freeze; the settle intercepted above never reached it.
-      expect(afterFreeze.thumbnail).toBe("thumbnail-A-freeze");
+      expect(afterFreeze.thumbnail).toBe("thumbnail-A");
 
       // Let B's capture resolve and its entry land.
       await act(async () => {
@@ -554,138 +550,6 @@ describe("ForceGraph", () => {
       expect(entryB.thumbnail).toBe("thumbnail-B");
       expect(entryB.id).not.toBe(entryA.id);
       expect(store.getState().savedGraphs.activeHistoryId).toBe(entryB.id);
-    });
-
-    it("gives a frozen card a freeze-time capture of the outgoing graph", async () => {
-      // The creation-time capture is taken in the same commit as the D3 join,
-      // before any tick has painted node positions, so it is effectively an
-      // empty picture. What used to repair it was the simulation-settle sync —
-      // which the freeze deliberately stops. So the freeze itself has to carry
-      // the picture: at that instant the SVG still shows the outgoing graph,
-      // painted. If the user changes origins before the graph ever settles
-      // (the common case while it is still jiggling), this is the only
-      // accurate capture card A will ever get.
-      const store = createStoreWithCollections();
-      const originA = { _id: "CL/0001", id: "CL/0001" };
-      const originB = { _id: "CL/0002", id: "CL/0002" };
-      let captureCount = 0;
-      captureGraphThumbnail.mockImplementation(() => {
-        captureCount += 1;
-        return Promise.resolve(`capture-${captureCount}`);
-      });
-
-      await act(async () => {
-        render(
-          <Provider store={store}>
-            <MemoryRouter>
-              <ToastProvider>
-                <ForceGraph />
-              </ToastProvider>
-            </MemoryRouter>
-          </Provider>,
-        );
-      });
-      await act(async () => {
-        store.dispatch(
-          setGraphData({
-            graphData: { nodes: [originA], links: [] },
-            originNodeIds: [originA._id],
-          }),
-        );
-      });
-      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(1));
-      const entryA = selectOriginHistory(store.getState())[0];
-      expect(entryA.thumbnail).toBe("capture-1"); // the pre-paint creation capture
-
-      // Change the origin set with no settle in between — nothing else can
-      // ever update card A after this point.
-      await act(async () => {
-        store.dispatch(
-          setGraphData({
-            graphData: { nodes: [originA, originB], links: [] },
-            originNodeIds: [originA._id, originB._id],
-          }),
-        );
-      });
-
-      const frozenA = selectOriginHistory(store.getState()).find((e) => e.id === entryA.id);
-      expect(frozenA.thumbnail).toBe("capture-2"); // taken at the freeze
-      expect(frozenA.thumbnail).not.toBe("capture-1");
-      // The freeze only re-pictures the card; its graph still describes A alone.
-      expect(frozenA.subgraph.nodes.map((n) => n._id)).toEqual([originA._id]);
-      expect(store.getState().savedGraphs.activeHistoryId).not.toBe(entryA.id);
-    });
-
-    it("freezes before the D3 render effect repaints, so the capture is of the outgoing graph", async () => {
-      // Pins effect declaration order. React runs effects in declaration order,
-      // so the origin-transition effect must be declared *above* the D3 render
-      // effect: the freeze-time capture is taken synchronously and would
-      // otherwise snapshot a half-joined new graph rather than the outgoing
-      // one. Reordering the two effects must fail here, loudly.
-      const sequence = [];
-      const orderRecordingMiddleware = () => (next) => (action) => {
-        if (action.type === setActiveHistory.type && action.payload === null) {
-          sequence.push("freeze");
-        }
-        return next(action);
-      };
-      const store = configureStore({
-        reducer: {
-          graph: graphReducer,
-          nodesSlice: nodesReducer,
-          savedGraphs: savedGraphsReducer,
-        },
-        middleware: (getDefaultMiddleware) =>
-          getDefaultMiddleware().concat(orderRecordingMiddleware),
-      });
-      store.dispatch(setAvailableCollections(["CL", "UBERON", "GO"]));
-      mockGraphInstance.updateGraph.mockImplementation(() => {
-        sequence.push("updateGraph");
-      });
-      captureGraphThumbnail.mockImplementation(() => {
-        sequence.push("capture");
-        return Promise.resolve("mock-thumbnail");
-      });
-
-      const originA = { _id: "CL/0001", id: "CL/0001" };
-      const originB = { _id: "CL/0002", id: "CL/0002" };
-      await act(async () => {
-        render(
-          <Provider store={store}>
-            <MemoryRouter>
-              <ToastProvider>
-                <ForceGraph />
-              </ToastProvider>
-            </MemoryRouter>
-          </Provider>,
-        );
-      });
-      await act(async () => {
-        store.dispatch(
-          setGraphData({
-            graphData: { nodes: [originA], links: [] },
-            originNodeIds: [originA._id],
-          }),
-        );
-      });
-      await waitFor(() => expect(selectOriginHistory(store.getState())).toHaveLength(1));
-
-      sequence.length = 0; // only the origin transition below is under test
-      await act(async () => {
-        store.dispatch(
-          setGraphData({
-            graphData: { nodes: [originA, originB], links: [] },
-            originNodeIds: [originA._id, originB._id],
-          }),
-        );
-      });
-
-      expect(sequence).toContain("freeze");
-      expect(sequence).toContain("updateGraph");
-      // The freeze — and the synchronous capture that precedes its detach —
-      // both land before the new graph is joined into the DOM.
-      expect(sequence.indexOf("freeze")).toBeLessThan(sequence.indexOf("updateGraph"));
-      expect(sequence.indexOf("capture")).toBeLessThan(sequence.indexOf("freeze"));
     });
 
     it("freezes and leaves nothing active when an origin is removed", async () => {
@@ -1224,9 +1088,6 @@ describe("ForceGraph", () => {
       });
 
       // While it is in flight, compose in B: A freezes and B's card takes over.
-      // The freeze takes its own capture of the outgoing graph first, so it
-      // consumes a queued implementation ahead of B's creation capture.
-      captureGraphThumbnail.mockImplementationOnce(() => Promise.resolve("thumbnail-A-freeze"));
       captureGraphThumbnail.mockImplementationOnce(() => Promise.resolve("thumbnail-B"));
       await act(async () => {
         store.dispatch(
@@ -1249,9 +1110,7 @@ describe("ForceGraph", () => {
       const finalA = selectOriginHistory(store.getState()).find((e) => e.id === entryA.id);
       const finalB = selectOriginHistory(store.getState()).find((e) => e.id === entryB.id);
       expect(finalA.subgraph.nodes[0].x).toBeUndefined();
-      // A holds its freeze-time picture of the outgoing graph — never the
-      // stale settle's.
-      expect(finalA.thumbnail).toBe("thumbnail-A-freeze");
+      expect(finalA.thumbnail).toBe("thumbnail-A");
       expect(finalB.subgraph.nodes.map((n) => n._id)).toEqual([originA._id, originB._id]);
       expect(finalB.thumbnail).toBe("thumbnail-B");
     });

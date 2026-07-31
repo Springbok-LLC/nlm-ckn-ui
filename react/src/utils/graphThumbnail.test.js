@@ -104,6 +104,38 @@ describe("captureGraphThumbnail", () => {
     expect(markup).toContain('viewBox="9 39 232 116"');
   });
 
+  it("returns null when measurement finds no graph content", async () => {
+    // A freshly mounted (or just-cleared) workspace SVG holds only its
+    // <title>: measurement is available and reports nothing measurable.
+    // Serializing that would yield a truthy but blank data URL, which callers
+    // would happily store over a card's good thumbnail.
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = "Graph";
+    svg.appendChild(title);
+    svg.getBBox = () => ({ x: 0, y: 0, width: 0, height: 0 });
+
+    await expect(captureGraphThumbnail(svg)).resolves.toBeNull();
+  });
+
+  it("still serializes when bounding-box measurement is unavailable", async () => {
+    // "Measured and found nothing" is not the same as "could not measure": an
+    // environment where getBBox is unsupported or throws still has a graph, so
+    // it keeps the existing viewBox fallback rather than losing the thumbnail.
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    const content = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    content.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "circle"));
+    svg.appendChild(content);
+    svg.getBBox = () => {
+      throw new Error("getBBox unsupported");
+    };
+
+    const url = await captureGraphThumbnail(svg);
+    expect(url).toMatch(/^data:image\/svg\+xml/);
+    expect(decodeURIComponent(url)).toContain('viewBox="0 0 100 100"');
+  });
+
   it("honors custom width/height options on the framed clone", async () => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const url = await captureGraphThumbnail(svg, { width: 300, height: 200 });

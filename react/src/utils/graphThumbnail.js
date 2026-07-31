@@ -22,11 +22,17 @@ const mapPoint = (matrix, x, y) =>
  * carries the pan/zoom transform), so each box is mapped through the child's
  * own transform before being unioned.
  *
+ * Distinguishes "could not measure" from "measured and found nothing": the
+ * caller treats an empty graph as no thumbnail at all, but an environment that
+ * cannot measure (getBBox unsupported) still has to fall back and serialize.
+ *
  * @param {SVGElement} svgElement
- * @returns {{x: number, y: number, width: number, height: number}|null} null
- *   when nothing measurable is present.
+ * @returns {{available: boolean, box: {x: number, y: number, width: number,
+ *   height: number}|null}} `available` is true when at least one child offered
+ *   a bounding box; `box` is null when nothing measurable was found.
  */
 const measureGraphContent = (svgElement) => {
+  let available = false;
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -36,6 +42,7 @@ const measureGraphContent = (svgElement) => {
     if (child.nodeType !== 1) continue;
     if (typeof child.matches === "function" && child.matches(LEGEND_SELECTOR)) continue;
     if (typeof child.getBBox !== "function") continue;
+    available = true;
     const box = child.getBBox();
     if (!box || !(box.width > 0) || !(box.height > 0)) continue;
     const matrix = child.transform?.baseVal?.consolidate?.()?.matrix ?? null;
@@ -53,19 +60,16 @@ const measureGraphContent = (svgElement) => {
     }
   }
 
-  if (!Number.isFinite(minX) || !(maxX > minX) || !(maxY > minY)) return null;
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  if (!Number.isFinite(minX) || !(maxX > minX) || !(maxY > minY)) return { available, box: null };
+  return { available, box: { x: minX, y: minY, width: maxX - minX, height: maxY - minY } };
 };
 
 /**
  * Serializes an SVG element into an inline data URL for use as a saved-graph
  * thumbnail. The legend is stripped from the copy. Best-effort: returns null
- * instead of throwing on any failure.
- *
- * The clone and serialization run synchronously despite the async signature
- * (there is no await before them), so the returned data URL describes the DOM
- * exactly as it stood at the moment of the call. Callers rely on that to
- * snapshot an outgoing graph before it is replaced.
+ * instead of throwing on any failure, and also when the SVG measurably holds no
+ * graph — a blank picture is worse than none, since callers store whatever they
+ * are given.
  *
  * @param {SVGElement|null} svgElement
  * @param {{ width?: number, height?: number }} [opts]
@@ -95,20 +99,39 @@ export const captureGraphThumbnail = async (svgElement, { width = 240, height = 
     // leave a reserved gap. Falls back to whole-SVG measurement, and then to
     // the clone's existing viewBox, when bounding-box measurement isn't
     // available (e.g. the element isn't laid out, or getBBox is unsupported).
+    let measurementAvailable = false;
+    let box = null;
     try {
-      const box =
-        measureGraphContent(svgElement) ??
-        (typeof svgElement.getBBox === "function" ? svgElement.getBBox() : null);
-      if (box && box.width > 0 && box.height > 0) {
-        const padX = box.width * 0.08;
-        const padY = box.height * 0.08;
-        clone.setAttribute(
-          "viewBox",
-          `${box.x - padX} ${box.y - padY} ${box.width + 2 * padX} ${box.height + 2 * padY}`,
-        );
+      const content = measureGraphContent(svgElement);
+      measurementAvailable = content.available;
+      box = content.box;
+      if (!box && typeof svgElement.getBBox === "function") {
+        measurementAvailable = true;
+        const svgBox = svgElement.getBBox();
+        if (svgBox && svgBox.width > 0 && svgBox.height > 0) box = svgBox;
       }
     } catch {
-      // Keep the clone's existing viewBox.
+      // Measurement is unavailable rather than empty; keep the clone's
+      // existing viewBox.
+      measurementAvailable = false;
+      box = null;
+    }
+
+    // Measured, and there is nothing there: the SVG holds no graph (a fresh or
+    // just-cleared workspace). Serializing it would return a truthy but blank
+    // data URL, and every caller stores what it gets — so a blank capture would
+    // replace a card's good picture. Report "no thumbnail" instead. Measurement
+    // being merely *unavailable* is different: the graph may well be there, so
+    // that case still serializes with the viewBox fallback below.
+    if (measurementAvailable && !box) return null;
+
+    if (box) {
+      const padX = box.width * 0.08;
+      const padY = box.height * 0.08;
+      clone.setAttribute(
+        "viewBox",
+        `${box.x - padX} ${box.y - padY} ${box.width + 2 * padX} ${box.height + 2 * padY}`,
+      );
     }
 
     clone.setAttribute("width", String(width));
