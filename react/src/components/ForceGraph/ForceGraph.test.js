@@ -365,7 +365,10 @@ describe("ForceGraph", () => {
           expect.any(Boolean),
           expect.any(Object),
           {},
-          expect.any(Array),
+          // This store has no terminal collections set, so the exact value must
+          // be the empty list -- expect.any(Array) would pass on a wrong-slot
+          // regression that forwarded allowedCollections here.
+          [],
         );
       });
     });
@@ -594,6 +597,38 @@ describe("ForceGraph", () => {
       // of filtering out just the deselected entry.
       expect(finalSettings.terminalCollections).toEqual(["GO"]);
     });
+
+    it("clears terminalCollections when all collections are cleared", () => {
+      const store = createStoreWithCollections();
+      render(
+        <Provider store={store}>
+          <ForceGraph title="Test Graph Title" />
+        </Provider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /show options/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^filters$/i }));
+
+      const terminalInput = screen.getByPlaceholderText(/Filter by Terminal collections/i);
+      fireEvent.focus(terminalInput);
+      const terminalList = terminalInput
+        .closest(".filterable-dropdown")
+        .querySelector(".dropdown-list");
+      fireEvent.click(within(terminalList).getByText("Anatomical structure"));
+      expect(store.getState().graph.present.settings.terminalCollections).toEqual(["UBERON"]);
+
+      // "Clear all" on the Collections control: nothing is traversed any more,
+      // so no collection can be terminal either. Otherwise stale terminal pills
+      // render against an empty option list.
+      const collectionsWrapper = screen
+        .getByPlaceholderText(/^Filter by Collections/i)
+        .closest(".filterable-dropdown");
+      fireEvent.click(within(collectionsWrapper).getByRole("button", { name: /clear all/i }));
+
+      const finalSettings = store.getState().graph.present.settings;
+      expect(finalSettings.allowedCollections).toEqual([]);
+      expect(finalSettings.terminalCollections).toEqual([]);
+    });
   });
 
   describe("terminal collections from page defaults", () => {
@@ -625,6 +660,60 @@ describe("ForceGraph", () => {
           "UBERON",
           "CSD",
         ]);
+      });
+    });
+
+    it("resets terminalCollections when the next page's defaults omit the key", async () => {
+      // Redux settings are not reset between document pages, and GS is the only
+      // entry in collection-defaults.json that carries terminalCollections. An
+      // absent key must therefore mean "none", not "keep the previous page's".
+      const store = createTestStore();
+      store.dispatch(setAvailableCollections(["BGS", "CS", "UBERON", "CSD"]));
+
+      const renderWith = (settings) =>
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph settings={settings} />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+
+      let view;
+      await act(async () => {
+        view = renderWith({
+          graphType: "phenotypes",
+          depth: 3,
+          allowedCollections: ["BGS", "CS", "UBERON", "CSD"],
+          terminalCollections: ["UBERON", "CSD"],
+        });
+      });
+      await waitFor(() => {
+        expect(store.getState().graph.present.settings.terminalCollections).toEqual([
+          "UBERON",
+          "CSD",
+        ]);
+      });
+
+      // Navigate away to a page whose defaults have no terminalCollections.
+      await act(async () => {
+        view.unmount();
+      });
+      await act(async () => {
+        // The mounting page re-populates the collection list (the mocked
+        // fetchCollections resolves empty, so restore it explicitly).
+        store.dispatch(setAvailableCollections(["BGS", "CS", "UBERON", "CSD"]));
+        renderWith({
+          graphType: "phenotypes",
+          depth: 2,
+          allowedCollections: ["UBERON"],
+        });
+      });
+
+      await waitFor(() => {
+        expect(store.getState().graph.present.settings.terminalCollections).toEqual([]);
       });
     });
   });

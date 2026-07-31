@@ -44,12 +44,19 @@ describe("terminal collections", () => {
 
     await store.dispatch(expandNode({ nodeId: "UBERON/0001004" }));
 
-    // Expanding a terminal node is NOT a no-op: PRUNE never evaluates the
-    // traversal start, and at depth 1 there is no descent to stop. Guard this
-    // so nobody "fixes" it later by bypassing the setting on expansion.
+    // Expanding a node whose own collection is terminal still returns its
+    // neighbors. That is NOT automatic: ArangoDB evaluates PRUNE at depth 0
+    // too, where the edge is null, so an unguarded terminal condition prunes
+    // the start vertex and the expansion comes back empty. The backend guards
+    // the condition with `e != null`, which is what makes forwarding the
+    // setting here safe. Guard the forwarding so nobody "fixes" the empty
+    // result later by bypassing the setting on expansion instead.
     expect(mockFetchNodeExpansion).toHaveBeenCalled();
+    // fetchNodeExpansion(nodeId, graphType, allowedCollections,
+    //   includeInterNodeEdges, edgeFilters, excludeEdgeFilters, terminalCollections)
     const args = mockFetchNodeExpansion.mock.calls[0];
-    expect(args).toContainEqual(["UBERON"]);
+    expect(args[0]).toBe("UBERON/0001004");
+    expect(args[6]).toEqual(["UBERON"]);
   });
 
   it("sends an empty list rather than null when unset", async () => {

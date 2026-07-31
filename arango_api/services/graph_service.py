@@ -183,9 +183,13 @@ def traverse_graph(
         terminal_collections (list): Optional list of vertex collection names
             that are visited and returned but never expanded through. Uses
             PRUNE, which emits the matched vertex and stops descent past it.
-            The traversal start node is never evaluated by PRUNE, so an origin
-            in a terminal collection still expands normally. Cannot be combined
-            with exclude_closing_edges or require_closing_edges.
+            PRUNE is also evaluated at depth 0, where v is the traversal start
+            vertex and e is null — even when the traversal range starts at 1 —
+            and pruning there stops the traversal before it emits anything. The
+            emitted condition is therefore guarded with `e != null`, which is
+            what exempts the origin: an origin whose own collection is terminal
+            still expands normally. Cannot be combined with
+            exclude_closing_edges or require_closing_edges.
         include_inter_node_edges (bool): If True, includes edges between nodes
             in the result set. Ignored when exclude_closing_edges is active
             (the path-aware branch returns complete path links directly).
@@ -234,11 +238,18 @@ def traverse_graph(
     # node and its connecting edge appear in the result; only descent past it
     # stops. OR-composed with the edge conditions so enabling one feature does
     # not silently disable the other.
+    #
+    # The `e != null` guard is required, not cosmetic. ArangoDB evaluates PRUNE
+    # at depth 0 as well, where v is the start vertex and e is null, even though
+    # the traversal range is 1..@depth. Without the guard, starting from a vertex
+    # whose own collection is terminal prunes at depth 0 and the traversal
+    # returns no neighbors at all — measured: origin UBERON/0000004 with terminal
+    # ["UBERON"] at depth 1 returned 0 vertices unguarded vs 69 guarded.
     prune_conditions = list(negative_conditions)
     if terminal_collections:
         bind_vars["terminal_collections"] = terminal_collections
         prune_conditions.append(
-            "PARSE_COLLECTION(v._id) IN @terminal_collections"
+            "(e != null AND PARSE_COLLECTION(v._id) IN @terminal_collections)"
         )
 
     # PRUNE is emitted whenever there are conditions to act on. Both categorical
@@ -259,7 +270,10 @@ def traverse_graph(
             "Cannot set both exclude_closing_edges and require_closing_edges "
             "on one phase."
         )
-    if terminal_collections and (exclude_closing_edges or require_closing_edges):
+    # Guard on the extracted labels, not the raw dicts: callers routinely send
+    # {"Label": []} for a phase with no closing-edge filter at all, which is
+    # truthy as a dict and would raise here for no reason.
+    if terminal_collections and (exclude_labels or require_labels):
         raise ValueError(
             "terminal_collections cannot be combined with closing-edge filters; "
             "the closing-edge query needs complete fixed-depth paths and so "
