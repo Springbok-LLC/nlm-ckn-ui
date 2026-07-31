@@ -76,3 +76,46 @@ def get_dataset_labels(graph):
     # whole TTL.
     _cache[graph] = {"value": labels, "expires_at": now + CACHE_TTL_SECONDS}
     return labels
+
+
+def _default_graph(preset):
+    """The graph a phase belongs to when it does not declare one itself.
+
+    Three of the shipped presets omit graphType on a later phase and inherit it
+    from the phase that established the traversal.
+    """
+    for phase in preset.get("phases") or []:
+        graph = (phase.get("settings") or {}).get("graphType")
+        if graph:
+            return graph
+    return DEFAULT_GRAPH
+
+
+def find_unknown_labels(preset, labels_by_graph):
+    """Return the edge labels a preset filters on that the dataset lacks.
+
+    Args:
+        preset (dict): A workflow preset.
+        labels_by_graph (dict): Graph name -> the labels present in it, or None
+            when that graph could not be read.
+
+    Returns:
+        list: Sorted, deduplicated label names. Empty when the preset is valid
+        or when its graph could not be read.
+    """
+    default_graph = _default_graph(preset)
+    unknown = set()
+
+    for phase in preset.get("phases") or []:
+        settings = phase.get("settings") or {}
+        graph = settings.get("graphType") or default_graph
+        known = labels_by_graph.get(graph)
+        if known is None:
+            # Could not determine what this graph holds — do not guess.
+            continue
+        for key in LABEL_FILTER_KEYS:
+            for label in (settings.get(key) or {}).get("Label") or []:
+                if label not in known:
+                    unknown.add(label)
+
+    return sorted(unknown)

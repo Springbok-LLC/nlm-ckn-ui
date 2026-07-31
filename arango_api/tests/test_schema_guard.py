@@ -99,3 +99,90 @@ class GetDatasetLabelsTestCase(SimpleTestCase):
             with mock.patch.object(schema_guard.time, "monotonic", return_value=later):
                 schema_guard.get_dataset_labels("phenotypes")
             self.assertEqual(fake_db.aql.execute.call_count, 2)
+
+
+def _preset(*phase_settings):
+    """Build a preset dict from a list of phase `settings` dicts."""
+    return {
+        "id": "test-preset",
+        "phases": [
+            {"id": f"phase-{i}", "settings": settings}
+            for i, settings in enumerate(phase_settings)
+        ],
+    }
+
+
+class FindUnknownLabelsTestCase(SimpleTestCase):
+    KNOWN = {"phenotypes": frozenset({"IS_ABOUT", "PART_OF"})}
+
+    def test_flags_a_label_absent_from_the_dataset(self):
+        preset = _preset(
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["MEMBER_OF"]}}
+        )
+        self.assertEqual(
+            schema_guard.find_unknown_labels(preset, self.KNOWN), ["MEMBER_OF"]
+        )
+
+    def test_valid_preset_flags_nothing(self):
+        preset = _preset(
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["IS_ABOUT"]}}
+        )
+        self.assertEqual(schema_guard.find_unknown_labels(preset, self.KNOWN), [])
+
+    def test_inspects_closing_edge_filters(self):
+        preset = _preset(
+            {
+                "graphType": "phenotypes",
+                "excludeClosingEdges": {"Label": ["GONE_A"]},
+                "requireClosingEdges": {"Label": ["GONE_B"]},
+            }
+        )
+        self.assertEqual(
+            schema_guard.find_unknown_labels(preset, self.KNOWN), ["GONE_A", "GONE_B"]
+        )
+
+    def test_result_is_sorted_and_deduplicated(self):
+        preset = _preset(
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["ZED", "ALPHA"]}},
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["ALPHA"]}},
+        )
+        self.assertEqual(
+            schema_guard.find_unknown_labels(preset, self.KNOWN), ["ALPHA", "ZED"]
+        )
+
+    def test_phase_without_graph_type_inherits_the_first_declared_one(self):
+        preset = _preset(
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["IS_ABOUT"]}},
+            {"edgeFilters": {"Label": ["MEMBER_OF"]}},
+        )
+        self.assertEqual(
+            schema_guard.find_unknown_labels(preset, self.KNOWN), ["MEMBER_OF"]
+        )
+
+    def test_falls_back_to_ontologies_when_no_phase_declares_a_graph(self):
+        preset = _preset({"edgeFilters": {"Label": ["MEMBER_OF"]}})
+        labels = {"ontologies": frozenset({"PART_OF"})}
+        self.assertEqual(
+            schema_guard.find_unknown_labels(preset, labels), ["MEMBER_OF"]
+        )
+
+    def test_unreadable_graph_flags_nothing(self):
+        preset = _preset(
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["MEMBER_OF"]}}
+        )
+        self.assertEqual(
+            schema_guard.find_unknown_labels(preset, {"phenotypes": None}), []
+        )
+
+    def test_missing_graph_entry_flags_nothing(self):
+        preset = _preset(
+            {"graphType": "phenotypes", "edgeFilters": {"Label": ["MEMBER_OF"]}}
+        )
+        self.assertEqual(schema_guard.find_unknown_labels(preset, {}), [])
+
+    def test_preset_without_phases_flags_nothing(self):
+        self.assertEqual(schema_guard.find_unknown_labels({"id": "x"}, self.KNOWN), [])
+
+    def test_empty_label_list_flags_nothing(self):
+        preset = _preset({"graphType": "phenotypes", "edgeFilters": {"Label": []}})
+        self.assertEqual(schema_guard.find_unknown_labels(preset, self.KNOWN), [])
