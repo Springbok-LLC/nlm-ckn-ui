@@ -65,6 +65,10 @@ describe("captureGraphThumbnail", () => {
     const markup = decodeURIComponent(await captureGraphThumbnail(svg));
     expect(markup).toContain("<circle");
     expect(markup).not.toContain("legend");
+    // Assert the swatch element itself is gone, not just its class name: the
+    // swatch is the only rect in this fixture, so renaming the class must not
+    // be able to leave the element behind unnoticed.
+    expect(markup).not.toContain("<rect");
   });
 
   it("tight-frames on the graph content, not on the legend that is about to be dropped", async () => {
