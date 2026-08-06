@@ -690,6 +690,18 @@ class ConnectingPathsTestCase(ArangoDBTestCase):
         )
         self.assertEqual(filtered["links"], [])
 
+    def test_exclude_filter_applies_on_the_max_depth_branch(self):
+        # Exclusion builds a different predicate shape than inclusion, so the
+        # traversal branch needs its own guard: GO/0008150 is only reachable
+        # across the PARTICIPATES_IN edge, so excluding it drops every path.
+        result = graph_service.find_connecting_paths(
+            node_ids=self.MIXED_PAIR,
+            graph="ontologies",
+            max_depth=3,
+            exclude_edge_filters={"Label": ["PARTICIPATES_IN"]},
+        )
+        self.assertEqual(result["links"], [])
+
 
 class WorkflowServiceTestCase(ArangoDBTestCase):
     """Tests for workflow_service functions, focused on edge_filters propagation."""
