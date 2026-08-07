@@ -610,8 +610,14 @@ describe("executePhase resolves the nonOriginNodes originFilter", () => {
     return [...services.fetchGraphData.mock.calls[1][0].nodeIds].sort();
   };
 
-  it("drops the origin node, matching the leafNodes alias", async () => {
+  it("drops the origin node under nonOriginNodes", async () => {
     expect(await originsForPhaseTwo("nonOriginNodes")).toEqual(["CL/2", "CL/3"]);
+  });
+
+  it("drops the origin node under the leafNodes alias", async () => {
+    // Pinned separately: the two names must not drift apart, and leafNodes is
+    // the one the UI actually emits today.
+    expect(await originsForPhaseTwo("leafNodes")).toEqual(["CL/2", "CL/3"]);
   });
 
   it("keeps the origin node under the all filter", async () => {
