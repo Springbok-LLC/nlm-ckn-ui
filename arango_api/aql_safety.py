@@ -20,5 +20,10 @@ SAFE_AQL_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
 def is_safe_aql_identifier(name):
-    """True if `name` is safe to interpolate into an AQL attribute accessor."""
-    return bool(SAFE_AQL_IDENTIFIER.match(name))
+    """True if `name` is safe to interpolate into an AQL attribute accessor.
+
+    Anything that is not a string is unsafe by definition, and is reported as
+    such rather than raising: a guard that throws where a caller expects a
+    predicate invites the failure it exists to prevent.
+    """
+    return isinstance(name, str) and bool(SAFE_AQL_IDENTIFIER.match(name))
