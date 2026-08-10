@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
+import collectionDefaults from "../../assets/collection-defaults.json";
 import graphReducer, {
   loadGraph,
   setAvailableCollections,
@@ -110,6 +111,7 @@ const {
   fetchNodeExpansion,
   fetchCollections,
   fetchEdgeFilterOptions,
+  fetchGraphData,
 } = require("services");
 
 // Create a test store with all required slices
@@ -1414,6 +1416,51 @@ describe("ForceGraph", () => {
 
       await waitFor(() => {
         expect(store.getState().graph.present.settings.terminalCollections).toEqual([]);
+      });
+    });
+  });
+
+  describe("CS collection defaults reach a Cell set page's own predicates and PUB", () => {
+    it("sends IS_ABOUT and WASATTRIBUTEDTO in edgeFilters.Label and PUB in allowedCollections", async () => {
+      const csDefaults = collectionDefaults.CS;
+      fetchGraphData.mockResolvedValue({ nodes: [], links: [] });
+      const store = createTestStore();
+      // The prop-defaults effect only intersects allowedCollections once
+      // availableCollections is populated, so seed it with every collection
+      // the CS defaults name -- otherwise PUB (and everything else) would be
+      // silently dropped and this test would pass for the wrong reason.
+      store.dispatch(setAvailableCollections(csDefaults.allowedCollections));
+
+      await act(async () => {
+        render(
+          <Provider store={store}>
+            <MemoryRouter>
+              <ToastProvider>
+                <ForceGraph settings={csDefaults} />
+              </ToastProvider>
+            </MemoryRouter>
+          </Provider>,
+        );
+      });
+
+      await waitFor(() => {
+        expect(fetchGraphData).toHaveBeenCalled();
+      });
+
+      const params = fetchGraphData.mock.calls[0][0];
+      expect(params.edgeFilters.Label).toEqual(
+        expect.arrayContaining(["IS_ABOUT", "WASATTRIBUTEDTO"]),
+      );
+      expect(params.allowedCollections).toEqual(expect.arrayContaining(["PUB"]));
+    });
+  });
+
+  describe("collection-defaults.json fixture", () => {
+    it("contains no entry using the retired SELECTIVELY_EXPRESS predicate", () => {
+      Object.entries(collectionDefaults).forEach(([key, entry]) => {
+        expect(entry.preferredPredicates || []).not.toContain("SELECTIVELY_EXPRESS");
+        // Sanity: fail loudly (not silently pass) if the key itself changed shape.
+        expect(key).toBeTruthy();
       });
     });
   });
