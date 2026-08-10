@@ -1457,11 +1457,13 @@ describe("ForceGraph", () => {
 
   describe("collection-defaults.json fixture", () => {
     it("contains no entry using the retired SELECTIVELY_EXPRESS predicate", () => {
-      Object.entries(collectionDefaults).forEach(([key, entry]) => {
+      // Assert the fixture is non-empty first: a forEach over {} would make every
+      // assertion below pass vacuously, so the guard would stop guarding silently.
+      const entries = Object.entries(collectionDefaults);
+      expect(entries.length).toBeGreaterThan(0);
+      for (const [, entry] of entries) {
         expect(entry.preferredPredicates || []).not.toContain("SELECTIVELY_EXPRESS");
-        // Sanity: fail loudly (not silently pass) if the key itself changed shape.
-        expect(key).toBeTruthy();
-      });
+      }
     });
   });
 });
