@@ -108,7 +108,7 @@ and inspection. Pass `--root` for the superuser when you need write/admin access
 Once running:
 ```bash
 open http://localhost:8530   # Web UI
-arangosh --server.endpoint tcp://localhost:8530 --server.username <user> --server.password <password>
+arangosh --server.endpoint tcp://localhost:8530 --server.username "YOUR_USER" --server.password "YOUR_PASSWORD"
 ```
 
 Requires the AWS Session Manager plugin (needed to open the SSM tunnel) and AWS
