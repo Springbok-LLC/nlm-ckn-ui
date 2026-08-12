@@ -196,9 +196,7 @@ def _build_edge_filter_clause(
     if exclude_filters:
         for key, values in exclude_filters.items():
             if not is_safe_aql_identifier(key):
-                logger.warning(
-                    "Skipping edge filter with unsafe field name: %r", key
-                )
+                logger.warning("Skipping edge filter with unsafe field name: %r", key)
                 continue
             if not values:
                 continue
@@ -240,7 +238,9 @@ def _build_edge_filter_clause(
                 f"(IS_ARRAY({field_ref}.`{key}`) AND LENGTH(INTERSECTION({field_ref}.`{key}`, @{bind_key})) > 0)"
             )
             # Keep edges that either lack the attribute or do not match.
-            positive_conditions.append(f"({field_ref}.`{key}` == null OR NOT ({match}))")
+            positive_conditions.append(
+                f"({field_ref}.`{key}` == null OR NOT ({match}))"
+            )
             # Prune traversal through edges that match the excluded value(s) so
             # their unique descendants are not walked.
             negative_conditions.append(f"({match})")
@@ -515,7 +515,8 @@ def traverse_graph(
 
         if all_node_ids:
             inter_edges = find_inter_node_edges(
-                list(all_node_ids), graph,
+                list(all_node_ids),
+                graph,
                 edge_filters=edge_filters,
                 exclude_edge_filters=exclude_edge_filters,
             )
@@ -706,6 +707,19 @@ def find_connecting_paths(
 
     db, graph_name = get_db_and_graph(graph)
 
+    # Same sanitize as traverse_graph: the max_depth branch below feeds
+    # allowed_collections to `vertexCollections`, so a non-member would abort
+    # the whole query with ERR 1926. Reachable from the Connected Paths
+    # workflow.
+    allowed_collections, allowed_collections_impossible = _sanitize_allowed_collections(
+        allowed_collections, graph
+    )
+    if allowed_collections_impossible:
+        # Every requested collection was dropped. An empty list reads as "no
+        # restriction", so returning one here would widen a narrow request
+        # into an unrestricted one (invariant 2a).
+        return {"nodes": [], "links": []}
+
     bind_vars = {"node_ids": node_ids, "graph": graph_name}
 
     # Filters apply per path, not per edge: a path is only meaningful if every
@@ -722,8 +736,12 @@ def find_connecting_paths(
         # With depth limit: use traversal (natively supports depth + vertexCollections)
         options_parts = ['uniqueVertices: "path"']
         if allowed_collections:
-            colls_str = ", ".join(f'"{c}"' for c in allowed_collections)
-            options_parts.append(f"vertexCollections: [{colls_str}]")
+            # Bind rather than interpolate, matching traverse_graph. Collection
+            # names originate in a caller-supplied ListField(CharField), so
+            # splicing them into the query text put unvalidated strings in the
+            # AQL; a bind var removes that surface entirely.
+            options_parts.append("vertexCollections: @allowed_collections")
+            bind_vars["allowed_collections"] = allowed_collections
         options_clause = ", ".join(options_parts)
 
         bind_vars["depth"] = int(max_depth)
@@ -759,9 +777,18 @@ def find_connecting_paths(
     else:
         # Without depth limit: use K_SHORTEST_PATHS with collection filter
         coll_filter = ""
-        if allowed_collections:
+        # IS_SAME_COLLECTION takes the name as a literal, so this branch cannot
+        # use a bind var the way the one above does. Sanitizing already reduces
+        # these to real graph members; the identifier guard is defense in depth
+        # for the fail-open path, where an unreachable Gharial lets the caller's
+        # raw list through. A non-member here is harmless anyway (it simply
+        # never matches) -- unlike vertexCollections, it cannot raise ERR 1926.
+        safe_collections = [
+            c for c in allowed_collections or [] if is_safe_aql_identifier(c)
+        ]
+        if safe_collections:
             coll_checks = " AND ".join(
-                f'NOT IS_SAME_COLLECTION("{c}", CURRENT)' for c in allowed_collections
+                f'NOT IS_SAME_COLLECTION("{c}", CURRENT)' for c in safe_collections
             )
             coll_filter = (
                 f"FILTER LENGTH(path.vertices[* " f"FILTER {coll_checks}]) == 0"

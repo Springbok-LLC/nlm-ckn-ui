@@ -857,6 +857,37 @@ class ConnectingPathsTestCase(ArangoDBTestCase):
         self.assertGreater(len(result["links"]), 0)
         self.assertIn("PARTICIPATES_IN", self._labels(result))
 
+    def test_non_member_collection_does_not_abort_the_query(self):
+        """CHEBI is a real collection but not a member of the ontologies graph.
+
+        The max_depth branch feeds allowed_collections to `vertexCollections`,
+        where a non-member aborts the whole query with ERR 1926. Sanitizing
+        drops it so the member subgraph still comes back.
+        """
+        result = graph_service.find_connecting_paths(
+            node_ids=self.SUB_CLASS_PAIR,
+            graph="ontologies",
+            allowed_collections=["CL", "CHEBI"],
+            max_depth=3,
+        )
+        self.assertGreater(len(result["links"]), 0)
+
+    def test_all_non_member_collections_return_empty_not_everything(self):
+        """An impossible list must not widen into an unrestricted query.
+
+        `vertexCollections: []` means "no restriction" to ArangoDB, so
+        collapsing a fully-dropped list to `[]` would return every path
+        instead of none.
+        """
+        result = graph_service.find_connecting_paths(
+            node_ids=self.SUB_CLASS_PAIR,
+            graph="ontologies",
+            allowed_collections=["CHEBI"],
+            max_depth=3,
+        )
+        self.assertEqual(result["nodes"], [])
+        self.assertEqual(result["links"], [])
+
     def test_include_filter_drops_path_with_violating_edge(self):
         # Regression guard for the silently-ignored filter: a path is kept only
         # if EVERY edge satisfies the filter. The PARTICIPATES_IN edge violates
