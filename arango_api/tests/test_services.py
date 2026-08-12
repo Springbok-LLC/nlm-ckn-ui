@@ -1058,6 +1058,74 @@ class SearchServiceTestCase(ArangoDBTestCase):
         self.assertEqual(result, 2)
 
 
+class ConnectingPathsUnboundedCollectionsTestCase(SimpleTestCase):
+    """The unbounded K_SHORTEST_PATHS branch of find_connecting_paths.
+
+    That branch cannot bind `vertexCollections` -- IS_SAME_COLLECTION takes a
+    string literal -- so it quotes each name instead. These tests pin the
+    quoting and the sanitize behaviour there, since the integration tests above
+    only exercise the max_depth branch.
+    """
+
+    def setUp(self):
+        graph_service.reset_vertex_collections_cache()
+        self.addCleanup(graph_service.reset_vertex_collections_cache)
+
+    def _run(self, allowed_collections, members=("CL", "GO", "UBERON")):
+        """Call find_connecting_paths with max_depth=None and the DB mocked.
+
+        Returns the AQL query string, or None if no query was issued.
+        """
+        cursor = mock.Mock()
+        cursor.next.return_value = {"nodes": [], "links": []}
+        db_connection = mock.Mock()
+        db_connection.aql.execute.return_value = cursor
+        fake_graph = mock.MagicMock()
+        fake_graph.vertex_collections = mock.Mock(return_value=list(members))
+        db_connection.graph = mock.Mock(return_value=fake_graph)
+
+        with mock.patch.object(
+            graph_service,
+            "get_db_and_graph",
+            return_value=(db_connection, "ontologies"),
+        ):
+            graph_service.find_connecting_paths(
+                node_ids=["CL/a", "CL/b"],
+                graph="ontologies",
+                allowed_collections=allowed_collections,
+                max_depth=None,
+            )
+
+        if not db_connection.aql.execute.call_args:
+            return None
+        return db_connection.aql.execute.call_args[0][0]
+
+    def test_member_names_are_quoted_literals(self):
+        query = self._run(["CL"])
+        self.assertIn('IS_SAME_COLLECTION("CL", CURRENT)', query)
+
+    def test_non_member_is_dropped_but_members_still_filter(self):
+        query = self._run(["CL", "CHEBI"])
+        self.assertIn('IS_SAME_COLLECTION("CL", CURRENT)', query)
+        self.assertNotIn("CHEBI", query)
+
+    def test_all_non_member_issues_no_query_at_all(self):
+        # Sanitizing to empty must not fall through to an unfiltered query --
+        # that would widen "only CHEBI" into every path in the graph.
+        self.assertIsNone(self._run(["CHEBI"]))
+
+    def test_unusual_but_valid_name_is_quoted_not_dropped(self):
+        """A member whose name is not a bare identifier must survive.
+
+        Dropping it would remove the collection filter entirely when it is the
+        only allowed collection, widening the query -- the failure this step
+        exists to prevent. Quoting keeps it, escaped.
+        """
+        odd = 'we"ird'
+        query = self._run([odd], members=(odd, "CL"))
+        self.assertIn(r'IS_SAME_COLLECTION("we\"ird", CURRENT)', query)
+
+
 class SearchByTermQueryTestCase(TestCase):
     """Unit tests for search_by_term query construction (no DB required)."""
 
@@ -1261,9 +1329,7 @@ class UberonClCountQueryTestCase(TestCase):
         self.assertEqual(result, {})
         # An empty result (e.g. DB mid-restore) must not poison the cache, so a
         # later call retries rather than serving an empty map forever.
-        self.assertNotIn(
-            "KN-Phenotypes-v2.0", sunburst_service._UBERON_CL_COUNT_CACHE
-        )
+        self.assertNotIn("KN-Phenotypes-v2.0", sunburst_service._UBERON_CL_COUNT_CACHE)
         sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
         self.assertEqual(db.aql.execute.call_count, 2)
 
@@ -1291,7 +1357,9 @@ class TerminalCollectionsQueryTestCase(TestCase):
         params.update(kwargs)
 
         with mock.patch.object(
-            graph_service, "get_db_and_graph", return_value=(db_connection, "KN-Phenotypes")
+            graph_service,
+            "get_db_and_graph",
+            return_value=(db_connection, "KN-Phenotypes"),
         ):
             graph_service.traverse_graph(**params)
 
@@ -1329,9 +1397,7 @@ class TerminalCollectionsQueryTestCase(TestCase):
         self.assertIn("PRUNE", query)
         self.assertIn("PARSE_COLLECTION(v._id) IN @terminal_collections", query)
         self.assertEqual(bind_vars.get("exclude_value_Label"), ["DERIVES_FROM"])
-        prune_line = next(
-            line for line in query.splitlines() if "PRUNE" in line
-        )
+        prune_line = next(line for line in query.splitlines() if "PRUNE" in line)
         self.assertIn(" OR ", prune_line)
 
     def test_terminal_collection_not_in_allowed_is_accepted_unchanged(self):
@@ -1346,7 +1412,9 @@ class TerminalCollectionsQueryTestCase(TestCase):
         self.assertEqual(bind_vars.get("terminal_collections"), ["MONDO"])
         # allowed_collections is untouched -- the unmatched name is not injected
         # into the visited set, and nothing is dropped from it either.
-        self.assertEqual(bind_vars["allowed_collections"], ["BGS", "CS", "UBERON", "CSD"])
+        self.assertEqual(
+            bind_vars["allowed_collections"], ["BGS", "CS", "UBERON", "CSD"]
+        )
         baseline_query, baseline_binds = self._run()
         prune_line = next(line for line in query.splitlines() if "PRUNE" in line)
         self.assertEqual(
