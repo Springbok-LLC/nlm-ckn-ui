@@ -2,6 +2,7 @@
 Service for graph traversal operations.
 """
 
+import json
 import logging
 import time
 
@@ -777,18 +778,22 @@ def find_connecting_paths(
     else:
         # Without depth limit: use K_SHORTEST_PATHS with collection filter
         coll_filter = ""
-        # IS_SAME_COLLECTION takes the name as a literal, so this branch cannot
-        # use a bind var the way the one above does. Sanitizing already reduces
-        # these to real graph members; the identifier guard is defense in depth
-        # for the fail-open path, where an unreachable Gharial lets the caller's
-        # raw list through. A non-member here is harmless anyway (it simply
-        # never matches) -- unlike vertexCollections, it cannot raise ERR 1926.
-        safe_collections = [
-            c for c in allowed_collections or [] if is_safe_aql_identifier(c)
-        ]
-        if safe_collections:
+        # IS_SAME_COLLECTION takes the name as a string literal, so this branch
+        # cannot use a bind var the way the one above does. Quote each name with
+        # json.dumps rather than splicing it raw: AQL string literals share
+        # JSON's double-quote-and-backslash syntax, so this escapes anything the
+        # fail-open path might let through (an unreachable Gharial passes the
+        # caller's list on unsanitized).
+        #
+        # Deliberately quote rather than filter. Dropping names that fail some
+        # identifier pattern would silently discard a legitimate graph member
+        # with an unusual-but-valid name, and if it were the only one allowed the
+        # filter would vanish and widen the query -- the same widening this step
+        # exists to prevent.
+        if allowed_collections:
             coll_checks = " AND ".join(
-                f'NOT IS_SAME_COLLECTION("{c}", CURRENT)' for c in safe_collections
+                f"NOT IS_SAME_COLLECTION({json.dumps(c)}, CURRENT)"
+                for c in allowed_collections
             )
             coll_filter = (
                 f"FILTER LENGTH(path.vertices[* " f"FILTER {coll_checks}]) == 0"
