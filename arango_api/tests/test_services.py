@@ -581,12 +581,37 @@ class SanitizeAllowedCollectionsTestCase(ArangoDBTestCase):
         self.assertEqual(results["MONDO/nac_d1"]["nodes"], [])
         self.assertEqual(results["MONDO/nac_d1"]["links"], [])
 
+    def test_argument_guards_raise_even_when_collections_are_impossible(self):
+        """A caller bug must still raise, not be masked by the empty result.
+
+        The impossible-collections path returns an empty traversal, so if it ran
+        before the argument guards it would swallow the "cannot set both
+        closing-edge filters" ValueError and hand the caller a silent empty
+        result instead. The guards therefore run first.
+        """
+        with self.assertRaises(ValueError):
+            graph_service.traverse_graph(
+                node_ids=["MONDO/nac_d1"],
+                depth=3,
+                edge_direction="ANY",
+                allowed_collections=["CHEBI"],
+                graph="phenotypes",
+                edge_filters=None,
+                include_inter_node_edges=False,
+                exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+                require_closing_edges={"Label": ["IS_GENETIC_BASIS_FOR_CONDITION"]},
+            )
+
 
 class SanitizeAllowedCollectionsCacheTestCase(SimpleTestCase):
     """The Gharial membership lookup is cached per graph, like schema_guard's."""
 
     def setUp(self):
         graph_service.reset_vertex_collections_cache()
+        # Also clear on the way out: the mocked membership set is module-level
+        # state that would otherwise outlive this class and leak into whatever
+        # test runs next.
+        self.addCleanup(graph_service.reset_vertex_collections_cache)
 
     def _patch(self, members=("CL", "GO", "UBERON")):
         fake_graph = mock.MagicMock()

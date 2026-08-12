@@ -53,6 +53,14 @@ def _get_graph_vertex_collections(graph):
         )
         return None
 
+    if not members:
+        # A graph with zero vertex collections is not a real answer -- treat it
+        # as "could not determine" and fail open, the way schema_guard does.
+        # Caching it would make every collection-filtered traversal return
+        # nothing for a full TTL.
+        logger.warning("Graph %r reported no vertex collections", graph)
+        return None
+
     _vertex_collections_cache[graph] = {
         "value": members,
         "expires_at": now + CACHE_TTL_SECONDS,
@@ -299,6 +307,30 @@ def traverse_graph(
     if edge_direction not in ["INBOUND", "OUTBOUND", "ANY"]:
         raise ValueError("edge_direction must be 'INBOUND', 'OUTBOUND', or 'ANY'")
 
+    # The two path-closing filters cannot compose in one pass, so reject the
+    # combination loudly rather than silently dropping one. require_mode keeps
+    # paths that DO close; the default keeps paths that do NOT close.
+    #
+    # These guards depend only on the arguments, and they run BEFORE the
+    # sanitize below on purpose: an impossible collection list returns an empty
+    # traversal, which would otherwise mask a caller bug that deserves to raise.
+    exclude_labels = (exclude_closing_edges or {}).get("Label") or []
+    require_labels = (require_closing_edges or {}).get("Label") or []
+    if exclude_labels and require_labels:
+        raise ValueError(
+            "Cannot set both exclude_closing_edges and require_closing_edges "
+            "on one phase."
+        )
+    # Guard on the extracted labels, not the raw dicts: callers routinely send
+    # {"Label": []} for a phase with no closing-edge filter at all, which is
+    # truthy as a dict and would raise here for no reason.
+    if terminal_collections and (exclude_labels or require_labels):
+        raise ValueError(
+            "terminal_collections cannot be combined with closing-edge filters; "
+            "the closing-edge query needs complete fixed-depth paths and so "
+            "deliberately avoids PRUNE."
+        )
+
     db, graph_name = get_db_and_graph(graph)
 
     # Sanitize once, upstream of both unconditional `vertexCollections`
@@ -358,25 +390,8 @@ def traverse_graph(
     if prune_conditions:
         prune_string = f"PRUNE {' OR '.join(prune_conditions)}"
 
-    # The two path-closing filters cannot compose in one pass, so reject the
-    # combination loudly rather than silently dropping one. require_mode keeps
-    # paths that DO close; the default keeps paths that do NOT close.
-    exclude_labels = (exclude_closing_edges or {}).get("Label") or []
-    require_labels = (require_closing_edges or {}).get("Label") or []
-    if exclude_labels and require_labels:
-        raise ValueError(
-            "Cannot set both exclude_closing_edges and require_closing_edges "
-            "on one phase."
-        )
-    # Guard on the extracted labels, not the raw dicts: callers routinely send
-    # {"Label": []} for a phase with no closing-edge filter at all, which is
-    # truthy as a dict and would raise here for no reason.
-    if terminal_collections and (exclude_labels or require_labels):
-        raise ValueError(
-            "terminal_collections cannot be combined with closing-edge filters; "
-            "the closing-edge query needs complete fixed-depth paths and so "
-            "deliberately avoids PRUNE."
-        )
+    # exclude_labels / require_labels are extracted and validated above, before
+    # the collection sanitize, so a caller bug raises instead of being masked.
     require_mode = bool(require_labels)
     closing_labels = require_labels if require_mode else exclude_labels
     if closing_labels:
