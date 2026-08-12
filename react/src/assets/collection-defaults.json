@@ -58,7 +58,8 @@
       "SELECTIVELY_EXPRESSES",
       "PART_OF",
       "IS_ABOUT",
-      "WASATTRIBUTEDTO"
+      "WASATTRIBUTEDTO",
+      "WAS_ATTRIBUTED_TO"
     ]
   },
   "CSD": {
