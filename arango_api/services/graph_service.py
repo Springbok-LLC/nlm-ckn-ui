@@ -3,6 +3,7 @@ Service for graph traversal operations.
 """
 
 import logging
+import time
 
 from arango_api.aql_safety import is_safe_aql_identifier
 from arango_api.db import db_ontologies, GRAPH_NAME_ONTOLOGIES
@@ -10,6 +11,93 @@ from arango_api.services.base import get_db_and_graph
 from arango_api.services.collection_service import get_collections
 
 logger = logging.getLogger(__name__)
+
+# Vertex-collection membership changes only when a dataset is restored, so a
+# coarse TTL is plenty. Mirrors schema_guard.py's cache shape.
+CACHE_TTL_SECONDS = 300
+
+# Expiry-only, keyed by graph. Nothing to invalidate — a dataset restore
+# replaces the process's view within one TTL.
+_vertex_collections_cache = {}
+
+
+def reset_vertex_collections_cache():
+    """Clear the cached graph-membership sets. Intended for tests."""
+    _vertex_collections_cache.clear()
+
+
+def _get_graph_vertex_collections(graph):
+    """Return the vertex collections that are members of the named graph.
+
+    Args:
+        graph (str): The graph type ("ontologies" or "phenotypes").
+
+    Returns:
+        frozenset | None: The collection names that are members of the
+        graph, or None if membership could not be determined (Gharial
+        unreachable). None is the caller's signal to fail open -- pass the
+        caller's allowed_collections through unchanged rather than breaking
+        every traversal because this lookup failed.
+    """
+    now = time.monotonic()
+    cached = _vertex_collections_cache.get(graph)
+    if cached and now < cached["expires_at"]:
+        return cached["value"]
+
+    try:
+        db, graph_name = get_db_and_graph(graph)
+        members = frozenset(db.graph(graph_name).vertex_collections())
+    except Exception:
+        logger.warning(
+            "Could not read vertex collections for graph %r", graph, exc_info=True
+        )
+        return None
+
+    _vertex_collections_cache[graph] = {
+        "value": members,
+        "expires_at": now + CACHE_TTL_SECONDS,
+    }
+    return members
+
+
+def _sanitize_allowed_collections(allowed_collections, graph):
+    """Drop collections from allowed_collections that are not members of graph.
+
+    ArangoDB's ERR 1926 (ERROR_GRAPH_VERTEX_COL_DOES_NOT_EXIST) aborts the
+    whole traversal, with no partial data, the instant `vertexCollections`
+    names a collection that is not part of the graph. This intersects the
+    caller's list against the graph's real members so a stale or
+    wrong-graph collection is dropped instead of aborting everything.
+
+    `allowed_collections: []` already means "no restriction" to ArangoDB, so
+    the empty-vs-sanitized-to-empty distinction must be tracked explicitly
+    rather than collapsed to a bare list:
+      - A genuinely empty input list is passed through as-is (unrestricted).
+      - A non-empty input that sanitizes down to nothing must NOT silently
+        become `[]`, because that would turn "show me only CHEBI" into "show
+        me everything" -- a worse failure than the 500 it replaces.
+
+    Args:
+        allowed_collections (list): The caller's requested collections.
+        graph (str): The graph type ("ontologies" or "phenotypes").
+
+    Returns:
+        tuple: (sanitized_collections, is_impossible).
+        `is_impossible` is True only when the input was non-empty and
+        sanitized down to nothing; callers must treat that as an explicit
+        empty traversal rather than issuing a request with `[]`.
+    """
+    if not allowed_collections:
+        return allowed_collections, False
+
+    members = _get_graph_vertex_collections(graph)
+    if members is None:
+        # Fail open: Gharial is unreachable, so pass the caller's list
+        # through unchanged rather than breaking every traversal.
+        return allowed_collections, False
+
+    sanitized = [c for c in allowed_collections if c in members]
+    return sanitized, not sanitized
 
 
 def _build_edge_filter_clause(
@@ -212,6 +300,20 @@ def traverse_graph(
         raise ValueError("edge_direction must be 'INBOUND', 'OUTBOUND', or 'ANY'")
 
     db, graph_name = get_db_and_graph(graph)
+
+    # Sanitize once, upstream of both unconditional `vertexCollections`
+    # injection sites below (the closing-labels branch and the default
+    # branch), so neither can hand ArangoDB a non-member collection and
+    # abort the whole traversal with ERR 1926.
+    allowed_collections, allowed_collections_impossible = _sanitize_allowed_collections(
+        allowed_collections, graph
+    )
+    if allowed_collections_impossible:
+        # Every requested collection was dropped. `[]` reads as "no
+        # restriction" to ArangoDB, so returning it here would turn a narrow
+        # request into an unrestricted one -- return an explicit empty
+        # traversal instead (invariant 2a).
+        return {node_id: {"nodes": [], "links": []} for node_id in node_ids}
 
     bind_vars = {
         "node_ids": node_ids,

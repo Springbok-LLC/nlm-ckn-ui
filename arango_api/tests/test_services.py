@@ -16,7 +16,7 @@ Test Configuration:
 
 from unittest import mock
 
-from django.test import TestCase, tag
+from django.test import SimpleTestCase, TestCase, tag
 
 from arango_api.services import (
     collection_service,
@@ -433,6 +433,193 @@ class GraphServiceTestCase(ArangoDBTestCase):
                 graph="ontologies",
                 edge_direction="bad",
             )
+
+
+class SanitizeAllowedCollectionsTestCase(ArangoDBTestCase):
+    """allowed_collections must be intersected with the target graph's real
+    vertex collections before either injection site in traverse_graph runs.
+
+    ArangoDB's ERR 1926 (ERROR_GRAPH_VERTEX_COL_DOES_NOT_EXIST) aborts the
+    whole traversal, with no partial data, the moment `vertexCollections`
+    names a collection that is not a member of the graph. The ontologies test
+    graph's members are exactly CL, GO, UBERON (seed_test_db.py); CHEBI is a
+    real collection in the same database but is not part of the graph, so it
+    reproduces ERR 1926 exactly like a stale/renamed collection would.
+    """
+
+    def test_mixed_members_and_non_member_returns_member_subgraph(self):
+        # CHEBI is dropped; CL/GO/UBERON survive, so the result matches a call
+        # made with only the real members -- not a 500, not an unrestricted
+        # traversal either.
+        with_noise = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=["CL", "GO", "UBERON", "CHEBI"],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        clean = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=["CL", "GO", "UBERON"],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        with_noise_ids = sorted(n["_id"] for n in with_noise["CL/0000061"]["nodes"])
+        clean_ids = sorted(n["_id"] for n in clean["CL/0000061"]["nodes"])
+        self.assertEqual(with_noise_ids, clean_ids)
+        self.assertGreater(len(with_noise_ids), 0)
+
+    def test_all_non_member_returns_empty_not_everything(self):
+        # A request naming only invalid collections must not silently become
+        # unrestricted (invariant 2a): [] on the wire already means "no
+        # restriction" to ArangoDB, so passing the sanitized-empty list
+        # straight through would turn "show me only CHEBI" into "show me
+        # everything" -- a worse failure than the 500 it replaces.
+        result = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=["CHEBI"],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        self.assertEqual(result["CL/0000061"]["nodes"], [])
+        self.assertEqual(result["CL/0000061"]["links"], [])
+
+        unrestricted = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=[],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        self.assertGreater(len(unrestricted["CL/0000061"]["nodes"]), 0)
+
+    def test_genuinely_empty_input_still_means_unrestricted(self):
+        # Empty means "no restriction" already, at the AQL level -- must stay
+        # that way; A1 must not touch this case.
+        result = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=[],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        all_members = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=["CL", "GO", "UBERON"],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        result_ids = sorted(n["_id"] for n in result["CL/0000061"]["nodes"])
+        all_ids = sorted(n["_id"] for n in all_members["CL/0000061"]["nodes"])
+        self.assertEqual(result_ids, all_ids)
+
+    def test_members_pass_through_untouched(self):
+        result = graph_service.traverse_graph(
+            node_ids=["CL/0000061"],
+            depth=1,
+            edge_direction="OUTBOUND",
+            allowed_collections=["CL", "GO", "UBERON"],
+            graph="ontologies",
+            edge_filters=None,
+            include_inter_node_edges=False,
+        )
+        self.assertGreater(len(result["CL/0000061"]["nodes"]), 0)
+
+    def test_closing_labels_branch_sanitizes_too(self):
+        # The path-aware NAC branch (:321) is a separate, early-returning
+        # code path from the default branch (:358); it must be sanitized too,
+        # not just the more commonly executed default branch.
+        results = graph_service.traverse_graph(
+            node_ids=["MONDO/nac_d1", "MONDO/nac_d2", "MONDO/nac_d3"],
+            depth=3,
+            edge_direction="ANY",
+            allowed_collections=["GS", "PR", "CHEMBL", "CHEBI"],
+            graph="phenotypes",
+            edge_filters={
+                "Label": [
+                    "IS_GENETIC_BASIS_FOR_CONDITION",
+                    "PRODUCES",
+                    "MOLECULARLY_INTERACTS_WITH",
+                ]
+            },
+            include_inter_node_edges=False,
+            exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+        )
+        genes = set()
+        for data in results.values():
+            for node in data["nodes"]:
+                if node["_id"].startswith("GS/"):
+                    genes.add(node["_id"])
+        self.assertIn("GS/nac_g1", genes)
+
+    def test_closing_labels_branch_all_non_member_returns_empty(self):
+        results = graph_service.traverse_graph(
+            node_ids=["MONDO/nac_d1"],
+            depth=3,
+            edge_direction="ANY",
+            allowed_collections=["CHEBI"],
+            graph="phenotypes",
+            edge_filters={"Label": ["IS_GENETIC_BASIS_FOR_CONDITION"]},
+            include_inter_node_edges=False,
+            exclude_closing_edges={"Label": ["IS_SUBSTANCE_THAT_TREATS"]},
+        )
+        self.assertEqual(results["MONDO/nac_d1"]["nodes"], [])
+        self.assertEqual(results["MONDO/nac_d1"]["links"], [])
+
+
+class SanitizeAllowedCollectionsCacheTestCase(SimpleTestCase):
+    """The Gharial membership lookup is cached per graph, like schema_guard's."""
+
+    def setUp(self):
+        graph_service.reset_vertex_collections_cache()
+
+    def _patch(self, members=("CL", "GO", "UBERON")):
+        fake_graph = mock.MagicMock()
+        fake_graph.vertex_collections = mock.Mock(return_value=list(members))
+        fake_db = mock.MagicMock()
+        fake_db.graph = mock.Mock(return_value=fake_graph)
+        return (
+            mock.patch.object(
+                graph_service, "get_db_and_graph", return_value=(fake_db, "KN-Test")
+            ),
+            fake_db,
+        )
+
+    def test_gharial_hit_on_first_call_only(self):
+        patch_db, fake_db = self._patch()
+        with patch_db:
+            graph_service._get_graph_vertex_collections("ontologies")
+            graph_service._get_graph_vertex_collections("ontologies")
+            self.assertEqual(fake_db.graph.call_count, 1)
+
+    def test_reset_cache_clears_it(self):
+        patch_db, fake_db = self._patch()
+        with patch_db:
+            graph_service._get_graph_vertex_collections("ontologies")
+            graph_service.reset_vertex_collections_cache()
+            graph_service._get_graph_vertex_collections("ontologies")
+            self.assertEqual(fake_db.graph.call_count, 2)
+
+    def test_fails_open_on_exception(self):
+        patch_db, fake_db = self._patch()
+        fake_db.graph.side_effect = RuntimeError("gharial unreachable")
+        with patch_db:
+            self.assertIsNone(graph_service._get_graph_vertex_collections("ontologies"))
 
 
 class AntiEdgeTraversalTestCase(ArangoDBTestCase):
