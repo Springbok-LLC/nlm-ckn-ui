@@ -1019,6 +1019,11 @@ fieldset.collection-picker {
   min-inline-size: 0;
 }
 
+.filters-panel-hint {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+}
+
 .edge-filter-mode-toggle {
   display: inline-flex;
   gap: 0;
