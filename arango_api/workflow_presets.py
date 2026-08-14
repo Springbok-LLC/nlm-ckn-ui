@@ -824,6 +824,204 @@ WORKFLOW_PRESETS = [
             },
         ],
     },
+    {
+        "id": "datasets-for-cell-type",
+        "name": "Datasets and cell sets for a cell type",
+        "description": (
+            "Every dataset that samples a given cell type or any of its "
+            "subtypes, and the cell sets connecting them. Swap the origin in "
+            "phase 1 for the cell type you care about; the rest of the "
+            "workflow follows from it."
+        ),
+        "category": "Use Cases",
+        "layoutMode": "force",
+        "phases": [
+            {
+                # Walking INBOUND from the cell type is what keeps the answer
+                # clean: every cell set the later phases reach is reached
+                # THROUGH a qualifying cell type, so it is on a real
+                # dataset -> cell set -> cell type path. Starting at the
+                # datasets instead collects every cell type their cell sets
+                # mention, and no set operation can recover the difference —
+                # the cell sets are absent from the cell-type side entirely.
+                "id": "preset-dsct-phase-1",
+                "name": "The cell type and its subtypes",
+                "originSource": "manual",
+                "originNodeIds": ["CL/0000066"],
+                "previousPhaseId": None,
+                "originFilter": "all",
+                "settings": {
+                    "depth": 9,
+                    "edgeDirection": "INBOUND",
+                    "allowedCollections": ["CL"],
+                    "edgeFilters": {"Label": ["SUB_CLASS_OF"], "Source": []},
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-dsct-phase-2",
+                "name": "Cell sets composed of those cell types",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-dsct-phase-1",
+                "originFilter": "all",
+                "settings": {
+                    # CS -COMPOSED_PRIMARILY_OF-> CL, so INBOUND from the
+                    # cell types. Return cell sets only; the subtype hierarchy
+                    # comes back in phase 6 trimmed to what is actually used.
+                    "depth": 1,
+                    "edgeDirection": "INBOUND",
+                    "allowedCollections": ["CS"],
+                    "edgeFilters": {
+                        "Label": ["COMPOSED_PRIMARILY_OF"],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "returnCollections": ["CS"],
+                },
+                "perNodeSettings": {},
+            },
+            {
+                # This phase does the pruning. Starting from the cell sets,
+                # the only cell types that survive are ones a cell set points
+                # at — subtypes nothing was sampled for never enter the graph.
+                "id": "preset-dsct-phase-3",
+                "name": "Their datasets and cell types",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-dsct-phase-2",
+                "originFilter": "all",
+                "settings": {
+                    # ANY covers both hops at once: CSD -IS_ABOUT-> CS is
+                    # inbound, CS -COMPOSED_PRIMARILY_OF-> CL is outbound.
+                    "depth": 1,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["CSD", "CL"],
+                    "edgeFilters": {
+                        "Label": ["IS_ABOUT", "COMPOSED_PRIMARILY_OF"],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-dsct-phase-4",
+                "name": "Cell types that have cell sets",
+                "originSource": "filter",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-dsct-phase-3",
+                "originFilter": "all",
+                "settings": {
+                    "returnCollections": ["CL"],
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-dsct-phase-5",
+                "name": "Ancestors of those cell types",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-dsct-phase-4",
+                "originFilter": "all",
+                "settings": {
+                    # Climbs past the origin cell type to the root of the
+                    # ontology; phase 6 cuts it back down.
+                    "depth": 9,
+                    "edgeDirection": "OUTBOUND",
+                    "allowedCollections": ["CL"],
+                    "edgeFilters": {"Label": ["SUB_CLASS_OF"], "Source": []},
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                # Ancestors-of-the-used-cell-types INTERSECT the phase-1
+                # subtree is exactly the SUB_CLASS_OF chain between them and
+                # the origin cell type — no branches that lead nowhere, and
+                # nothing above the origin.
+                "id": "preset-dsct-phase-6",
+                "name": "Trim the ancestors to the subtype tree",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseIds": [
+                    "preset-dsct-phase-5",
+                    "preset-dsct-phase-1",
+                ],
+                "phaseCombineOperation": "Intersection",
+                "originFilter": "all",
+                "settings": {
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "edgeFilters": {"Label": ["SUB_CLASS_OF"], "Source": []},
+                },
+                "perNodeSettings": {},
+            },
+            {
+                # Every dataset is about exactly one organ, so this adds one
+                # node per organ and one edge per dataset — the datasets
+                # cluster by organ with no other change to the graph. The
+                # cell sets carry their own DERIVES_FROM organ, but it always
+                # matches their dataset's, so attaching it there too would
+                # only duplicate edges.
+                "id": "preset-dsct-phase-7",
+                "name": "Organs those datasets are about",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-dsct-phase-3",
+                "originFilter": "all",
+                "settings": {
+                    "depth": 1,
+                    "edgeDirection": "OUTBOUND",
+                    "allowedCollections": ["UBERON"],
+                    "edgeFilters": {"Label": ["IS_ABOUT"], "Source": []},
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-dsct-phase-8",
+                "name": "Datasets by organ, cell sets, and the cell type hierarchy",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseIds": [
+                    "preset-dsct-phase-3",
+                    "preset-dsct-phase-6",
+                    "preset-dsct-phase-7",
+                ],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                "settings": {
+                    # The inter-node scan reconnects the halves: the hierarchy
+                    # spine from phase 6 to the cell types phase 3 attached its
+                    # datasets and cell sets to, and each dataset to its organ.
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "edgeFilters": {
+                        "Label": [
+                            "SUB_CLASS_OF",
+                            "COMPOSED_PRIMARILY_OF",
+                            "IS_ABOUT",
+                        ],
+                        "Source": [],
+                    },
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
+        ],
+    },
     # -------------------------------------------------------------------------
     # Ontology Exploration
     # -------------------------------------------------------------------------
