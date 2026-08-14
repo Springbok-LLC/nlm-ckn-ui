@@ -887,25 +887,20 @@ WORKFLOW_PRESETS = [
                 "perNodeSettings": {},
             },
             {
-                # This phase does the pruning. Starting from the cell sets,
-                # the only cell types that survive are ones a cell set points
-                # at — subtypes nothing was sampled for never enter the graph.
                 "id": "preset-dsct-phase-3",
-                "name": "Their datasets and cell types",
+                "name": "Their datasets",
                 "originSource": "previousPhase",
                 "originNodeIds": [],
                 "previousPhaseId": "preset-dsct-phase-2",
                 "originFilter": "all",
                 "settings": {
-                    # ANY covers both hops at once: CSD -IS_ABOUT-> CS is
-                    # inbound, CS -COMPOSED_PRIMARILY_OF-> CL is outbound.
+                    # CSD -IS_ABOUT-> CS, so INBOUND from the cell sets.
+                    # Datasets only: the cell types come from phase 4, which
+                    # gets trimmed to the subtree before anything is drawn.
                     "depth": 1,
-                    "edgeDirection": "ANY",
-                    "allowedCollections": ["CSD", "CL"],
-                    "edgeFilters": {
-                        "Label": ["IS_ABOUT", "COMPOSED_PRIMARILY_OF"],
-                        "Source": [],
-                    },
+                    "edgeDirection": "INBOUND",
+                    "allowedCollections": ["CSD"],
+                    "edgeFilters": {"Label": ["IS_ABOUT"], "Source": []},
                     "setOperation": "Union",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
@@ -913,13 +908,34 @@ WORKFLOW_PRESETS = [
                 "perNodeSettings": {},
             },
             {
+                # This phase does the pruning. Starting from the cell sets,
+                # the only cell types that survive are ones a cell set points
+                # at — subtypes nothing was sampled for never enter the graph.
+                #
+                # A cell set has exactly one COMPOSED_PRIMARILY_OF target in
+                # the data today, which would make every cell type here a
+                # phase-1 one by construction. That is not a guarantee the
+                # schema makes, so nothing downstream relies on it: phase 6
+                # intersects with the phase-1 subtree, and phase 3 no longer
+                # contributes cell types, so a second target outside the
+                # subtree is dropped rather than drawn.
                 "id": "preset-dsct-phase-4",
                 "name": "Cell types that have cell sets",
-                "originSource": "filter",
+                "originSource": "previousPhase",
                 "originNodeIds": [],
-                "previousPhaseId": "preset-dsct-phase-3",
+                "previousPhaseId": "preset-dsct-phase-2",
                 "originFilter": "all",
                 "settings": {
+                    "depth": 1,
+                    "edgeDirection": "OUTBOUND",
+                    "allowedCollections": ["CL"],
+                    "edgeFilters": {
+                        "Label": ["COMPOSED_PRIMARILY_OF"],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
                     "returnCollections": ["CL"],
                 },
                 "perNodeSettings": {},
