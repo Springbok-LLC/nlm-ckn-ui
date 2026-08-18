@@ -1268,10 +1268,12 @@ class SunburstServiceTestCase(ArangoDBTestCase):
 class UberonClCountQueryTestCase(TestCase):
     """Unit tests for _get_uberon_cl_counts query construction (no DB required).
 
-    Regression guard for the rewrite that traverses only PHENOTYPES_TOP_ORGANS
-    instead of scanning the entire UBERON collection. The whole-collection scan
-    pinned the ArangoDB host's CPU and tripped gunicorn's worker timeout, while
-    only the top-organ counts are ever read by callers.
+    Regression guard for two properties: the base organs are derived from the
+    CSD-UBERON edge collection rather than a hardcoded list that goes stale on
+    an ETL release, and the traversal starts from just those organs instead of
+    scanning the entire UBERON collection. The whole-collection scan pinned the
+    ArangoDB host's CPU and tripped gunicorn's worker timeout, while only the
+    base organs' counts are ever read by callers.
     """
 
     def setUp(self):
@@ -1286,29 +1288,50 @@ class UberonClCountQueryTestCase(TestCase):
         db.aql.execute.return_value = iter(rows)
         return db
 
-    def test_query_traverses_only_top_organs(self):
-        rows = [[organ, 3] for organ in sunburst_service.PHENOTYPES_TOP_ORGANS]
+    def test_organs_are_derived_from_csd_edges(self):
+        db = self._mock_db([["UBERON/0001004", 3]])
+
+        sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
+
+        query, kwargs = db.aql.execute.call_args[0][0], db.aql.execute.call_args[1]
+        # The organ list comes from the CSD-UBERON edges, not from a literal in
+        # this module — a hardcoded ring is exactly what went stale before.
+        self.assertIn("FOR e IN @@edges", query)
+        self.assertEqual(
+            kwargs["bind_vars"]["@edges"], sunburst_service.CSD_UBERON_EDGES
+        )
+        # Read the edge collection directly: a predicate-label filter would go
+        # silently empty the next time the ETL renames IS_ABOUT.
+        self.assertNotIn("Label", query)
+
+    def test_query_traverses_only_derived_organs(self):
+        organs = ["UBERON/0001004", "UBERON/0001555", "UBERON/0002107"]
+        rows = [[organ, 3] for organ in organs]
         db = self._mock_db(rows)
 
         result = sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
 
         query, kwargs = db.aql.execute.call_args[0][0], db.aql.execute.call_args[1]
-        # Must iterate the bound organ list, NOT scan the whole UBERON collection.
-        self.assertIn("FOR organ IN @organs", query)
+        # Must traverse the derived organ list, NOT scan the whole collection.
+        self.assertIn("FOR organ IN organs", query)
         self.assertNotIn("FOR u IN UBERON", query)
-        self.assertEqual(
-            kwargs["bind_vars"]["organs"], sunburst_service.PHENOTYPES_TOP_ORGANS
-        )
         self.assertEqual(kwargs["bind_vars"]["g"], "KN-Phenotypes-v2.0")
         # The returned mapping still keys organ_id -> distinct CL count, exactly
-        # what counts.get(organ_id) consumers depend on.
-        self.assertEqual(
-            result,
-            {organ: 3 for organ in sunburst_service.PHENOTYPES_TOP_ORGANS},
-        )
+        # what the base-ring consumers iterate.
+        self.assertEqual(result, {organ: 3 for organ in organs})
+
+    def test_organ_order_is_preserved(self):
+        # The query sorts by descending dataset count and callers lay the base
+        # ring out by iterating this mapping, so insertion order is load-bearing.
+        rows = [["UBERON/0000966", 176], ["UBERON/0001004", 1135]]
+        db = self._mock_db(rows)
+
+        result = sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
+
+        self.assertEqual(list(result), ["UBERON/0000966", "UBERON/0001004"])
 
     def test_result_is_memoized_per_graph(self):
-        rows = [[sunburst_service.PHENOTYPES_TOP_ORGANS[0], 1]]
+        rows = [["UBERON/0001004", 1]]
         db = self._mock_db(rows)
         # Re-arm the cursor for each potential execute call.
         db.aql.execute.side_effect = lambda *a, **k: iter(list(rows))
