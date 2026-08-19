@@ -1,86 +1,46 @@
 import { parseNodeIdentifier } from "./identifiers";
 
 describe("parseNodeIdentifier", () => {
-  it("parses a CURIE into a collection and key", () => {
-    expect(parseNodeIdentifier("UBERON:0002405")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
-  it("parses an OBO-style underscore id into a collection and key", () => {
-    expect(parseNodeIdentifier("UBERON_0002405")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
-  it("parses a PURL into a collection and key", () => {
-    expect(parseNodeIdentifier("https://purl.obolibrary.org/obo/UBERON_0002405")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
-  it("parses an http:// PURL into a collection and key", () => {
-    expect(parseNodeIdentifier("http://purl.obolibrary.org/obo/UBERON_0002405")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
-  it("trims surrounding whitespace", () => {
-    expect(parseNodeIdentifier("  UBERON:0002405  ")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
-  it("canonicalizes a lowercase prefix", () => {
-    expect(parseNodeIdentifier("uberon_0002405")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
-  it("drops a PURL fragment before parsing the last segment", () => {
-    expect(parseNodeIdentifier("https://purl.obolibrary.org/obo/UBERON_0002405#section")).toEqual({
-      collection: "UBERON",
-      key: "0002405",
-    });
-  });
-
   it.each([
-    ["CL:0000759", "CL", "0000759"],
-    ["PR:P06241", "PR", "P06241"],
-    ["NCBITaxon:9606", "NCBITaxon", "9606"],
-    ["GO_0005886", "GO", "0005886"],
-  ])("parses %s across collections", (query, collection, key) => {
+    ["a CURIE", "UBERON:0002405", "UBERON", "0002405"],
+    ["an OBO-style underscore id", "UBERON_0002405", "UBERON", "0002405"],
+    ["a PURL", "https://purl.obolibrary.org/obo/UBERON_0002405", "UBERON", "0002405"],
+    ["an http:// PURL", "http://purl.obolibrary.org/obo/UBERON_0002405", "UBERON", "0002405"],
+    [
+      "an uppercase-scheme PURL",
+      "HTTPS://purl.obolibrary.org/obo/UBERON_0002405",
+      "UBERON",
+      "0002405",
+    ],
+    ["surrounding whitespace", "  UBERON:0002405  ", "UBERON", "0002405"],
+    ["a lowercase prefix", "uberon_0002405", "UBERON", "0002405"],
+    [
+      "a PURL fragment",
+      "https://purl.obolibrary.org/obo/UBERON_0002405#section",
+      "UBERON",
+      "0002405",
+    ],
+    ["a CL id", "CL:0000759", "CL", "0000759"],
+    ["a PR id", "PR:P06241", "PR", "P06241"],
+    ["an NCBITaxon id", "NCBITaxon:9606", "NCBITaxon", "9606"],
+    ["a GO underscore id", "GO_0005886", "GO", "0005886"],
+  ])("parses %s into a collection and key", (_label, query, collection, key) => {
     expect(parseNodeIdentifier(query)).toEqual({ collection, key });
   });
 
   it.each([
-    ["FMA:9825", "a prefix not in the collection map"],
-    ["immune system", "free text with no identifier shape"],
-    ["0002405", "a bare local id with no prefix"],
-    ["pericyte", "a plain word"],
-    ["T:cell", "a colon inside ordinary text"],
-    ["", "an empty string"],
-    [null, "null"],
-    ["edges:foo", "the synthetic edges collection"],
-  ])("returns null for %s (%s)", (query) => {
+    ["a prefix not in the collection map", "FMA:9825"],
+    ["free text with no identifier shape", "immune system"],
+    ["a bare local id with no prefix", "0002405"],
+    ["a plain word", "pericyte"],
+    ["a colon inside ordinary text", "T:cell"],
+    ["an empty string", ""],
+    ["null", null],
+    ["the synthetic edges collection", "edges:foo"],
+    ["a double-encoded OLS-style URL", "https://www.ebi.ac.uk/ols/UBERON%253A0002405"],
+    ["a partial https:// URL", "https://"],
+    ["a malformed percent escape in the last segment", "https://a.org/obo/%zz"],
+  ])("returns null for %s", (_label, query) => {
     expect(parseNodeIdentifier(query)).toBeNull();
-  });
-
-  it("returns null for a double-encoded OLS-style URL", () => {
-    expect(parseNodeIdentifier("https://www.ebi.ac.uk/ols/UBERON%253A0002405")).toBeNull();
-  });
-
-  it("returns null for a partial https:// URL", () => {
-    expect(parseNodeIdentifier("https://")).toBeNull();
-  });
-
-  it("returns null for a malformed percent escape in the last segment", () => {
-    expect(parseNodeIdentifier("https://a.org/obo/%zz")).toBeNull();
   });
 });

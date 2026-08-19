@@ -49,7 +49,7 @@ const lastUrlSegment = (token) => {
  */
 export const parseNodeIdentifier = (query) => {
   const trimmed = String(query).trim();
-  const token = /^https?:\/\//.test(trimmed) ? lastUrlSegment(trimmed) : trimmed;
+  const token = /^https?:\/\//i.test(trimmed) ? lastUrlSegment(trimmed) : trimmed;
   if (!token) return null;
 
   const match = token.match(IDENTIFIER_PATTERN);
