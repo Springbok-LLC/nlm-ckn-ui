@@ -1332,9 +1332,19 @@ class UberonClCountQueryTestCase(TestCase):
         self.assertEqual(result["UBERON/0000966"], 0)
 
     def test_organ_order_is_preserved(self):
-        # The query sorts by descending dataset count and callers lay the base
-        # ring out by iterating this mapping, so insertion order is load-bearing.
-        rows = [["UBERON/0000966", 176], ["UBERON/0001004", 1135]]
+        # Callers lay the base ring out by iterating this mapping, so the
+        # function must hand back the cursor's order untouched.
+        #
+        # Each row is [organ, CL count] — the dataset count the query sorts by
+        # is never returned. These are the real v1.6.0-rc.4 values in the real
+        # `datasets DESC` order, where the CL counts run 1135, 110, 764: a
+        # deliberately non-monotonic sequence, so a re-sort on the returned
+        # count in either direction would fail the assertion.
+        rows = [
+            ["UBERON/0001004", 1135],  # respiratory system, 22 datasets
+            ["UBERON/0001950", 110],  # neocortex, 5 datasets
+            ["UBERON/0000004", 764],  # nose, 1 dataset
+        ]
         db = self._mock_db(rows)
 
         result = sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
@@ -1343,7 +1353,9 @@ class UberonClCountQueryTestCase(TestCase):
         # Assert the clause itself: the mock returns rows in order regardless,
         # so mapping order alone would pass even with the SORT dropped.
         self.assertIn("SORT datasets DESC, organ ASC", query)
-        self.assertEqual(list(result), ["UBERON/0000966", "UBERON/0001004"])
+        self.assertEqual(
+            list(result), ["UBERON/0001004", "UBERON/0001950", "UBERON/0000004"]
+        )
 
     def test_result_is_memoized_per_graph(self):
         rows = [["UBERON/0001004", 1]]
