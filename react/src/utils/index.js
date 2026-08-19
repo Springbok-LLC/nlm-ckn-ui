@@ -44,6 +44,8 @@ export {
   resolvePresetLabelStates,
 } from "./graph";
 export { captureGraphThumbnail } from "./graphThumbnail";
+// Ontology identifier parsing
+export { parseNodeIdentifier } from "./identifiers";
 // Platform utilities
 export { isMac } from "./platform";
 // Set operations for graphs
