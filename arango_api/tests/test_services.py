@@ -1421,6 +1421,20 @@ class UberonClCountQueryTestCase(TestCase):
 class TerminalCollectionsQueryTestCase(TestCase):
     """Unit tests for terminal-collection pruning (no DB required)."""
 
+    def setUp(self):
+        # traverse_graph sanitizes allowed_collections against a module-level
+        # cache of real graph membership. An integration test earlier in the run
+        # populates that cache, and a populated cache short-circuits the lookup
+        # entirely -- so the DB mock below is bypassed and the real membership
+        # set silently prunes these collections, failing the assertions here for
+        # a reason that has nothing to do with terminal collections.
+        #
+        # That made the suite order-dependent: green when unit and integration
+        # run separately (as CI does), red when run together (as a developer
+        # does). Reset around each test so this class is isolated either way.
+        graph_service.reset_vertex_collections_cache()
+        self.addCleanup(graph_service.reset_vertex_collections_cache)
+
     def _run(self, **kwargs):
         """Invoke traverse_graph with the DB layer mocked out.
 
