@@ -43,6 +43,10 @@ def _get_uberon_cl_counts(db, graph_name):
     descending dataset count. Built on first use and memoized per graph_name
     for the life of the process.
 
+    Every organ a dataset points at is kept, including one whose CL count is
+    zero: dropping it would hide a dataset's organ from the ring with nothing
+    to say so. Callers floor the count for arc sizing.
+
     The organs are the UBERON terms a cell set dataset points at directly, read
     from the CSD-UBERON edge collection so the ring tracks the loaded data
     instead of a hardcoded list that goes stale on the next ETL release.
@@ -75,7 +79,6 @@ def _get_uberon_cl_counts(db, graph_name):
                         FILTER IS_SAME_COLLECTION("CL", v)
                         RETURN DISTINCT v._id
                 )
-                FILTER LENGTH(cls) > 0
                 RETURN [organ, LENGTH(cls)]
         """
         cursor = db.aql.execute(
@@ -249,8 +252,10 @@ def _phenotypes_initial_load(db, graph_name):
             continue
         doc = doc_list[0]
         cl_children = _get_cl_names_for_organ(db, graph_name, organ_id)
-        doc["value"] = cl_count
-        doc["subtree_size"] = cl_count
+        # Floor at 1 so an organ with no CL descendants still gets a visible
+        # arc rather than a zero-width one.
+        doc["value"] = cl_count or 1
+        doc["subtree_size"] = cl_count or 1
         doc["_hasChildren"] = len(cl_children) > 0
         doc["children"] = cl_children
         organ_nodes.append(doc)
@@ -285,8 +290,8 @@ def _phenotypes_organ_children(db, graph_name):
         if not doc_list or doc_list[0] is None:
             continue
         doc = doc_list[0]
-        doc["value"] = cl_count
-        doc["subtree_size"] = cl_count
+        doc["value"] = cl_count or 1
+        doc["subtree_size"] = cl_count or 1
         doc["_hasChildren"] = cl_count > 0
         doc["children"] = None
         results.append(doc)

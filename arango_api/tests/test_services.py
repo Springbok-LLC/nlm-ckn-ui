@@ -1320,6 +1320,17 @@ class UberonClCountQueryTestCase(TestCase):
         # what the base-ring consumers iterate.
         self.assertEqual(result, {organ: 3 for organ in organs})
 
+    def test_organ_with_no_cl_descendants_is_kept(self):
+        # A dataset's organ must reach the ring even with an empty CL subtree —
+        # dropping it would hide the dataset with nothing to say so.
+        db = self._mock_db([["UBERON/0001004", 3], ["UBERON/0000966", 0]])
+
+        result = sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
+
+        query = db.aql.execute.call_args[0][0]
+        self.assertNotIn("FILTER LENGTH(cls) > 0", query)
+        self.assertEqual(result["UBERON/0000966"], 0)
+
     def test_organ_order_is_preserved(self):
         # The query sorts by descending dataset count and callers lay the base
         # ring out by iterating this mapping, so insertion order is load-bearing.
@@ -1327,7 +1338,11 @@ class UberonClCountQueryTestCase(TestCase):
         db = self._mock_db(rows)
 
         result = sunburst_service._get_uberon_cl_counts(db, "KN-Phenotypes-v2.0")
+        query = db.aql.execute.call_args[0][0]
 
+        # Assert the clause itself: the mock returns rows in order regardless,
+        # so mapping order alone would pass even with the SORT dropped.
+        self.assertIn("SORT datasets DESC, organ ASC", query)
         self.assertEqual(list(result), ["UBERON/0000966", "UBERON/0001004"])
 
     def test_result_is_memoized_per_graph(self):
