@@ -9,10 +9,11 @@ import { getJson, postJson } from "./fetchWrapper";
  * Fetch a single document by collection and ID.
  * @param {string} collection - Collection name.
  * @param {string} id - Document ID/key.
+ * @param {Object} [config={}] - Additional configuration (silent, fallback).
  * @returns {Promise<Object>} Document object.
  */
-export const fetchDocument = async (collection, id) => {
-  return getJson(COLLECTION_DOCUMENT_ENDPOINT(collection, id));
+export const fetchDocument = async (collection, id, config = {}) => {
+  return getJson(COLLECTION_DOCUMENT_ENDPOINT(collection, id), config);
 };
 
 /**

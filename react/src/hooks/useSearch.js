@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { searchDocuments } from "services";
-import { getAllSearchableFields } from "utils";
+import { fetchDocument, searchDocuments } from "services";
+import { getAllSearchableFields, parseNodeIdentifier } from "utils";
 
 const DEBOUNCE_MS = 250;
 
@@ -54,9 +54,23 @@ const useSearch = (graphType) => {
       setIsLoading(true);
       debounceTimeoutRef.current = setTimeout(async () => {
         const searchFields = Array.from(getAllSearchableFields());
-        const data = await searchDocuments(value, graphType, searchFields);
+        const identifier = parseNodeIdentifier(value);
+        const [data, identifierDoc] = await Promise.all([
+          searchDocuments(value, graphType, searchFields),
+          identifier
+            ? fetchDocument(identifier.collection, identifier.key, {
+                silent: true,
+                fallback: null,
+              })
+            : Promise.resolve(null),
+        ]);
         if (!mountedRef.current) return;
-        setResults(data || []);
+        const searchResults = data || [];
+        const results =
+          identifierDoc?._id && !searchResults.some((r) => r._id === identifierDoc._id)
+            ? [identifierDoc, ...searchResults]
+            : searchResults;
+        setResults(results);
         setIsOpen(true);
         setIsLoading(false);
       }, DEBOUNCE_MS);
