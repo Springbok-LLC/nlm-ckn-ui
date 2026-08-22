@@ -39,3 +39,38 @@ describe("edge filter options reserved key tolerance", () => {
     expect(present(store).settings.edgeFilters).not.toHaveProperty("_predicateCollections");
   });
 });
+
+describe("restored settings are sanitized too", () => {
+  // Guarding only the response is not enough. A saved graph persists the whole
+  // settings blob, and the frontend and backend deploy as separate CI jobs, so
+  // a blob captured during a skew window could carry the reserved key and
+  // reintroduce it into request bodies long after the response itself is clean.
+  const poisoned = {
+    edgeFilters: { Label: ["PRODUCES"], _predicateCollections: { PRODUCES: ["GS", "PR"] } },
+  };
+
+  it("strips the reserved key when loadGraph restores a saved graph", () => {
+    const store = makeStore();
+    store.dispatch(
+      slice.loadGraph({
+        originNodeIds: ["CS/a"],
+        settings: poisoned,
+        graphData: { nodes: [], links: [] },
+      }),
+    );
+    expect(present(store).settings.edgeFilters).toHaveProperty("Label");
+    expect(present(store).settings.edgeFilters).not.toHaveProperty("_predicateCollections");
+  });
+
+  it("strips the reserved key when setGraphData restores settings", () => {
+    const store = makeStore();
+    store.dispatch(
+      slice.setGraphData({
+        graphData: { nodes: [], links: [] },
+        originNodeIds: ["CS/a"],
+        settings: poisoned,
+      }),
+    );
+    expect(present(store).settings.edgeFilters).not.toHaveProperty("_predicateCollections");
+  });
+});

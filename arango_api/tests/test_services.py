@@ -166,6 +166,40 @@ class GetEdgeFilterOptionsGraphTestCase(SimpleTestCase):
         _, mock_get_collections = self._run(graph="phenotypes")
         mock_get_collections.assert_called_once_with("edge", "phenotypes")
 
+    def test_cache_key_is_case_normalized(self):
+        """ "Phenotypes" and "phenotypes" must share one cache entry.
+
+        get_db_and_graph compares case-insensitively, so both resolve to the
+        same database. Keying the cache on the raw string would scan twice and
+        keep a redundant copy alive for a full TTL. The API serializer rejects
+        case variants, but direct service callers are not bound by it.
+        """
+        # The query returns one row containing a list of {label, from_coll, to_coll}.
+        triples = [[{"label": "PRODUCES", "from_coll": "GS", "to_coll": "PR"}]]
+        fake_graph = mock.MagicMock()
+        fake_graph.edge_definitions.return_value = [{"edge_collection": "A-B"}]
+
+        def _fresh_db(*_args, **_kwargs):
+            db = mock.MagicMock()
+            db.aql.execute.return_value = iter(triples)
+            db.graph.return_value = fake_graph
+            return (db, "g")
+
+        with mock.patch.object(
+            document_service, "get_db_and_graph", side_effect=_fresh_db
+        ):
+            first = document_service._get_predicate_collections("phenotypes")
+            self.assertIsNotNone(first)
+            self.assertEqual(
+                list(document_service._predicate_collections_cache), ["phenotypes"]
+            )
+
+            # A case variant must hit the same entry rather than adding a second.
+            document_service._get_predicate_collections("Phenotypes")
+            self.assertEqual(
+                list(document_service._predicate_collections_cache), ["phenotypes"]
+            )
+
 
 class PredicateCollectionsTestCase(ArangoDBTestCase):
     """The reserved `_predicateCollections` map in edge_filter_options."""

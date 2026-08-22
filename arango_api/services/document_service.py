@@ -44,7 +44,13 @@ def _get_predicate_collections(graph):
         signal to fail open -- omit the map rather than break the response.
     """
     now = time.monotonic()
-    cached = _predicate_collections_cache.get(graph)
+    # Normalize the key. get_db_and_graph() compares case-insensitively, so
+    # "Phenotypes" and "phenotypes" resolve to the same database but would
+    # otherwise occupy two cache entries -- duplicating the scan and keeping a
+    # redundant copy alive for a full TTL. The API serializer rejects
+    # case variants, but direct service callers are not bound by it.
+    cache_key = (graph or "").lower()
+    cached = _predicate_collections_cache.get(cache_key)
     if cached and now < cached["expires_at"]:
         return cached["value"]
 
@@ -94,7 +100,7 @@ def _get_predicate_collections(graph):
 
     result = {label: sorted(collections) for label, collections in mapping.items()}
 
-    _predicate_collections_cache[graph] = {
+    _predicate_collections_cache[cache_key] = {
         "value": result,
         "expires_at": now + CACHE_TTL_SECONDS,
     }
