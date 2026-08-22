@@ -612,15 +612,23 @@ const graphSlice = createSlice({
       state.originNodeIds = originNodeIds;
       state.originSubgraphs = {};
       // A saved graph persists the whole settings blob, so sanitize on restore —
-      // see withoutReservedKeys.
-      state.settings = { ...settings, edgeFilters: withoutReservedKeys(settings?.edgeFilters) };
+      // see withoutReservedKeys. Sanitize ONCE and use that object for both
+      // state.settings and lastAppliedSettings: syncSettingsToLastApplied()
+      // assigns lastAppliedSettings back over state.settings after undo/redo, so
+      // cloning the raw payload into it would quietly reintroduce the reserved
+      // key into traversal request bodies.
+      const sanitizedSettings = {
+        ...settings,
+        edgeFilters: withoutReservedKeys(settings?.edgeFilters),
+      };
+      state.settings = sanitizedSettings;
       state.graphData = graphData;
       state.status = GRAPH_STATUS.SUCCEEDED;
       // Ensure lastAppliedSettings reflects the settings that produced this graph.
       try {
-        state.lastAppliedSettings = JSON.parse(JSON.stringify(settings));
+        state.lastAppliedSettings = JSON.parse(JSON.stringify(sanitizedSettings));
       } catch (_err) {
-        state.lastAppliedSettings = { ...settings };
+        state.lastAppliedSettings = { ...sanitizedSettings };
       }
       state.lastActionType = "loadGraph";
       state.rawData = {};

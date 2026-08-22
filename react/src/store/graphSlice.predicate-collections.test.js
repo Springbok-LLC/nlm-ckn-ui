@@ -62,6 +62,24 @@ describe("restored settings are sanitized too", () => {
     expect(present(store).settings.edgeFilters).not.toHaveProperty("_predicateCollections");
   });
 
+  it("keeps the reserved key out after an undo/redo settings sync", () => {
+    // syncSettingsToLastApplied assigns lastAppliedSettings back over
+    // state.settings. Sanitizing only state.settings on restore is not enough:
+    // if lastAppliedSettings were cloned from the raw payload, the reserved key
+    // would reappear the first time a user undid anything.
+    const store = makeStore();
+    store.dispatch(
+      slice.loadGraph({
+        originNodeIds: ["CS/a"],
+        settings: poisoned,
+        graphData: { nodes: [], links: [] },
+      }),
+    );
+    store.dispatch(slice.syncSettingsToLastApplied());
+    expect(present(store).settings.edgeFilters).toHaveProperty("Label");
+    expect(present(store).settings.edgeFilters).not.toHaveProperty("_predicateCollections");
+  });
+
   it("strips the reserved key when setGraphData restores settings", () => {
     const store = makeStore();
     store.dispatch(
