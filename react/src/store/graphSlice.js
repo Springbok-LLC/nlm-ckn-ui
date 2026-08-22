@@ -770,8 +770,15 @@ const graphSlice = createSlice({
       })
       .addCase(fetchEdgeFilterOptions.fulfilled, (state, action) => {
         state.edgeFilterStatus = GRAPH_STATUS.SUCCEEDED;
+        // Reserved `_`-prefixed keys (e.g. `_predicateCollections`) are metadata,
+        // not filterable fields. Strip them before classification so they never
+        // reach `availableEdgeFilters`, get seeded into `settings.edgeFilters`
+        // below, or ship in request bodies via `services/api/graph.js`.
+        const filteredPayload = Object.fromEntries(
+          Object.entries(action.payload).filter(([key]) => key[0] !== "_"),
+        );
         // Sort: categorical fields first, then numeric, each alphabetical.
-        const entries = Object.entries(action.payload);
+        const entries = Object.entries(filteredPayload);
         const categorical = entries
           .filter(([, v]) => v.type !== "numeric")
           .sort(([a], [b]) => a.localeCompare(b));

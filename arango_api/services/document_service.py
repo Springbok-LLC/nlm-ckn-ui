@@ -3,11 +3,102 @@ Service for document retrieval operations.
 """
 
 import logging
+import time
 
 from arango_api.services.base import get_db_and_graph
 from arango_api.services.collection_service import get_collections
 
 logger = logging.getLogger(__name__)
+
+# Predicate->collection fan-out changes only when a dataset is restored, so a
+# coarse TTL is plenty. Mirrors schema_guard.py's cache shape.
+CACHE_TTL_SECONDS = 300
+
+# Expiry-only, keyed by graph. Nothing to invalidate — a dataset restore
+# replaces the process's view within one TTL.
+_predicate_collections_cache = {}
+
+
+def reset_predicate_collections_cache():
+    """Clear the cached predicate->collection maps. Intended for tests."""
+    _predicate_collections_cache.clear()
+
+
+def _get_predicate_collections(graph):
+    """Return each edge Label's actual endpoint collections in a graph.
+
+    Gharial's `edge_definitions()` is used only to enumerate which edge
+    collections belong to the graph. Endpoints are then computed from the
+    real edges, grouped by Label -- NOT from the edge definitions' from/to
+    sets, which are collection-level and overstate any label that shares an
+    edge collection with another label reaching different endpoints (e.g. the
+    seeded graph's NAC_EDGES declares from ["GS", "CHEMBL"] / to ["MONDO",
+    "PR"], but PRODUCES only ever occurs on GS -> PR).
+
+    Args:
+        graph (str): The graph type ("ontologies" or "phenotypes").
+
+    Returns:
+        dict | None: Label -> sorted list of collection names, or None if it
+        could not be determined (Gharial unreachable). None is the caller's
+        signal to fail open -- omit the map rather than break the response.
+    """
+    now = time.monotonic()
+    cached = _predicate_collections_cache.get(graph)
+    if cached and now < cached["expires_at"]:
+        return cached["value"]
+
+    try:
+        db, graph_name = get_db_and_graph(graph)
+        edge_collections = [
+            e["edge_collection"] for e in db.graph(graph_name).edge_definitions()
+        ]
+        if not edge_collections:
+            logger.warning(
+                "Graph %r reported no edge definitions; skipping predicate map",
+                graph,
+            )
+            return None
+
+        # Collection names come from Gharial, never from user input, so
+        # interpolating them is safe. ArangoDB names cannot contain backticks.
+        subqueries = [
+            f" (FOR e IN `{name}` "
+            f"FILTER e.Label != null "
+            f"RETURN DISTINCT {{"
+            f"label: e.Label, "
+            f"from_coll: PARSE_IDENTIFIER(e._from).collection, "
+            f"to_coll: PARSE_IDENTIFIER(e._to).collection"
+            f"}}) "
+            for name in edge_collections
+        ]
+        query = "RETURN UNION(" + ", ".join(subqueries) + ")"
+        rows = list(db.aql.execute(query))
+        triples = rows[0] if rows else []
+    except Exception:
+        logger.warning(
+            "Could not compute predicate collections for graph %r",
+            graph,
+            exc_info=True,
+        )
+        return None
+
+    mapping = {}
+    for triple in triples:
+        label = triple.get("label")
+        if not label:
+            continue
+        collections = mapping.setdefault(label, set())
+        collections.add(triple["from_coll"])
+        collections.add(triple["to_coll"])
+
+    result = {label: sorted(collections) for label, collections in mapping.items()}
+
+    _predicate_collections_cache[graph] = {
+        "value": result,
+        "expires_at": now + CACHE_TTL_SECONDS,
+    }
+    return result
 
 
 def get_documents(document_ids, graph_name):
@@ -123,6 +214,14 @@ def get_edge_filter_options(fields_to_query, graph="ontologies"):
 
         cursor = db.aql.execute(query, bind_vars=bind_vars)
         results = list(cursor)[0]
+
+        # Additive: this does not replace the UNION query above, which also
+        # does the >90%-numeric type detection and needs real values, not
+        # distinct label triples. Reserved `_`-prefixed key so it cannot
+        # collide with a field name and existing consumers can filter it out.
+        predicate_collections = _get_predicate_collections(graph)
+        if predicate_collections is not None:
+            results["_predicateCollections"] = predicate_collections
 
         return results
 
