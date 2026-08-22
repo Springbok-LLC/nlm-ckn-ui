@@ -536,6 +536,56 @@ if [ "$SWAP_READY" = "0" ]; then
   exit 1
 fi
 
+# ── Re-create the read-only backend user ─────────────────────────────────────
+# Green is built by a fresh container, so its _system holds only root, and no
+# golden dump carries _users. Promoting green therefore deletes the read-only
+# user the backend authenticates as -- every request 401s and the app returns
+# 500, while every step above still reports success because they all run as
+# root (dev + stage outage, 2026-08-21).
+#
+# Mirrors the UserData bootstrap in nlm-ckn-iac (arangodb.yaml); UserData runs
+# only at instance launch, so it cannot repair this itself.
+RO_USER=$(aws ssm get-parameter \
+  --name "/$PROJECT_NAME/$ENVIRONMENT/arango/db-user" \
+  --query 'Parameter.Value' --output text --region "$REGION" 2>/dev/null || true)
+
+if [ -z "$RO_USER" ] || [ "$RO_USER" = "None" ]; then
+  echo "==> No read-only user configured for $ENVIRONMENT — backend connects as root"
+else
+  echo "==> Re-creating read-only backend user '$RO_USER' after swap"
+  RO_PASSWORD=$(aws secretsmanager get-secret-value \
+    --secret-id "/$PROJECT_NAME/$ENVIRONMENT/secrets/arangodb-password" \
+    --query 'SecretString' --output text --region "$REGION")
+
+  # BOTH grants are required. grantDatabase alone leaves collection access to
+  # fall back to the '*' wildcard, which defaults to 'none' -- so db.collections()
+  # and every AQL read come back 401.
+  # Word splitting on EXPECTED_DBS is intentional: it is a space-separated list.
+  # shellcheck disable=SC2086
+  GRANT_DBS=$(printf '"%s",' $EXPECTED_DBS)
+  if ! docker exec arangodb arangosh \
+    --server.endpoint tcp://127.0.0.1:8529 \
+    --server.username root \
+    --server.password "$ARANGO_PASSWORD" \
+    --javascript.execute-string "
+      var users = require('@arangodb/users');
+      var u = '$RO_USER';
+      if (users.exists(u)) { users.update(u, '$RO_PASSWORD', true); }
+      else { users.save(u, '$RO_PASSWORD', true); }
+      [${GRANT_DBS%,}].forEach(function (d) {
+        users.grantDatabase(u, d, 'ro');
+        users.grantCollection(u, d, '*', 'ro');
+        print('granted ro on ' + d + ' (database + collections)');
+      });
+    "; then
+    # Fatal: the dataset is live but unreadable by the application, which is
+    # exactly the state this deploy is meant to prevent.
+    echo "ERROR: failed to re-create read-only user '$RO_USER' — backend cannot read the new dataset"
+    exit 1
+  fi
+  echo "==> Read-only backend user '$RO_USER' ready"
+fi
+
 # Note: the version marker was already written into green before the swap and
 # promoted with the data, so it is in place at "$DATA_DIR/.dataset-version" here.
 
