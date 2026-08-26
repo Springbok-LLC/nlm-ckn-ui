@@ -2,6 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import DocumentCard from "./DocumentCard";
 
+jest.mock("hooks", () => ({
+  useOntologyLabels: jest.fn(() => new Map()),
+}));
+
+import { useOntologyLabels } from "hooks";
+
 // Gene symbols render as router links, so every card needs a router context.
 const renderCard = (document) =>
   render(<DocumentCard document={document} />, { wrapper: MemoryRouter });
@@ -45,6 +51,17 @@ jest.mock("../../assets/nlm-ckn-collection-maps.json", () => ({
         individual_labels: [{ field_to_use: "author_cell_term" }],
         individual_fields: [
           { field_to_display: "expressed_genes", display_field_as: "Expressed genes" },
+          { field_to_display: "species", display_field_as: "Species" },
+        ],
+      },
+    ],
+    [
+      "CSD",
+      {
+        display_name: "Cell set dataset",
+        individual_labels: [{ field_to_use: "Name" }],
+        individual_fields: [
+          { field_to_display: "tissue_annotation", display_field_as: "Tissue annotation" },
           { field_to_display: "species", display_field_as: "Species" },
         ],
       },
@@ -198,5 +215,49 @@ describe("DocumentCard", () => {
     // No CSD section headings for a PUB document
     expect(screen.queryByText("Metadata")).not.toBeInTheDocument();
     expect(screen.queryByText("Provenance")).not.toBeInTheDocument();
+  });
+});
+
+describe("DocumentCard ontology list fields", () => {
+  const csd = (overrides = {}) => ({
+    _id: "CSD/abc123",
+    Name: "Wong (2024) - lung biopsies",
+    species: "Homo sapiens",
+    tissue_annotation: "UBERON:0002174: 65770 | UBERON:0002171: 18003",
+    ...overrides,
+  });
+
+  it("renders each identifier as its term name with the cell count", () => {
+    useOntologyLabels.mockReturnValue(
+      new Map([
+        ["UBERON/0002174", "middle lobe of right lung"],
+        ["UBERON/0002171", "lower lobe of right lung"],
+      ]),
+    );
+    renderCard(csd());
+    expect(screen.getByText("middle lobe of right lung (65,770 cells)")).toBeInTheDocument();
+    expect(screen.getByText("lower lobe of right lung (18,003 cells)")).toBeInTheDocument();
+    expect(screen.queryByText(/UBERON:0002174/)).not.toBeInTheDocument();
+  });
+
+  it("links each term to its own collection page", () => {
+    useOntologyLabels.mockReturnValue(new Map([["UBERON/0002174", "middle lobe of right lung"]]));
+    renderCard(csd({ tissue_annotation: "UBERON:0002174: 65770" }));
+    expect(screen.getByRole("link", { name: /middle lobe of right lung/ })).toHaveAttribute(
+      "href",
+      "/collections/UBERON/0002174",
+    );
+  });
+
+  it("falls back to the identifier when the term name is unresolved", () => {
+    useOntologyLabels.mockReturnValue(new Map());
+    renderCard(csd({ tissue_annotation: "UBERON:0002174: 65770" }));
+    expect(screen.getByText("UBERON:0002174 (65,770 cells)")).toBeInTheDocument();
+  });
+
+  it("omits the parenthetical when a token carries no count", () => {
+    useOntologyLabels.mockReturnValue(new Map([["UBERON/0002174", "middle lobe of right lung"]]));
+    renderCard(csd({ tissue_annotation: "UBERON:0002174" }));
+    expect(screen.getByText("middle lobe of right lung")).toBeInTheDocument();
   });
 });

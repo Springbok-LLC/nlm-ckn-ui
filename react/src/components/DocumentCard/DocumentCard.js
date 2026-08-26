@@ -1,4 +1,6 @@
 import { isGeneField, parseGeneTokens } from "config/geneFields";
+import { isOntologyListField, parseOntologyTokens } from "config/ontologyFields";
+import { useOntologyLabels } from "hooks";
 import { Fragment } from "react";
 import { Link } from "react-router-dom";
 import { formatFieldValue, getDisplayFields, getSectionedFields, getTitle, getUrl } from "utils";
@@ -13,6 +15,7 @@ import { formatFieldValue, getDisplayFields, getSectionedFields, getTitle, getUr
 const DocumentCard = ({ document }) => {
   const sections = getSectionedFields(document);
   const collection = document._id.split("/")[0];
+  const ontologyLabels = useOntologyLabels(document);
 
   /**
    * Renders a gene field as one internal link per symbol, so each gene reaches
@@ -35,6 +38,26 @@ const DocumentCard = ({ document }) => {
     ));
 
   /**
+   * Renders an ontology list field as one internal link per term, showing the
+   * term name in place of its identifier (nlm-ckn#311). A term the lookup could
+   * not resolve keeps its identifier as the link text rather than disappearing.
+   * @param {Array<{curie: string, documentId: string, count: number|null, key: string}>} tokens
+   */
+  const renderOntologyTokens = (tokens) =>
+    tokens.map(({ curie, documentId, count, key }, index) => {
+      const name = ontologyLabels.get(documentId) || curie;
+      return (
+        <Fragment key={key}>
+          {index > 0 && ", "}
+          <Link to={`/collections/${documentId}`} className="ontology-link">
+            {name}
+            {count !== null && ` (${count.toLocaleString("en-US")} cells)`}
+          </Link>
+        </Fragment>
+      );
+    });
+
+  /**
    * Renders a field's value, as an external link when it carries a URL.
    * @param {object} field - { key, value, url }
    */
@@ -43,6 +66,12 @@ const DocumentCard = ({ document }) => {
       const tokens = parseGeneTokens(field.value);
       if (tokens.length > 0) {
         return renderGeneTokens(tokens);
+      }
+    }
+    if (isOntologyListField(collection, field.key)) {
+      const tokens = parseOntologyTokens(field.value);
+      if (tokens.length > 0) {
+        return renderOntologyTokens(tokens);
       }
     }
     return field.url ? (
