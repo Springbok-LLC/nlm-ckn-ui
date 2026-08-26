@@ -51,8 +51,8 @@ const DocumentCard = ({ document }) => {
           {index > 0 && ", "}
           <Link to={`/collections/${documentId}`} className="ontology-link">
             {name}
-            {count !== null && ` (${count.toLocaleString("en-US")} cells)`}
           </Link>
+          {count !== null && ` (${count.toLocaleString("en-US")} cells)`}
         </Fragment>
       );
     });

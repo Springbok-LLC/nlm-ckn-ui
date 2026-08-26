@@ -227,6 +227,12 @@ describe("DocumentCard ontology list fields", () => {
     ...overrides,
   });
 
+  // The count sits outside the <Link> as a text sibling (it names this dataset's
+  // cell count, not the UBERON term), so it and the term name land in separate
+  // DOM nodes. Assert on the row's combined text content rather than a single
+  // node's own text, per testing-library's own text-matching rules.
+  const tissueRow = () => screen.getByText("Tissue annotation").closest("tr");
+
   it("renders each identifier as its term name with the cell count", () => {
     useOntologyLabels.mockReturnValue(
       new Map([
@@ -235,8 +241,8 @@ describe("DocumentCard ontology list fields", () => {
       ]),
     );
     renderCard(csd());
-    expect(screen.getByText("middle lobe of right lung (65,770 cells)")).toBeInTheDocument();
-    expect(screen.getByText("lower lobe of right lung (18,003 cells)")).toBeInTheDocument();
+    expect(tissueRow().textContent).toContain("middle lobe of right lung (65,770 cells)");
+    expect(tissueRow().textContent).toContain("lower lobe of right lung (18,003 cells)");
     expect(screen.queryByText(/UBERON:0002174/)).not.toBeInTheDocument();
   });
 
@@ -252,12 +258,13 @@ describe("DocumentCard ontology list fields", () => {
   it("falls back to the identifier when the term name is unresolved", () => {
     useOntologyLabels.mockReturnValue(new Map());
     renderCard(csd({ tissue_annotation: "UBERON:0002174: 65770" }));
-    expect(screen.getByText("UBERON:0002174 (65,770 cells)")).toBeInTheDocument();
+    expect(tissueRow().textContent).toContain("UBERON:0002174 (65,770 cells)");
   });
 
   it("omits the parenthetical when a token carries no count", () => {
     useOntologyLabels.mockReturnValue(new Map([["UBERON/0002174", "middle lobe of right lung"]]));
     renderCard(csd({ tissue_annotation: "UBERON:0002174" }));
-    expect(screen.getByText("middle lobe of right lung")).toBeInTheDocument();
+    expect(tissueRow().textContent).toContain("middle lobe of right lung");
+    expect(tissueRow().textContent).not.toContain("cells)");
   });
 });
