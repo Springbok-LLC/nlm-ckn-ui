@@ -8,38 +8,80 @@ describe("getSectionedFields", () => {
     dataset_name: "An integrated cell atlas of the human lung.",
     species: "Homo sapiens",
     disease_status: "Normal",
-    anatomical_structure: "lung parenchyma",
+    anatomical_structure: "respiratory_system",
+    tissue_annotation: "UBERON:0002048: 584944",
     collection_id: "6f6d381a-7701-4781-935c-db10d30de293",
-    assay_summary: "scRNA-seq",
+    assay_summary: "EFO:0009922: 584944",
+    cluster_annotation: "author_cell_type",
+    embedding: "X_umap",
+    donor_id_count: "107",
+    filtered_cell_count: 480000,
     cell_count: 584944,
+    cluster_summary: "61",
+    median_of_median_silhouette: "0.7789361625482383",
+    median_of_f_beta_scores: "0.8242319077268552",
+    mean_silhouette: "0.7337227811745746",
     cellxgene_collection: "6f6d381a-7701-4781-935c-db10d30de293",
     cellxgene_dataset: "b351804c-293e-4aeb-9c4c-043db67f4540",
     ...overrides,
   });
 
-  it("groups fields into declared sections in order", () => {
+  it("groups fields into the specified sections in order", () => {
     const result = getSectionedFields(csd());
-    expect(result.map((s) => s.section)).toEqual(["Overview", "Metadata", "Provenance"]);
-    const metadata = result.find((s) => s.section === "Metadata");
-    expect(metadata.fields.map((f) => f.label)).toEqual(
-      expect.arrayContaining(["Species", "Experiment type", "Total Cell Count", "Collection ID"]),
+    expect(result.map((s) => s.section)).toEqual([
+      "Overview",
+      "Citation",
+      "Dataset Metadata",
+      "Provenance",
+      "Analysis Metadata",
+      "Analytical Summary Statistics",
+      "Additional",
+    ]);
+  });
+
+  it("reads cluster count from cluster_summary", () => {
+    // cell_set_count, the key this row used to read, exists in no CSD document,
+    // so the row never rendered.
+    const stats = getSectionedFields(csd()).find(
+      (s) => s.section === "Analytical Summary Statistics",
+    );
+    expect(stats.fields.find((f) => f.label === "Cluster count").value).toBe("61");
+  });
+
+  it("reads the median silhouette from median_of_median_silhouette", () => {
+    // The row previously read mean_silhouette under a "Median" label.
+    const stats = getSectionedFields(
+      csd({ median_of_median_silhouette: "0.61", mean_silhouette: "0.42" }),
+    ).find((s) => s.section === "Analytical Summary Statistics");
+    expect(stats.fields.find((f) => f.label === "Median of median silhouette score").value).toBe(
+      "0.61",
     );
   });
 
-  it("resolves additive (non-config) keys from the raw document", () => {
-    const result = getSectionedFields(csd({ assay_summary: "spatial transcriptomics" }));
-    const metadata = result.find((s) => s.section === "Metadata");
-    const experimentType = metadata.fields.find((f) => f.label === "Experiment type");
-    expect(experimentType.value).toBe("spatial transcriptomics");
-    expect(experimentType.url).toBeNull();
+  it("separates post-filter cell count from the dataset total", () => {
+    const stats = getSectionedFields(csd()).find(
+      (s) => s.section === "Analytical Summary Statistics",
+    );
+    const byLabel = Object.fromEntries(stats.fields.map((f) => [f.label, f.value]));
+    expect(byLabel["Cell count"]).toBe(480000);
+    expect(byLabel["Cell count (total)"]).toBe(584944);
+  });
+
+  it("sweeps unspecified attributes into Additional rather than hiding them", () => {
+    // Mean/SD silhouette and the dataset identifiers are not curated slots, but
+    // the panel never hides a populated attribute.
+    const additional = getSectionedFields(csd()).find((s) => s.section === "Additional");
+    expect(additional.fields.map((f) => f.key)).toEqual(
+      expect.arrayContaining(["mean_silhouette", "collection_id", "dataset_identifier"]),
+    );
   });
 
   it("drops fields with empty values", () => {
     const result = getSectionedFields(csd({ assay_summary: undefined, disease_status: "" }));
-    const metadata = result.find((s) => s.section === "Metadata");
+    const metadata = result.find((s) => s.section === "Dataset Metadata");
     const labels = metadata.fields.map((f) => f.label);
-    expect(labels).not.toContain("Experiment type");
-    expect(labels).not.toContain("Disease Status");
+    expect(labels).not.toContain("Assay");
+    expect(labels).not.toContain("Disease");
   });
 
   it("omits a section when all its fields are empty", () => {
@@ -59,17 +101,24 @@ describe("getSectionedFields", () => {
     ]);
   });
 
-  it("collects configured attributes outside the curated sections into an Additional section", () => {
-    // tissue_annotation is in the CSD collection map but not in any curated
-    // fieldSections section, so it must surface under "Additional" (show-all).
-    const result = getSectionedFields(csd({ tissue_annotation: "lung parenchyma" }));
-    const additional = result.find((s) => s.section === "Additional");
-    expect(additional).toBeDefined();
-    expect(additional.fields.map((f) => f.value)).toContain("lung parenchyma");
+  it("resolves additive (non-config) keys from the raw document", () => {
+    const result = getSectionedFields(csd({ assay_summary: "spatial transcriptomics" }));
+    const metadata = result.find((s) => s.section === "Dataset Metadata");
+    const assay = metadata.fields.find((f) => f.label === "Assay");
+    expect(assay.value).toBe("spatial transcriptomics");
+    expect(assay.url).toBeNull();
   });
 
   it("returns null for a collection without a section config", () => {
     expect(getSectionedFields({ _id: "PUB/xyz", label: "Some paper" })).toBeNull();
+  });
+
+  it("applies a field's declared transform to the displayed value", () => {
+    // anatomical_structure holds slugs; the config declares humanizeSlug on it.
+    const result = getSectionedFields(csd({ anatomical_structure: "respiratory_system" }));
+    const values = result.flatMap((s) => s.fields).map((f) => f.value);
+    expect(values).toContain("Respiratory system");
+    expect(values).not.toContain("respiratory_system");
   });
 });
 

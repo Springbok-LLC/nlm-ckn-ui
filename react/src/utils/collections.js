@@ -234,7 +234,9 @@ export const getDisplayFields = (item) => {
  * Groups an item's fields into UI-local sidebar sections.
  * Configured keys resolve their value/URL via getDisplayFields (DRY URLs);
  * keys absent from the collection map resolve their plain value from the
- * document. Empty values and empty sections are dropped.
+ * document. A field descriptor may declare a `transform`, applied to the
+ * resolved value before the empty-value filter, so a transform that returns
+ * "" drops the row. Empty values and empty sections are dropped.
  * @param {object} item - Data object. Must contain `_id`.
  * @returns {Array<{section: string, fields: Array<object>}>|null} Sections, or
  *   null when the item's collection has no section config (caller falls back).
@@ -254,14 +256,15 @@ export const getSectionedFields = (item) => {
 
     const curated = sections.map(({ section, fields }) => {
       const resolved = fields
-        .map(({ key, label, variant }) => {
+        .map(({ key, label, variant, transform }) => {
           placed.add(key);
           const configured = byKey.get(key);
+          const raw = configured ? configured.value : item[key];
           return {
             key,
             label,
             variant,
-            value: configured ? configured.value : item[key],
+            value: transform ? transform(raw) : raw,
             url: configured ? configured.url : null,
           };
         })
