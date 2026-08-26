@@ -6,9 +6,22 @@ import { fetchNodeDetailsByIds } from "services";
 // documents, so one session-scoped cache serves every card.
 const ontologyLabelCache = new Map();
 
-// Test-only helper to clear the module-scoped cache so specs stay isolated and
-// order-independent. Not part of the public API.
-export const __clearOntologyLabelCache = () => ontologyLabelCache.clear();
+// Ids already sent to the details endpoint. An id the backend cannot resolve
+// never lands in the cache, so without this it stays "missing" forever: each
+// response re-renders the hook, the missing list is rebuilt with a fresh
+// identity, and the effect refetches at network cadence for as long as the card
+// is open. Shares the cache's module scope, and is cleared alongside it.
+const attemptedOntologyIds = new Set();
+
+/**
+ * Test-only helper to clear the module-scoped label cache and attempted-id set
+ * so specs stay isolated and order-independent. Not part of the public API.
+ * @returns {void}
+ */
+export const __clearOntologyLabelCache = () => {
+  ontologyLabelCache.clear();
+  attemptedOntologyIds.clear();
+};
 
 /**
  * Collect the ontology document ids a document's declared list fields refer to,
@@ -47,22 +60,37 @@ export const useOntologyLabels = (document) => {
   const [resolvedAt, setResolvedAt] = useState(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: resolvedAt re-triggers this memo to re-read the cache; it is not read inside the callback.
-  const missing = useMemo(() => ids.filter((id) => !ontologyLabelCache.has(id)), [ids, resolvedAt]);
+  const missing = useMemo(
+    () => ids.filter((id) => !ontologyLabelCache.has(id) && !attemptedOntologyIds.has(id)),
+    [ids, resolvedAt],
+  );
 
   useEffect(() => {
     if (missing.length === 0) return;
     let cancelled = false;
     fetchNodeDetailsByIds(missing, "ontologies")
       .then((docs) => {
-        if (cancelled) return;
+        // Cache and mark attempted regardless of `cancelled`: the request was
+        // made and its answer is good for the session, even if this render is
+        // gone. Only the state bump is unmount-sensitive.
+        let added = false;
         for (const doc of docs || []) {
-          if (doc?._id && doc.label) ontologyLabelCache.set(doc._id, doc.label);
+          if (doc?._id && doc.label) {
+            ontologyLabelCache.set(doc._id, doc.label);
+            added = true;
+          }
         }
+        for (const id of missing) attemptedOntologyIds.add(id);
+        // A response that resolved nothing must not re-render: that is what
+        // rebuilt `missing` and drove the refetch loop.
+        if (cancelled || !added) return;
         setResolvedAt((n) => n + 1);
       })
       .catch(() => {
         // A failed lookup is not an error the panel should surface: every token
-        // simply falls back to its identifier.
+        // simply falls back to its identifier. Deliberately does not mark the
+        // ids attempted — a rejection is transient — and cannot loop, because
+        // it never bumps state.
       });
     return () => {
       cancelled = true;

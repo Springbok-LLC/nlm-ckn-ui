@@ -69,6 +69,13 @@ jest.mock("../../assets/nlm-ckn-collection-maps.json", () => ({
   ],
 }));
 
+// Cases set their own label map, which would otherwise leak into every case
+// that follows and make the suite order-dependent.
+beforeEach(() => {
+  useOntologyLabels.mockReset();
+  useOntologyLabels.mockReturnValue(new Map());
+});
+
 describe("DocumentCard", () => {
   it("renders an Overview section header", () => {
     const document = { _id: "CL/0", _key: "0", label: "Document Label", prop1: "value1" };
@@ -231,7 +238,11 @@ describe("DocumentCard ontology list fields", () => {
   // cell count, not the UBERON term), so it and the term name land in separate
   // DOM nodes. Assert on the row's combined text content rather than a single
   // node's own text, per testing-library's own text-matching rules.
-  const tissueRow = () => screen.getByText("Tissue annotation").closest("tr");
+  //
+  // Matched by prefix, not exact label: a curated section takes a field's label
+  // from its own config, so this row is headed "Tissue annotation" or "Tissue"
+  // depending on whether tissue_annotation has been curated yet.
+  const tissueRow = () => screen.getByText(/^Tissue/).closest("tr");
 
   it("renders each identifier as its term name with the cell count", () => {
     useOntologyLabels.mockReturnValue(

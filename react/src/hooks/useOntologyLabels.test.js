@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { __clearOntologyLabelCache, useOntologyLabels } from "./useOntologyLabels";
 
 jest.mock("services", () => ({
@@ -6,6 +6,16 @@ jest.mock("services", () => ({
 }));
 
 import { fetchNodeDetailsByIds } from "services";
+
+// Let any fetch/re-render cycles the hook triggers run to exhaustion before
+// counting calls: a single await would pass even while the hook is looping.
+const settle = async () => {
+  for (let i = 0; i < 5; i += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+};
 
 const csd = (overrides = {}) => ({
   _id: "CSD/abc123",
@@ -66,6 +76,27 @@ describe("useOntologyLabels", () => {
     const { result } = renderHook(() => useOntologyLabels(csd()));
     await waitFor(() => expect(result.current.size).toBe(1));
     expect(result.current.has("UBERON/0002171")).toBe(false);
+  });
+
+  it("does not re-request an identifier a partial response left unresolved", async () => {
+    fetchNodeDetailsByIds.mockResolvedValue([
+      { _id: "UBERON/0002174", label: "middle lobe of right lung" },
+    ]);
+    const { result } = renderHook(() => useOntologyLabels(csd()));
+    await settle();
+    expect(fetchNodeDetailsByIds).toHaveBeenCalledTimes(1);
+    expect(result.current.get("UBERON/0002174")).toBe("middle lobe of right lung");
+    expect(result.current.has("UBERON/0002171")).toBe(false);
+  });
+
+  it("does not re-request identifiers after an empty response", async () => {
+    // The shape a failed lookup actually takes: fetchNodeDetailsByIds swallows
+    // errors and resolves an empty list rather than rejecting.
+    fetchNodeDetailsByIds.mockResolvedValue([]);
+    const { result } = renderHook(() => useOntologyLabels(csd()));
+    await settle();
+    expect(fetchNodeDetailsByIds).toHaveBeenCalledTimes(1);
+    expect(result.current.size).toBe(0);
   });
 
   it("survives a failed fetch without throwing", async () => {

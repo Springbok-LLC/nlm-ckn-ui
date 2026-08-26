@@ -38,8 +38,13 @@ export const isOntologyListField = (collection, fieldKey) =>
  * Split an ontology list value into tokens.
  *
  * Unparseable tokens are dropped rather than rendered: a stray value carries no
- * term to name and no page to link to. Nothing guarantees a list holds distinct
- * terms, so a repeat is keyed by its occurrence number rather than its index.
+ * term to name and no page to link to. Dropping is safe because `renderValue`
+ * falls back to printing the whole raw value when this returns nothing, so a
+ * legacy free-text value like "lung parenchyma" still shows in full; only a
+ * mixed list could lose a term, and no such value is produced today.
+ *
+ * Nothing guarantees a list holds distinct terms, so a repeat is keyed by its
+ * occurrence number rather than its index.
  *
  * @param {*} value - Raw attribute value (string, or array of strings).
  * @returns {Array<{curie: string, documentId: string, count: number|null, key: string}>}
