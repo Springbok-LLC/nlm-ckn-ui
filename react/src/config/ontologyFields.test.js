@@ -15,19 +15,17 @@ describe("isOntologyListField", () => {
 });
 
 describe("parseOntologyTokens", () => {
-  it("splits a pipe-delimited list into curie/document-id/count triples", () => {
+  it("splits a pipe-delimited list into curie/document-id pairs", () => {
     const tokens = parseOntologyTokens("UBERON:0002174: 65770 | UBERON:0002171: 18003");
     expect(tokens).toEqual([
       {
         curie: "UBERON:0002174",
         documentId: "UBERON/0002174",
-        count: 65770,
         key: "UBERON:0002174-0",
       },
       {
         curie: "UBERON:0002171",
         documentId: "UBERON/0002171",
-        count: 18003,
         key: "UBERON:0002171-0",
       },
     ]);
@@ -38,18 +36,16 @@ describe("parseOntologyTokens", () => {
       {
         curie: "UBERON:0001225",
         documentId: "UBERON/0001225",
-        count: 19985,
         key: "UBERON:0001225-0",
       },
     ]);
   });
 
-  it("keeps a token that carries no count", () => {
+  it("keeps a token that carries no count suffix", () => {
     expect(parseOntologyTokens("UBERON:0001225")).toEqual([
       {
         curie: "UBERON:0001225",
         documentId: "UBERON/0001225",
-        count: null,
         key: "UBERON:0001225-0",
       },
     ]);
@@ -62,7 +58,7 @@ describe("parseOntologyTokens", () => {
 
   it("drops blank and unparseable tokens", () => {
     expect(parseOntologyTokens("UBERON:0002048: 10 |  | 064 ")).toEqual([
-      { curie: "UBERON:0002048", documentId: "UBERON/0002048", count: 10, key: "UBERON:0002048-0" },
+      { curie: "UBERON:0002048", documentId: "UBERON/0002048", key: "UBERON:0002048-0" },
     ]);
   });
 

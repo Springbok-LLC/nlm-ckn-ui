@@ -23,7 +23,7 @@ export const ontologyFields = {
 const ontologyFieldsByCollection = new Map(Object.entries(ontologyFields));
 
 /** Matches "UBERON:0002174: 65770", with the count optional. */
-const ONTOLOGY_TOKEN = /^([A-Za-z][A-Za-z0-9_]*):([^\s:]+)(?::\s*(\d+))?$/;
+const ONTOLOGY_TOKEN = /^([A-Za-z][A-Za-z0-9_]*):([^\s:]+)(?::\s*\d+)?$/;
 
 /**
  * Whether a document attribute should be rendered as a list of ontology terms.
@@ -37,6 +37,10 @@ export const isOntologyListField = (collection, fieldKey) =>
 /**
  * Split an ontology list value into tokens.
  *
+ * Values carry a per-term cell count ("UBERON:0002174: 65770"). The count is
+ * matched so it can be stripped and discarded: the panel shows term names
+ * alone, per the specification on nlm-ckn#311.
+ *
  * Unparseable tokens are dropped rather than rendered: a stray value carries no
  * term to name and no page to link to. Dropping is safe because `renderValue`
  * falls back to printing the whole raw value when this returns nothing, so a
@@ -47,7 +51,7 @@ export const isOntologyListField = (collection, fieldKey) =>
  * occurrence number rather than its index.
  *
  * @param {*} value - Raw attribute value (string, or array of strings).
- * @returns {Array<{curie: string, documentId: string, count: number|null, key: string}>}
+ * @returns {Array<{curie: string, documentId: string, key: string}>}
  */
 export const parseOntologyTokens = (value) => {
   const raw = Array.isArray(value) ? value.join(" | ") : value;
@@ -58,14 +62,13 @@ export const parseOntologyTokens = (value) => {
   for (const part of raw.split("|")) {
     const match = ONTOLOGY_TOKEN.exec(part.trim());
     if (!match) continue;
-    const [, prefix, local, count] = match;
+    const [, prefix, local] = match;
     const curie = `${prefix}:${local}`;
     const occurrence = seen.get(curie) ?? 0;
     seen.set(curie, occurrence + 1);
     tokens.push({
       curie,
       documentId: `${prefix}/${local}`,
-      count: count === undefined ? null : Number(count),
       key: `${curie}-${occurrence}`,
     });
   }

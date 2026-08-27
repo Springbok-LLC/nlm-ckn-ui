@@ -234,8 +234,8 @@ describe("DocumentCard ontology list fields", () => {
     ...overrides,
   });
 
-  // The count sits outside the <Link> as a text sibling (it names this dataset's
-  // cell count, not the UBERON term), so it and the term name land in separate
+  // The row's label depends on whether the field is curated, so match it
+  // loosely; term names and their separators land in separate
   // DOM nodes. Assert on the row's combined text content rather than a single
   // node's own text, per testing-library's own text-matching rules.
   //
@@ -244,7 +244,7 @@ describe("DocumentCard ontology list fields", () => {
   // depending on whether tissue_annotation has been curated yet.
   const tissueRow = () => screen.getByText(/^Tissue/).closest("tr");
 
-  it("renders each identifier as its term name with the cell count", () => {
+  it("renders each identifier as its term name", () => {
     useOntologyLabels.mockReturnValue(
       new Map([
         ["UBERON/0002174", "middle lobe of right lung"],
@@ -252,8 +252,11 @@ describe("DocumentCard ontology list fields", () => {
       ]),
     );
     renderCard(csd());
-    expect(tissueRow().textContent).toContain("middle lobe of right lung (65,770 cells)");
-    expect(tissueRow().textContent).toContain("lower lobe of right lung (18,003 cells)");
+    expect(tissueRow().textContent).toContain("middle lobe of right lung");
+    expect(tissueRow().textContent).toContain("lower lobe of right lung");
+    // The per-term cell count is stripped, per the specification.
+    expect(tissueRow().textContent).not.toContain("cells");
+    expect(tissueRow().textContent).not.toContain("65,770");
     expect(screen.queryByText(/UBERON:0002174/)).not.toBeInTheDocument();
   });
 
@@ -269,13 +272,13 @@ describe("DocumentCard ontology list fields", () => {
   it("falls back to the identifier when the term name is unresolved", () => {
     useOntologyLabels.mockReturnValue(new Map());
     renderCard(csd({ tissue_annotation: "UBERON:0002174: 65770" }));
-    expect(tissueRow().textContent).toContain("UBERON:0002174 (65,770 cells)");
+    expect(tissueRow().textContent).toContain("UBERON:0002174");
   });
 
-  it("omits the parenthetical when a token carries no count", () => {
+  it("renders a token that carries no count suffix", () => {
     useOntologyLabels.mockReturnValue(new Map([["UBERON/0002174", "middle lobe of right lung"]]));
     renderCard(csd({ tissue_annotation: "UBERON:0002174" }));
     expect(tissueRow().textContent).toContain("middle lobe of right lung");
-    expect(tissueRow().textContent).not.toContain("cells)");
+    expect(tissueRow().textContent).toContain("middle lobe of right lung");
   });
 });

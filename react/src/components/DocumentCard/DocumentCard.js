@@ -41,10 +41,10 @@ const DocumentCard = ({ document }) => {
    * Renders an ontology list field as one internal link per term, showing the
    * term name in place of its identifier (nlm-ckn#311). A term the lookup could
    * not resolve keeps its identifier as the link text rather than disappearing.
-   * @param {Array<{curie: string, documentId: string, count: number|null, key: string}>} tokens
+   * @param {Array<{curie: string, documentId: string, key: string}>} tokens
    */
   const renderOntologyTokens = (tokens) =>
-    tokens.map(({ curie, documentId, count, key }, index) => {
+    tokens.map(({ curie, documentId, key }, index) => {
       const name = ontologyLabels.get(documentId) || curie;
       return (
         <Fragment key={key}>
@@ -52,7 +52,6 @@ const DocumentCard = ({ document }) => {
           <Link to={`/collections/${documentId}`} className="ontology-link">
             {name}
           </Link>
-          {count !== null && ` (${count.toLocaleString("en-US")} cells)`}
         </Fragment>
       );
     });
