@@ -278,7 +278,15 @@ export const getSectionedFields = (item) => {
       .filter((f) => !placed.has(f.key) && isPresent(f.value))
       .map((f) => ({ key: f.key, label: f.label, value: f.value, url: f.url }));
     if (extras.length > 0) {
-      curated.push({ section: "Additional", fields: extras });
+      // A collection may curate its own "Additional" section (CSD names the
+      // secondary quality statistics there). Merge into it rather than emitting
+      // a second section under the same heading.
+      const existing = curated.find((s) => s.section === "Additional");
+      if (existing) {
+        existing.fields.push(...extras);
+      } else {
+        curated.push({ section: "Additional", fields: extras });
+      }
     }
 
     return curated.filter((s) => s.fields.length > 0);

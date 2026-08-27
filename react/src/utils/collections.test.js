@@ -29,7 +29,6 @@ describe("getSectionedFields", () => {
   it("groups fields into the specified sections in order", () => {
     const result = getSectionedFields(csd());
     expect(result.map((s) => s.section)).toEqual([
-      "Overview",
       "Citation",
       "Dataset Metadata",
       "Provenance",
@@ -45,7 +44,7 @@ describe("getSectionedFields", () => {
     const stats = getSectionedFields(csd()).find(
       (s) => s.section === "Analytical Summary Statistics",
     );
-    expect(stats.fields.find((f) => f.label === "Cluster count").value).toBe("61");
+    expect(stats.fields.find((f) => f.label === "Cluster Count").value).toBe("61");
   });
 
   it("reads the median silhouette from median_of_median_silhouette", () => {
@@ -53,7 +52,7 @@ describe("getSectionedFields", () => {
     const stats = getSectionedFields(
       csd({ median_of_median_silhouette: "0.61", mean_silhouette: "0.42" }),
     ).find((s) => s.section === "Analytical Summary Statistics");
-    expect(stats.fields.find((f) => f.label === "Median of median silhouette score").value).toBe(
+    expect(stats.fields.find((f) => f.label === "Median of Median Silhouette score").value).toBe(
       "0.61",
     );
   });
@@ -63,17 +62,27 @@ describe("getSectionedFields", () => {
       (s) => s.section === "Analytical Summary Statistics",
     );
     const byLabel = Object.fromEntries(stats.fields.map((f) => [f.label, f.value]));
-    expect(byLabel["Cell count"]).toBe(480000);
-    expect(byLabel["Cell count (total)"]).toBe(584944);
+    expect(byLabel["Cell Count"]).toBe(480000);
+    expect(byLabel["Total Cell Count"]).toBe(584944);
   });
 
-  it("sweeps unspecified attributes into Additional rather than hiding them", () => {
-    // Mean/SD silhouette and the dataset identifiers are not curated slots, but
-    // the panel never hides a populated attribute.
-    const additional = getSectionedFields(csd()).find((s) => s.section === "Additional");
-    expect(additional.fields.map((f) => f.key)).toEqual(
+  it("merges unspecified attributes into the curated Additional section", () => {
+    // The design names four quality statistics under "Additional". Identifiers
+    // are not curated slots, but the panel never hides a populated attribute --
+    // they join the same section rather than opening a second one of that name.
+    const sections = getSectionedFields(csd());
+    expect(sections.filter((s) => s.section === "Additional")).toHaveLength(1);
+    const additional = sections.find((s) => s.section === "Additional");
+    const keys = additional.fields.map((f) => f.key);
+    expect(keys).toEqual(
       expect.arrayContaining(["mean_silhouette", "collection_id", "dataset_identifier"]),
     );
+    // The curated statistic keeps the design's label, not the collection map's.
+    expect(additional.fields.find((f) => f.key === "mean_silhouette").label).toBe(
+      "Mean of median silhouette score",
+    );
+    // Curated rows come first, so the section opens as the design shows it.
+    expect(keys.indexOf("mean_silhouette")).toBeLessThan(keys.indexOf("collection_id"));
   });
 
   it("drops fields with empty values", () => {
@@ -93,11 +102,12 @@ describe("getSectionedFields", () => {
 
   it("warns that the CELLxGENE dataset link is a file download", () => {
     // The two Provenance links look interchangeable but are not: the collection
-    // one opens a page, the dataset one pulls a multi-hundred-MB .h5ad.
+    // one opens a page, the dataset one pulls a multi-hundred-MB .h5ad. The
+    // design's wording keeps "download" in the label for that reason.
     const provenance = getSectionedFields(csd()).find((s) => s.section === "Provenance");
     expect(provenance.fields.map((f) => f.label)).toEqual([
       "CELLxGENE collection",
-      "CELLxGENE data file (.h5ad download)",
+      "CELLxGENE data download (.h5ad)",
     ]);
   });
 

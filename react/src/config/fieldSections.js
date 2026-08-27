@@ -77,12 +77,9 @@ export const fieldSections = {
   // nlm-ckn#311. Slots the sheet asks for that no CSD document carries — PMID,
   // age, sex, CKN inclusion criteria, F-beta standard deviation — are omitted
   // rather than configured, so they cannot render as blank rows; they are
-  // tracked as data gaps on that issue.
+  // tracked as data gaps on that issue. Labels are taken verbatim from the
+  // Figma panel (865:3768) so the rendered rows read as the design does.
   CSD: [
-    {
-      section: "Overview",
-      fields: [{ key: "dataset_name", label: "Description", variant: "description" }],
-    },
     {
       section: "Citation",
       // Citation reads "Muto (2021) Nat Commun"; the collection map hangs the
@@ -98,7 +95,7 @@ export const fieldSections = {
         { key: "assay_summary", label: "Assay" },
         {
           key: "anatomical_structure",
-          label: "Anatomical structure collection",
+          label: "Anatomical Structure Collection",
           transform: humanizeSlug,
         },
         { key: "tissue_annotation", label: "Tissue" },
@@ -111,13 +108,13 @@ export const fieldSections = {
         { key: "cellxgene_collection", label: "CELLxGENE collection" },
         // Not a page: this URL serves the raw .h5ad, hundreds of MB for a
         // typical dataset, so the label has to warn before the click does.
-        { key: "cellxgene_dataset", label: "CELLxGENE data file (.h5ad download)" },
+        { key: "cellxgene_dataset", label: "CELLxGENE data download (.h5ad)" },
       ],
     },
     {
       section: "Analysis Metadata",
       fields: [
-        { key: "cluster_annotation", label: "Cluster annotation" },
+        { key: "cluster_annotation", label: "Cluster Annotation" },
         { key: "embedding", label: "Embedding" },
       ],
     },
@@ -126,12 +123,26 @@ export const fieldSections = {
       // the cell count of the dataset as published.
       section: "Analytical Summary Statistics",
       fields: [
-        { key: "donor_id_count", label: "Donor count" },
-        { key: "filtered_cell_count", label: "Cell count" },
-        { key: "cell_count", label: "Cell count (total)" },
-        { key: "cluster_summary", label: "Cluster count" },
-        { key: "median_of_median_silhouette", label: "Median of median silhouette score" },
+        { key: "donor_id_count", label: "Donor Count" },
+        { key: "filtered_cell_count", label: "Cell Count" },
+        { key: "cell_count", label: "Total Cell Count" },
+        { key: "cluster_summary", label: "Cluster Count" },
+        { key: "median_of_median_silhouette", label: "Median of Median Silhouette score" },
         { key: "median_of_f_beta_scores", label: "Median F-beta score" },
+      ],
+    },
+    {
+      // The sheet's "Additional" is the four secondary quality statistics. Any
+      // other populated attribute is merged in here by getSectionedFields, so
+      // naming these does not hide the rest.
+      section: "Additional",
+      fields: [
+        { key: "mean_silhouette", label: "Mean of median silhouette score" },
+        {
+          key: "standard_deviation_of_silhouette",
+          label: "Standard deviation of median silhouette score",
+        },
+        { key: "mean_f_beta_score", label: "Mean F-beta score" },
       ],
     },
   ],
