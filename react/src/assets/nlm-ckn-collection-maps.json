@@ -1008,20 +1008,20 @@
         ],
         "individual_fields": [
           {
+            "field_to_display": "_key",
+            "display_field_as": "NCBI Taxonomy ID",
+            "field_url": "",
+            "field_to_use": ""
+          },
+          {
             "field_to_display": "label",
-            "display_field_as": "Label",
+            "display_field_as": "Current scientific name",
             "field_url": "",
             "field_to_use": ""
           },
           {
-            "field_to_display": "hasOBONamespace",
-            "display_field_as": "OBO_namespace",
-            "field_url": "",
-            "field_to_use": ""
-          },
-          {
-            "field_to_display": "hasDbXref",
-            "display_field_as": "DB_cross_reference(s)",
+            "field_to_display": "hasExactSynonym",
+            "display_field_as": "Common names",
             "field_url": "",
             "field_to_use": ""
           }
