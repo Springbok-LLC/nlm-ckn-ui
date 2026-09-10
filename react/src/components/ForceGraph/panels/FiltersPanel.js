@@ -13,7 +13,8 @@ import RangeSliderFilter from "../../RangeSliderFilter/RangeSliderFilter";
  * Filters panel for collection and edge filtering.
  * Controls which collections and edge types are visible in the graph.
  * Renders range sliders for numeric fields and dropdowns for categorical fields.
- * Only shows edge filters for fields present on the current graph's edges.
+ * Only shows edge filters for fields present on the current graph's edges, or
+ * holding a selection.
  */
 const FiltersPanel = ({
   settings,
