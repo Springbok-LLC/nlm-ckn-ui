@@ -100,6 +100,13 @@ const PhaseEditor = ({
   // Get collection information for display
   const allCollections = useSelector((state) => state.graph.present.settings.allCollections || []);
 
+  // Reserved `_`-prefixed keys in edgeFilterOptions (e.g. `_predicateCollections`)
+  // are metadata, not filterable fields; drop them so this panel does not render
+  // a phantom Edge Filters section for one. Mirrors FiltersPanel's convention.
+  const visibleEdgeFilterOptions = Object.fromEntries(
+    Object.entries(edgeFilterOptions || {}).filter(([key]) => key[0] !== "_"),
+  );
+
   // Track when result first appears or changes to show a completion flash
   const [justCompleted, setJustCompleted] = useState(false);
   const prevResultRef = useRef(phase.result);
@@ -716,10 +723,10 @@ const PhaseEditor = ({
             </div>
 
             {/* Edge Filters */}
-            {Object.keys(edgeFilterOptions || {}).length > 0 && (
+            {Object.keys(visibleEdgeFilterOptions).length > 0 && (
               <div className="setting-item full-width">
                 <span className="setting-label">Edge Filters</span>
-                {Object.entries(edgeFilterOptions).map(([field, filterData]) =>
+                {Object.entries(visibleEdgeFilterOptions).map(([field, filterData]) =>
                   filterData.type === "numeric" ? (
                     <RangeSliderFilter
                       key={field}

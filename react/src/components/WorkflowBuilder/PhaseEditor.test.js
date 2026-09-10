@@ -54,7 +54,11 @@ const renderEditor = (extraProps = {}) => {
         onDelete={jest.fn()}
         isExecuting={false}
         collections={["CL"]}
-        edgeFilterOptions={{ Label: { type: "categorical", values: ["DERIVES_FROM"] } }}
+        edgeFilterOptions={
+          extraProps.edgeFilterOptions ?? {
+            Label: { type: "categorical", values: ["DERIVES_FROM"] },
+          }
+        }
         nodeDetails={{}}
       />
     </Provider>,
@@ -84,5 +88,25 @@ describe("PhaseEditor edge filter include/exclude mode", () => {
     const toggle = screen.getByRole("group", { name: /Label filter mode/i });
     fireEvent.click(within(toggle).getByRole("button", { name: /include/i }));
     expect(onUpdateSettings).toHaveBeenCalledWith("edgeFilterModes", { Label: "include" });
+  });
+});
+
+describe("PhaseEditor reserved edge-filter-options keys", () => {
+  it("renders no phantom section when the only key is reserved", () => {
+    renderEditor({ edgeFilterOptions: { _predicateCollections: { PRODUCES: ["GS", "PR"] } } });
+    expect(screen.queryByText("Edge Filters")).not.toBeInTheDocument();
+  });
+
+  it("does not render a control for the reserved key alongside a real field", () => {
+    renderEditor({
+      edgeFilterOptions: {
+        Label: { type: "categorical", values: ["DERIVES_FROM"] },
+        _predicateCollections: { PRODUCES: ["GS", "PR"] },
+      },
+    });
+    expect(screen.getByText("Edge Filters")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: /_predicateCollections filter mode/i }),
+    ).not.toBeInTheDocument();
   });
 });
