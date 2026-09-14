@@ -187,93 +187,60 @@ describe("getSectionedFields for cell sets", () => {
     ...overrides,
   });
 
-  it("groups fields into the three declared sections in order", () => {
-    const result = getSectionedFields(cs());
-    expect(result.map((s) => s.section)).toEqual([
-      "Overview",
-      "Biomarker & classification metrics",
-      "Quality metrics",
+  const section = (name, doc = cs()) => getSectionedFields(doc).find((s) => s.section === name);
+
+  it("groups fields into the specified sections in order", () => {
+    expect(getSectionedFields(cs()).map((s) => s.section)).toEqual([
+      "Context",
+      "Provenance",
+      // No Analysis Metadata: the fixture carries no cluster_annotation, so
+      // that section is empty and drops out.
+      "CKN Filtering Criteria",
+      "Post-filtering Cell Set Metadata",
+      "Post-filtering Cell Set Statistics",
+      "Markers & Selectively Expressed Genes",
+      "Biomarker Combination Metrics",
+      "Additional",
     ]);
   });
 
-  it("keeps classification metrics out of the overview", () => {
-    const overview = getSectionedFields(cs()).find((s) => s.section === "Overview");
-    const labels = overview.fields.map((f) => f.label);
-    expect(labels).toEqual(
-      expect.arrayContaining(["Author cell term", "Species", "Cell count", "Publication (DOI)"]),
-    );
-    expect(labels).not.toContain("F-beta score");
-    expect(labels).not.toContain("Mean silhouette");
-  });
-
-  it("groups the biomarker combination with its NS-Forest metrics", () => {
-    const metrics = getSectionedFields(cs()).find(
-      (s) => s.section === "Biomarker & classification metrics",
-    );
-    expect(metrics.fields.map((f) => f.label)).toEqual([
-      "Biomarker combination",
-      "Binary gene set",
-      "Expressed genes",
+  it("reports the cell set statistics post-filtering", () => {
+    expect(section("Post-filtering Cell Set Statistics").fields.map((f) => f.label)).toEqual([
+      "Cell count",
+      "Median silhouette score",
       "F-beta score",
-      "Precision",
-      "Recall",
-      "On target",
-      "True positives",
-      "False positives",
-      "False negatives",
     ]);
   });
 
-  it("collects the silhouette summary statistics into quality metrics", () => {
-    const quality = getSectionedFields(cs()).find((s) => s.section === "Quality metrics");
-    expect(quality.fields.map((f) => f.label)).toEqual([
-      "Silhouette score",
-      "Mean silhouette",
-      "Median silhouette",
-      "First quartile silhouette",
-      "Third quartile silhouette",
-      "Silhouette standard deviation",
+  it("shows the binary gene set but not the expressed genes it repeats", () => {
+    expect(section("Markers & Selectively Expressed Genes").fields.map((f) => f.key)).toEqual([
+      "biomarker_combination",
+      "binary_gene_set",
     ]);
+    const keys = getSectionedFields(cs()).flatMap((s) => s.fields.map((f) => f.key));
+    expect(keys).not.toContain("expressed_genes");
   });
 
-  it("drops the quality section for cell sets with no silhouette statistics", () => {
-    // ~6% of cell sets have no silhouette fields at all.
-    const result = getSectionedFields(
-      cs({
-        silhouette_score: undefined,
-        mean_silhouette: undefined,
-        median_silhouette: undefined,
-        first_quartile_silhouette: undefined,
-        third_quartile_silhouette: undefined,
-        standard_deviation_of_silhouette: undefined,
-      }),
-    );
-    expect(result.map((s) => s.section)).not.toContain("Quality metrics");
-  });
-
-  it("places every configured cell set attribute, leaving no Additional section", () => {
-    // "Additional" is the catch-all for configured keys no section claims. Its
-    // absence proves the config covers the whole CS collection map.
-    const result = getSectionedFields(
-      cs({ ontology_purl: "http://purl.obolibrary.org/obo/CL_0002144" }),
-    );
-    expect(result.map((s) => s.section)).not.toContain("Additional");
+  it("scores the biomarker combination, with true negatives marked unused", () => {
+    const metrics = section("Biomarker Combination Metrics").fields;
+    expect(metrics.map((f) => f.label)).toEqual([
+      "F-beta score",
+      "Precision: TP/(TP+FP)",
+      "Recall: TP/(TP+FN)",
+      "On-target fraction",
+      "True positives (TP)",
+      "False positives (FP)",
+      "False negatives (FN)",
+      "True negatives (TN)",
+    ]);
+    expect(metrics.at(-1).value).toBe("Not used in calculation");
   });
 
   it("links the CELLxGENE collection through the shipped collection map", () => {
-    const overview = getSectionedFields(cs()).find((s) => s.section === "Overview");
-    const collection = overview.fields.find((f) => f.label === "CELLxGENE collection");
+    const collection = section("Provenance").fields.find((f) => f.label === "CELLxGENE collection");
     expect(collection.url).toBe(
       "https://cellxgene.cziscience.com/collections/38833785-fac5-48fd-944a-0f62a4c23ed1",
     );
-  });
-
-  it("warns that the cell set dataset link is a file download", () => {
-    // Every CS cellxgene_dataset URL is a raw .h5ad, not a browsable page.
-    const overview = getSectionedFields(cs()).find((s) => s.section === "Overview");
-    const labels = overview.fields.map((f) => f.label);
-    expect(labels).toContain("CELLxGENE data file (.h5ad download)");
-    expect(labels).not.toContain("CELLxGENE dataset");
   });
 });
 
