@@ -121,16 +121,28 @@ describe("DocumentCard", () => {
       dataset_identifier: "4cb45d80",
       dataset_name: "An integrated cell atlas of the human lung.",
       species: "Homo sapiens",
-      cell_count: 584944,
+      filtered_cell_count: 584944,
     };
     renderCard(document);
     // Section headings from the config
-    expect(screen.getByText("Citation")).toBeInTheDocument();
-    expect(screen.getByText("Dataset Metadata")).toBeInTheDocument();
-    // Configured field resolved through getDisplayFields (formatFieldValue adds
-    // thousands separators to large integers)
-    expect(screen.getByText("Total Cell Count")).toBeInTheDocument();
+    expect(screen.getByText("Context")).toBeInTheDocument();
+    expect(screen.getByText("Post-filtering Dataset Metadata")).toBeInTheDocument();
+    // formatFieldValue adds thousands separators to large integers
+    expect(screen.getByText("Cell count")).toBeInTheDocument();
     expect(screen.getByText("584,944")).toBeInTheDocument();
+  });
+
+  it("renders the CKN filtering criteria as text under an info icon", () => {
+    renderCard({ _id: "CSD/abc", species: "Homo sapiens" });
+    expect(screen.getByText("CKN Filtering Criteria")).toBeInTheDocument();
+    expect(screen.getByTitle(/criteria used in CKN/i)).toBeInTheDocument();
+    expect(screen.getByText(/only human normal adult cells/i)).toBeInTheDocument();
+  });
+
+  it("shows true negatives as not used in the calculation", () => {
+    renderCard({ _id: "CS/x", author_cell_term: "T cell", true_positive: "5" });
+    expect(screen.getByText("True negatives (TN)")).toBeInTheDocument();
+    expect(screen.getByText("Not used in calculation")).toBeInTheDocument();
   });
 
   it("links every marker gene to its own gene page", () => {
@@ -182,7 +194,7 @@ describe("DocumentCard", () => {
   });
 
   it("links gene fields on cell set documents but leaves other fields alone", () => {
-    renderCard({ _id: "CS/abc", expressed_genes: "GNLY,PRF1", species: "Homo sapiens" });
+    renderCard({ _id: "CS/abc", binary_gene_set: "GNLY,PRF1", species: "Homo sapiens" });
 
     expect(screen.getByRole("link", { name: "GNLY" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Homo sapiens" })).toBeNull();

@@ -1,4 +1,10 @@
-import { getDisplayFields, getLabel, getSectionedFields, getUrl } from "./collections";
+import {
+  getCardTitle,
+  getDisplayFields,
+  getLabel,
+  getSectionedFields,
+  getUrl,
+} from "./collections";
 
 describe("getSectionedFields", () => {
   const csd = (overrides = {}) => ({
@@ -29,41 +35,55 @@ describe("getSectionedFields", () => {
   it("groups fields into the specified sections in order", () => {
     const result = getSectionedFields(csd());
     expect(result.map((s) => s.section)).toEqual([
-      "Citation",
-      "Dataset Metadata",
+      "Context",
       "Provenance",
       "Analysis Metadata",
-      "Analytical Summary Statistics",
+      "CKN Filtering Criteria",
+      "Post-filtering Dataset Metadata",
+      "Post-filtering Dataset Statistics",
       "Additional",
     ]);
+  });
+
+  it("carries the filtering criteria as static text", () => {
+    const criteria = getSectionedFields(csd()).find((s) => s.section === "CKN Filtering Criteria");
+    expect(criteria.fields).toEqual([]);
+    expect(criteria.description).toMatch(/^Only human normal adult cells/);
+    expect(criteria.info).toBe("Criteria used in CKN to filter human normal adult cells");
+  });
+
+  it("titles the card with its citation, dataset name and anatomical structure", () => {
+    expect(getCardTitle(csd())).toBe(
+      "Cell Set Dataset: Sikkema (2023) Nat Med — An integrated cell atlas of the human lung. — Respiratory system",
+    );
   });
 
   it("reads cluster count from cluster_summary", () => {
     // cell_set_count, the key this row used to read, exists in no CSD document,
     // so the row never rendered.
     const stats = getSectionedFields(csd()).find(
-      (s) => s.section === "Analytical Summary Statistics",
+      (s) => s.section === "Post-filtering Dataset Statistics",
     );
-    expect(stats.fields.find((f) => f.label === "Cluster Count").value).toBe("61");
+    expect(stats.fields.find((f) => f.label === "Cluster count").value).toBe("61");
   });
 
   it("reads the median silhouette from median_of_median_silhouette", () => {
     // The row previously read mean_silhouette under a "Median" label.
     const stats = getSectionedFields(
       csd({ median_of_median_silhouette: "0.61", mean_silhouette: "0.42" }),
-    ).find((s) => s.section === "Analytical Summary Statistics");
-    expect(stats.fields.find((f) => f.label === "Median of Median Silhouette score").value).toBe(
+    ).find((s) => s.section === "Post-filtering Dataset Statistics");
+    expect(stats.fields.find((f) => f.label === "Median of median silhouette score").value).toBe(
       "0.61",
     );
   });
 
-  it("separates post-filter cell count from the dataset total", () => {
+  it("shows the post-filter cell count and leaves the dataset total out", () => {
     const stats = getSectionedFields(csd()).find(
-      (s) => s.section === "Analytical Summary Statistics",
+      (s) => s.section === "Post-filtering Dataset Statistics",
     );
-    const byLabel = Object.fromEntries(stats.fields.map((f) => [f.label, f.value]));
-    expect(byLabel["Cell Count"]).toBe(480000);
-    expect(byLabel["Total Cell Count"]).toBe(584944);
+    expect(stats.fields.find((f) => f.label === "Cell count").value).toBe(480000);
+    const keys = getSectionedFields(csd()).flatMap((s) => s.fields.map((f) => f.key));
+    expect(keys).not.toContain("cell_count");
   });
 
   it("merges unspecified attributes into the curated Additional section", () => {
@@ -87,7 +107,7 @@ describe("getSectionedFields", () => {
 
   it("drops fields with empty values", () => {
     const result = getSectionedFields(csd({ assay_summary: undefined, disease_status: "" }));
-    const metadata = result.find((s) => s.section === "Dataset Metadata");
+    const metadata = result.find((s) => s.section === "Post-filtering Dataset Metadata");
     const labels = metadata.fields.map((f) => f.label);
     expect(labels).not.toContain("Assay");
     expect(labels).not.toContain("Disease");
@@ -95,7 +115,11 @@ describe("getSectionedFields", () => {
 
   it("omits a section when all its fields are empty", () => {
     const result = getSectionedFields(
-      csd({ cellxgene_collection: undefined, cellxgene_dataset: undefined }),
+      csd({
+        cellxgene_collection: undefined,
+        cellxgene_dataset: undefined,
+        dataset_name: undefined,
+      }),
     );
     expect(result.map((s) => s.section)).not.toContain("Provenance");
   });
@@ -107,13 +131,14 @@ describe("getSectionedFields", () => {
     const provenance = getSectionedFields(csd()).find((s) => s.section === "Provenance");
     expect(provenance.fields.map((f) => f.label)).toEqual([
       "CELLxGENE collection",
+      "Dataset name",
       "CELLxGENE data download (.h5ad)",
     ]);
   });
 
   it("resolves additive (non-config) keys from the raw document", () => {
     const result = getSectionedFields(csd({ assay_summary: "spatial transcriptomics" }));
-    const metadata = result.find((s) => s.section === "Dataset Metadata");
+    const metadata = result.find((s) => s.section === "Post-filtering Dataset Metadata");
     const assay = metadata.fields.find((f) => f.label === "Assay");
     expect(assay.value).toBe("spatial transcriptomics");
     expect(assay.url).toBeNull();
@@ -167,93 +192,64 @@ describe("getSectionedFields for cell sets", () => {
     ...overrides,
   });
 
-  it("groups fields into the three declared sections in order", () => {
-    const result = getSectionedFields(cs());
-    expect(result.map((s) => s.section)).toEqual([
-      "Overview",
-      "Biomarker & classification metrics",
-      "Quality metrics",
+  const section = (name, doc = cs()) => getSectionedFields(doc).find((s) => s.section === name);
+
+  it("groups fields into the specified sections in order", () => {
+    expect(getSectionedFields(cs()).map((s) => s.section)).toEqual([
+      "Context",
+      "Provenance",
+      "CKN Filtering Criteria",
+      "Post-filtering Cell Set Metadata",
+      "Post-filtering Cell Set Statistics",
+      "Markers & Selectively Expressed Genes",
+      "Biomarker Combination Metrics",
+      "Additional",
     ]);
   });
 
-  it("keeps classification metrics out of the overview", () => {
-    const overview = getSectionedFields(cs()).find((s) => s.section === "Overview");
-    const labels = overview.fields.map((f) => f.label);
-    expect(labels).toEqual(
-      expect.arrayContaining(["Author cell term", "Species", "Cell count", "Publication (DOI)"]),
-    );
-    expect(labels).not.toContain("F-beta score");
-    expect(labels).not.toContain("Mean silhouette");
-  });
-
-  it("groups the biomarker combination with its NS-Forest metrics", () => {
-    const metrics = getSectionedFields(cs()).find(
-      (s) => s.section === "Biomarker & classification metrics",
-    );
-    expect(metrics.fields.map((f) => f.label)).toEqual([
-      "Biomarker combination",
-      "Binary gene set",
-      "Expressed genes",
+  it("reports the cell set statistics post-filtering", () => {
+    expect(section("Post-filtering Cell Set Statistics").fields.map((f) => f.label)).toEqual([
+      "Cell count",
+      "Median silhouette score",
       "F-beta score",
-      "Precision",
-      "Recall",
-      "On target",
-      "True positives",
-      "False positives",
-      "False negatives",
     ]);
   });
 
-  it("collects the silhouette summary statistics into quality metrics", () => {
-    const quality = getSectionedFields(cs()).find((s) => s.section === "Quality metrics");
-    expect(quality.fields.map((f) => f.label)).toEqual([
-      "Silhouette score",
-      "Mean silhouette",
-      "Median silhouette",
-      "First quartile silhouette",
-      "Third quartile silhouette",
-      "Silhouette standard deviation",
+  it("shows the binary gene set but not the expressed genes it repeats", () => {
+    expect(section("Markers & Selectively Expressed Genes").fields.map((f) => f.key)).toEqual([
+      "biomarker_combination",
+      "binary_gene_set",
     ]);
+    const keys = getSectionedFields(cs()).flatMap((s) => s.fields.map((f) => f.key));
+    expect(keys).not.toContain("expressed_genes");
   });
 
-  it("drops the quality section for cell sets with no silhouette statistics", () => {
-    // ~6% of cell sets have no silhouette fields at all.
-    const result = getSectionedFields(
-      cs({
-        silhouette_score: undefined,
-        mean_silhouette: undefined,
-        median_silhouette: undefined,
-        first_quartile_silhouette: undefined,
-        third_quartile_silhouette: undefined,
-        standard_deviation_of_silhouette: undefined,
-      }),
-    );
-    expect(result.map((s) => s.section)).not.toContain("Quality metrics");
-  });
-
-  it("places every configured cell set attribute, leaving no Additional section", () => {
-    // "Additional" is the catch-all for configured keys no section claims. Its
-    // absence proves the config covers the whole CS collection map.
-    const result = getSectionedFields(
-      cs({ ontology_purl: "http://purl.obolibrary.org/obo/CL_0002144" }),
-    );
-    expect(result.map((s) => s.section)).not.toContain("Additional");
+  it("scores the biomarker combination, with true negatives marked unused", () => {
+    const metrics = section("Biomarker Combination Metrics").fields;
+    expect(metrics.map((f) => f.label)).toEqual([
+      "F-beta score",
+      "Precision: TP/(TP+FP)",
+      "Recall: TP/(TP+FN)",
+      "On-target fraction",
+      "True positives (TP)",
+      "False positives (FP)",
+      "False negatives (FN)",
+      "True negatives (TN)",
+    ]);
+    expect(metrics.at(-1).value).toBe("Not used in calculation");
   });
 
   it("links the CELLxGENE collection through the shipped collection map", () => {
-    const overview = getSectionedFields(cs()).find((s) => s.section === "Overview");
-    const collection = overview.fields.find((f) => f.label === "CELLxGENE collection");
+    const collection = section("Provenance").fields.find((f) => f.label === "CELLxGENE collection");
     expect(collection.url).toBe(
       "https://cellxgene.cziscience.com/collections/38833785-fac5-48fd-944a-0f62a4c23ed1",
     );
   });
 
-  it("warns that the cell set dataset link is a file download", () => {
-    // Every CS cellxgene_dataset URL is a raw .h5ad, not a browsable page.
-    const overview = getSectionedFields(cs()).find((s) => s.section === "Overview");
-    const labels = overview.fields.map((f) => f.label);
-    expect(labels).toContain("CELLxGENE data file (.h5ad download)");
-    expect(labels).not.toContain("CELLxGENE dataset");
+  it("titles the card with its cluster name, publication, dataset and anatomy", () => {
+    expect(getCardTitle(cs())).toBe(
+      "Cell Set: Endothelial-cell-(APC) — 10.1038/s41586-020-2157-4 — Construction of a human cell landscape at single-cell level — UBERON:0001004",
+    );
   });
 });
 
