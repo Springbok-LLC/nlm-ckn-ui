@@ -147,3 +147,15 @@ export const fieldSections = {
     },
   ],
 };
+
+/**
+ * Collection-map attributes the node card leaves out of the "Additional"
+ * catch-all, keyed by collection abbreviation.
+ */
+export const omittedFields = {};
+
+/**
+ * Parts joined after the collection name to title a node card, in order.
+ * A collection with no entry falls back to getTitle.
+ */
+export const cardTitleFields = {};
