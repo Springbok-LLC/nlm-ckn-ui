@@ -24,6 +24,24 @@ import { composeGraph, getFilterableEdgeFields, performSetOperation } from "../u
 import { splitEdgeFiltersByMode } from "../utils/edgeFilters";
 
 /**
+ * Drop reserved `_`-prefixed keys from an edge-filter-shaped object.
+ *
+ * The edge-filter-options response carries metadata (`_predicateCollections`)
+ * alongside the real filterable fields. Those keys must never reach
+ * `availableEdgeFilters` or `settings.edgeFilters`, because `services/api/graph.js`
+ * ships `settings.edgeFilters` in every traversal request body.
+ *
+ * Applied in three places, not one: the response itself, and both paths that
+ * accept a settings object from outside (`setGraphData` and `loadGraph`). A
+ * restored saved graph carries a whole persisted settings blob, so a blob
+ * poisoned by any earlier build — the frontend and backend deploy as separate
+ * CI jobs, so a skew window exists — would otherwise reintroduce the key long
+ * after the response is clean.
+ */
+const withoutReservedKeys = (fields) =>
+  Object.fromEntries(Object.entries(fields || {}).filter(([key]) => key[0] !== "_"));
+
+/**
  * Compose the union of the current origins' subgraphs and fill in cross-origin
  * connecting edges via the edges-between scan. Deduped by id. Pure of Redux —
  * takes the pieces it needs so both thunks share one path.
@@ -403,6 +421,10 @@ const graphSlice = createSlice({
           // first so a restored graph comes back to its saved configuration.
           if (action.payload.settings) {
             state.settings = { ...state.settings, ...action.payload.settings };
+            // Restored settings come from outside this reducer, so sanitize them
+            // rather than trusting they were produced by a build that already
+            // stripped reserved keys.
+            state.settings.edgeFilters = withoutReservedKeys(state.settings.edgeFilters);
           }
           // Configure display settings for pre-fetched workflow results
           // and snapshot lastAppliedSettings so the "Apply Changes" banner
@@ -589,14 +611,24 @@ const graphSlice = createSlice({
       const { originNodeIds, settings, graphData } = action.payload;
       state.originNodeIds = originNodeIds;
       state.originSubgraphs = {};
-      state.settings = settings;
+      // A saved graph persists the whole settings blob, so sanitize on restore —
+      // see withoutReservedKeys. Sanitize ONCE and use that object for both
+      // state.settings and lastAppliedSettings: syncSettingsToLastApplied()
+      // assigns lastAppliedSettings back over state.settings after undo/redo, so
+      // cloning the raw payload into it would quietly reintroduce the reserved
+      // key into traversal request bodies.
+      const sanitizedSettings = {
+        ...settings,
+        edgeFilters: withoutReservedKeys(settings?.edgeFilters),
+      };
+      state.settings = sanitizedSettings;
       state.graphData = graphData;
       state.status = GRAPH_STATUS.SUCCEEDED;
       // Ensure lastAppliedSettings reflects the settings that produced this graph.
       try {
-        state.lastAppliedSettings = JSON.parse(JSON.stringify(settings));
+        state.lastAppliedSettings = JSON.parse(JSON.stringify(sanitizedSettings));
       } catch (_err) {
-        state.lastAppliedSettings = { ...settings };
+        state.lastAppliedSettings = { ...sanitizedSettings };
       }
       state.lastActionType = "loadGraph";
       state.rawData = {};
@@ -770,8 +802,13 @@ const graphSlice = createSlice({
       })
       .addCase(fetchEdgeFilterOptions.fulfilled, (state, action) => {
         state.edgeFilterStatus = GRAPH_STATUS.SUCCEEDED;
+        // Reserved `_`-prefixed keys (e.g. `_predicateCollections`) are metadata,
+        // not filterable fields. Strip them before classification so they never
+        // reach `availableEdgeFilters`, get seeded into `settings.edgeFilters`
+        // below, or ship in request bodies via `services/api/graph.js`.
+        const filteredPayload = withoutReservedKeys(action.payload);
         // Sort: categorical fields first, then numeric, each alphabetical.
-        const entries = Object.entries(action.payload);
+        const entries = Object.entries(filteredPayload);
         const categorical = entries
           .filter(([, v]) => v.type !== "numeric")
           .sort(([a], [b]) => a.localeCompare(b));

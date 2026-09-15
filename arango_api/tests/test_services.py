@@ -87,6 +87,10 @@ class CollectionServiceTestCase(ArangoDBTestCase):
 class DocumentServiceTestCase(ArangoDBTestCase):
     """Tests for document_service functions."""
 
+    def setUp(self):
+        document_service.reset_predicate_collections_cache()
+        self.addCleanup(document_service.reset_predicate_collections_cache)
+
     def test_get_documents(self):
         result = document_service.get_documents(
             document_ids=["CL/0000061", "CL/0000062"],
@@ -119,6 +123,14 @@ class DocumentServiceTestCase(ArangoDBTestCase):
 class GetEdgeFilterOptionsGraphTestCase(SimpleTestCase):
     """edge_filter_options must query the requested graph, not always ontologies."""
 
+    def setUp(self):
+        # The predicate-collections cache (D2) is module-level and keyed by
+        # graph; a real integration test populating "ontologies" or
+        # "phenotypes" earlier in the run would otherwise short-circuit the
+        # mocked get_db_and_graph call this class asserts on.
+        document_service.reset_predicate_collections_cache()
+        self.addCleanup(document_service.reset_predicate_collections_cache)
+
     def _run(self, graph=None):
         fake_db = mock.MagicMock()
         fake_db.aql.execute.return_value = iter(
@@ -138,16 +150,132 @@ class GetEdgeFilterOptionsGraphTestCase(SimpleTestCase):
         return mock_get_db_and_graph, mock_get_collections
 
     def test_uses_requested_graph_connection(self):
+        # Called twice: once for the categorical-values query, once for the
+        # predicate-collections map (D2), which fails open here because the
+        # mocked db.graph(...).edge_definitions() is not a real Gharial call.
         mock_get_db_and_graph, _ = self._run(graph="phenotypes")
-        mock_get_db_and_graph.assert_called_once_with("phenotypes")
+        mock_get_db_and_graph.assert_called_with("phenotypes")
+        self.assertEqual(mock_get_db_and_graph.call_count, 2)
 
     def test_defaults_to_ontologies_connection(self):
         mock_get_db_and_graph, _ = self._run()
-        mock_get_db_and_graph.assert_called_once_with("ontologies")
+        mock_get_db_and_graph.assert_called_with("ontologies")
+        self.assertEqual(mock_get_db_and_graph.call_count, 2)
 
     def test_edge_collections_looked_up_for_requested_graph(self):
         _, mock_get_collections = self._run(graph="phenotypes")
         mock_get_collections.assert_called_once_with("edge", "phenotypes")
+
+    def test_cache_key_is_case_normalized(self):
+        """ "Phenotypes" and "phenotypes" must share one cache entry.
+
+        get_db_and_graph compares case-insensitively, so both resolve to the
+        same database. Keying the cache on the raw string would scan twice and
+        keep a redundant copy alive for a full TTL. The API serializer rejects
+        case variants, but direct service callers are not bound by it.
+        """
+        # The query returns one row containing a list of {label, from_coll, to_coll}.
+        triples = [[{"label": "PRODUCES", "from_coll": "GS", "to_coll": "PR"}]]
+        fake_graph = mock.MagicMock()
+        fake_graph.edge_definitions.return_value = [{"edge_collection": "A-B"}]
+
+        def _fresh_db(*_args, **_kwargs):
+            db = mock.MagicMock()
+            db.aql.execute.return_value = iter(triples)
+            db.graph.return_value = fake_graph
+            return (db, "g")
+
+        with mock.patch.object(
+            document_service, "get_db_and_graph", side_effect=_fresh_db
+        ):
+            first = document_service._get_predicate_collections("phenotypes")
+            self.assertIsNotNone(first)
+            self.assertEqual(
+                list(document_service._predicate_collections_cache), ["phenotypes"]
+            )
+
+            # A case variant must hit the same entry rather than adding a second.
+            document_service._get_predicate_collections("Phenotypes")
+            self.assertEqual(
+                list(document_service._predicate_collections_cache), ["phenotypes"]
+            )
+
+
+class PredicateCollectionsTestCase(ArangoDBTestCase):
+    """The reserved `_predicateCollections` map in edge_filter_options."""
+
+    def setUp(self):
+        document_service.reset_predicate_collections_cache()
+        self.addCleanup(document_service.reset_predicate_collections_cache)
+
+    def test_map_has_documented_shape(self):
+        result = document_service.get_edge_filter_options(["Label"], graph="phenotypes")
+        mapping = result["_predicateCollections"]
+        self.assertIsInstance(mapping, dict)
+        for label, collections in mapping.items():
+            self.assertIsInstance(label, str)
+            self.assertIsInstance(collections, list)
+            for collection in collections:
+                self.assertIsInstance(collection, str)
+
+    def test_produces_maps_to_exactly_gs_and_pr(self):
+        # NAC_EDGES declares from ["GS", "CHEMBL"] / to ["MONDO", "PR"] at the
+        # edge-definition level, but PRODUCES only ever occurs on GS -> PR.
+        # Deriving endpoints from edge_definitions() alone would wrongly claim
+        # all four collections; this pins the actual-edge-scan behaviour.
+        result = document_service.get_edge_filter_options(["Label"], graph="phenotypes")
+        mapping = result["_predicateCollections"]
+        self.assertEqual(sorted(mapping["PRODUCES"]), ["GS", "PR"])
+
+    def test_reserved_key_absent_from_categorical_values(self):
+        result = document_service.get_edge_filter_options(["Label"], graph="phenotypes")
+        self.assertNotIn("_predicateCollections", result["Label"]["values"])
+
+
+class PredicateCollectionsCacheTestCase(SimpleTestCase):
+    """The Gharial-derived predicate map is cached per graph, like schema_guard's."""
+
+    def setUp(self):
+        document_service.reset_predicate_collections_cache()
+        self.addCleanup(document_service.reset_predicate_collections_cache)
+
+    def _patch(self):
+        fake_edges = mock.MagicMock()
+        fake_edges.insert.return_value = None
+        fake_graph = mock.MagicMock()
+        fake_graph.edge_definitions = mock.Mock(
+            return_value=[{"edge_collection": "A-B"}]
+        )
+        fake_db = mock.MagicMock()
+        fake_db.graph = mock.Mock(return_value=fake_graph)
+        fake_db.aql.execute.return_value = iter([[]])
+        return (
+            mock.patch.object(
+                document_service, "get_db_and_graph", return_value=(fake_db, "KN-Test")
+            ),
+            fake_db,
+        )
+
+    def test_gharial_hit_on_second_call_uses_cache(self):
+        patch_db, fake_db = self._patch()
+        with patch_db:
+            document_service._get_predicate_collections("phenotypes")
+            document_service._get_predicate_collections("phenotypes")
+            self.assertEqual(fake_db.graph.call_count, 1)
+
+    def test_reset_cache_clears_it(self):
+        patch_db, fake_db = self._patch()
+        with patch_db:
+            document_service._get_predicate_collections("phenotypes")
+            document_service.reset_predicate_collections_cache()
+            document_service._get_predicate_collections("phenotypes")
+            self.assertEqual(fake_db.graph.call_count, 2)
+
+    def test_fails_open_on_exception(self):
+        patch_db, fake_db = self._patch()
+        fake_db.graph.side_effect = RuntimeError("gharial unreachable")
+        with patch_db:
+            self.assertIsNone(document_service._get_predicate_collections("phenotypes"))
 
 
 class GraphServiceTestCase(ArangoDBTestCase):
