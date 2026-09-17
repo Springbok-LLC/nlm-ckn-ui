@@ -20,6 +20,7 @@ export {
   getUrl,
   NON_BROWSABLE_COLLECTIONS,
   parseCollections,
+  setCellSetLabelLookups,
 } from "./collections";
 // Color utilities
 export {
