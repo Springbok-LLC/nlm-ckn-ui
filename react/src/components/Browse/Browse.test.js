@@ -152,11 +152,11 @@ describe("Browse", () => {
     renderBrowse();
     await screen.findAllByText("cell");
 
-    await userEvent.click(await screen.findByText("test cell 0000001"));
+    await userEvent.click(await screen.findByText(/^test cell 0000001/));
     // Wait for the drill-in fetch's merge to actually land in state -- the
     // newly centered node's child arc appears once it has -- before
     // counting requests.
-    await screen.findByText("test cell 0000003");
+    await screen.findByText(/^test cell 0000003/);
     const callsAfterExpand = global.fetch.mock.calls.length;
 
     await userEvent.click(screen.getByRole("button", { name: /tree/i }));
@@ -164,7 +164,7 @@ describe("Browse", () => {
     // The tree renders the expanded node without refetching it. Each node's
     // label is drawn twice (an outline pass then a fill pass), so this
     // checks that some match exists rather than exactly one.
-    expect(await screen.findAllByText("test cell 0000003")).not.toHaveLength(0);
+    expect(await screen.findAllByText(/^test cell 0000003/)).not.toHaveLength(0);
     expect(global.fetch.mock.calls.length).toBe(callsAfterExpand);
   });
 
@@ -172,14 +172,38 @@ describe("Browse", () => {
     renderBrowse();
     await screen.findAllByText("cell");
 
-    await userEvent.click(await screen.findByText("test cell 0000001"));
-    await screen.findByText("test cell 0000003");
+    await userEvent.click(await screen.findByText(/^test cell 0000001/));
+    await screen.findByText(/^test cell 0000003/);
 
     await userEvent.click(screen.getByRole("button", { name: /tree/i }));
 
     // Both the focused node and its child are open -- the whole focus chain.
-    expect(await screen.findAllByText("test cell 0000001")).not.toHaveLength(0);
-    expect(await screen.findAllByText("test cell 0000003")).not.toHaveLength(0);
+    expect(await screen.findAllByText(/^test cell 0000001/)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/^test cell 0000003/)).not.toHaveLength(0);
+  });
+
+  test("hand-off: toggling a path open in the tree then switching to the sunburst centers there", async () => {
+    renderBrowse();
+    await screen.findAllByText("cell");
+
+    await userEvent.click(screen.getByRole("button", { name: /tree/i }));
+    await screen.findAllByText("cell");
+
+    const [target] = await screen.findAllByText(/^test cell 0000001/);
+    await userEvent.click(target);
+    await screen.findAllByText(/^test cell 0000003/);
+
+    await userEvent.click(screen.getByRole("button", { name: /sunburst/i }));
+
+    // The sunburst's center text (bold, distinct from an arc label) names the
+    // node last toggled open in the tree, not the hierarchy root.
+    await waitFor(() => {
+      const svg = document.querySelector("svg");
+      const centerText = Array.from(svg.querySelectorAll("text")).find(
+        (t) => t.style.fontWeight === "bold",
+      );
+      expect(centerText?.textContent).toMatch(/^test cell 0000001/);
+    });
   });
 
   test("keeps sibling branches open while working only in the tree", async () => {

@@ -33,9 +33,9 @@ const prefixesOf = (path) => path.map((_, index) => path.slice(0, index + 1));
  * intended -- is switching from the sunburst to the tree: `expandedPaths` is
  * reseeded to `focusPath`'s prefixes at that moment, so the tree opens on the
  * node the sunburst was centered on. The reverse hand-off (tree to sunburst)
- * does not update `focusPath`; the sunburst has nowhere to represent more
- * than one open branch, so it simply keeps showing wherever it was last
- * centered.
+ * updates `focusPath` to whichever path the tree last toggled, so switching
+ * to the sunburst centers on wherever the user was just working; it does not
+ * try to represent every open branch, only the last one touched.
  */
 const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -174,6 +174,7 @@ const Browse = () => {
           fetchChildren={fetchChildren}
           expandedPaths={expandedPaths}
           onExpandedPathsChange={handleExpandedPathsChange}
+          onFocusChange={setFocusPath}
         />
       )}
       {data && view === "sunburst" && (
