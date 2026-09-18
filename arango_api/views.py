@@ -29,16 +29,14 @@ from arango_api.serializers import (
     EdgesBetweenSerializer,
     SearchRequestSerializer,
     AQLQuerySerializer,
-    SunburstRequestSerializer,
     HierarchyRequestSerializer,
     EdgeFilterOptionsSerializer,
     DocumentsRequestSerializer,
     WorkflowExecuteSerializer,
 )
 from arango_api.services import collection_service, graph_service, search_service
-from arango_api.services import document_service, sunburst_service, workflow_service
+from arango_api.services import document_service, workflow_service
 from arango_api.services import label_service, version_service, hierarchy_service
-from arango_api.services.sunburst_service import SunburstServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -257,34 +255,6 @@ class AQLQueryView(APIView):
             logger.exception("Error running AQL query")
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-class SunburstView(APIView):
-    """Get sunburst visualization data."""
-
-    def post(self, request):
-        serializer = SunburstRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        graph = data.get("graph", "ontologies")
-        parent_id = data.get("parent_id")
-
-        try:
-            if graph == "phenotypes":
-                results = sunburst_service.get_phenotypes_sunburst(parent_id)
-            else:
-                results = sunburst_service.get_ontologies_sunburst(parent_id)
-
-            return Response(results)
-
-        except SunburstServiceError as e:
-            error_response = {"error": str(e)}
-            if e.db_error:
-                error_response["db_error"] = e.db_error
-            return Response(
-                error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 

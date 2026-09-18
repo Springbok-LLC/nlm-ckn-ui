@@ -318,75 +318,6 @@ class SearchViewsTestCase(ArangoDBViewTestCase):
     #     self.assertEqual(response.status_code, 400)
 
 
-class SunburstViewsTestCase(ArangoDBViewTestCase):
-    """Tests for sunburst visualization API endpoints."""
-
-    def test_sunburst_ontologies(self):
-        response = self.client.post(
-            reverse("get_sunburst"),
-            data={},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["_id"], "root_nlm")
-        self.assertIn("children", data)
-
-    def test_sunburst_with_parent(self):
-        response = self.client.post(
-            reverse("get_sunburst"),
-            data={"parent_id": "CL/0000000"},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.json(), list)
-
-    def test_sunburst_phenotypes(self):
-        response = self.client.post(
-            reverse("get_sunburst"),
-            data={"graph": "phenotypes"},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["_id"], "NCBITaxon/9606")
-
-    def test_sunburst_phenotypes_drilldown_uberon(self):
-        # Expanding a seeded organ exercises the heavy aggregation path end to
-        # end through the view: UBERON/0002048 -> CL/0000066 (with GS chain).
-        response = self.client.post(
-            reverse("get_sunburst"),
-            data={"graph": "phenotypes", "parent_id": "UBERON/0002048"},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIsInstance(data, list)
-        self.assertIn("CL/0000066", [node["_id"] for node in data])
-
-    def test_sunburst_phenotypes_drilldown_cl(self):
-        response = self.client.post(
-            reverse("get_sunburst"),
-            data={"graph": "phenotypes", "parent_id": "CL/0000066"},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIsInstance(data, list)
-        self.assertIn("GS/test_gs_1", [node["_id"] for node in data])
-
-    def test_sunburst_phenotypes_drilldown_gs(self):
-        response = self.client.post(
-            reverse("get_sunburst"),
-            data={"graph": "phenotypes", "parent_id": "GS/test_gs_1"},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIsInstance(data, list)
-        self.assertIn("MONDO/0000001", [node["_id"] for node in data])
-
-
 @tag("integration")
 class HierarchyViewsTestCase(ArangoDBViewTestCase):
     """Tests for the CL hierarchy API endpoints.
@@ -408,7 +339,7 @@ class HierarchyViewsTestCase(ArangoDBViewTestCase):
         self.assertEqual(root["_id"], "CL/0000000")
         child_ids = sorted(child["_id"] for child in root["children"])
         self.assertEqual(child_ids, ["CL/0000062", "CL/0000151", "CL/0007002"])
-        # Grandchildren arrive with the root, for the sunburst's prefetch
+        # Grandchildren arrive with the root, for the Browse page's prefetch
         for child in root["children"]:
             self.assertEqual(child["descendant_count"], 1)
             self.assertEqual([g["_id"] for g in child["children"]], ["CL/0000061"])

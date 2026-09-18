@@ -296,17 +296,6 @@ class AQLQuerySerializer(serializers.Serializer):
         return value
 
 
-class SunburstRequestSerializer(GraphRequestSerializer):
-    """Serializer for sunburst data requests."""
-
-    parent_id = serializers.CharField(
-        required=False,
-        allow_null=True,
-        default=None,
-        help_text="Parent node ID for on-demand loading",
-    )
-
-
 class HierarchyRequestSerializer(serializers.Serializer):
     """Serializer for CL hierarchy requests."""
 

@@ -196,7 +196,7 @@ def get_hierarchy(label, parent_id=None):
 
     With no parent_id: the configured root, its children, and their children.
     With a parent_id: that node's children, each carrying its own children.
-    The two-level shape is what the sunburst's prefetch expects.
+    The two-level shape is what the Browse page's prefetch expects.
     """
     db = db_ontologies
     if db is None:
