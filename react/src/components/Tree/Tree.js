@@ -24,12 +24,19 @@ const findNodeByPath = (root, path) => {
  * Container that fetches hierarchical data and manages the
  * integration between the D3-based TreeConstructor and the React application.
  *
+ * @param {string} [label] - The edge predicate the hierarchy follows.
  * @param {object} [data] - Hierarchy data to render. When omitted, Tree fetches its own root.
  * @param {function} [fetchChildren] - Async callback(parentId) returning that node's children.
  * @param {Array<Array<string>>} [expandedPaths] - Controlled set of expanded root-to-node paths.
  * @param {function} [onExpandedPathsChange] - Called with the new expandedPaths array on toggle.
  */
-const Tree = ({ data, fetchChildren, expandedPaths, onExpandedPathsChange }) => {
+const Tree = ({
+  label = "SUB_CLASS_OF",
+  data,
+  fetchChildren,
+  expandedPaths,
+  onExpandedPathsChange,
+}) => {
   // Init states, used only when Tree fetches and owns its own data/expansion state.
   const [ownTreeData, setOwnTreeData] = useState(null);
   const [ownExpandedPaths, setOwnExpandedPaths] = useState([]);
@@ -44,9 +51,6 @@ const Tree = ({ data, fetchChildren, expandedPaths, onExpandedPathsChange }) => 
   const treeData = isControlledData ? data : ownTreeData;
   const paths = expandedPaths ?? ownExpandedPaths;
   const reportExpandedPaths = onExpandedPathsChange ?? setOwnExpandedPaths;
-
-  // Static configuration for the data source.
-  const graphTypeForTree = "phenotypes";
 
   /**
    * Callback passed to the D3 constructor.
@@ -76,11 +80,14 @@ const Tree = ({ data, fetchChildren, expandedPaths, onExpandedPathsChange }) => 
    * Lazy-load children for a node in the tree. Used only when Tree owns its
    * own data (no `fetchChildren` prop override).
    */
-  const fetchTreeChildren = useCallback(async (parentId) => {
-    const result = await fetchHierarchyData(parentId, graphTypeForTree);
-    if (!Array.isArray(result)) throw new Error(`Expected array for ${parentId}`);
-    return result;
-  }, []);
+  const fetchTreeChildren = useCallback(
+    async (parentId) => {
+      const result = await fetchHierarchyData(label, parentId);
+      if (!Array.isArray(result)) throw new Error(`Expected array for ${parentId}`);
+      return result;
+    },
+    [label],
+  );
 
   /**
    * Fetches the hierarchical tree data from the backend API.
@@ -94,7 +101,7 @@ const Tree = ({ data, fetchChildren, expandedPaths, onExpandedPathsChange }) => 
     setError(null);
 
     try {
-      const rootData = await fetchHierarchyData(null, graphTypeForTree);
+      const rootData = await fetchHierarchyData(label, null);
 
       if (typeof rootData !== "object" || rootData === null || Array.isArray(rootData)) {
         throw new Error("Invalid data format: Expected a single root object.");
@@ -109,7 +116,7 @@ const Tree = ({ data, fetchChildren, expandedPaths, onExpandedPathsChange }) => 
       setIsLoading(false);
       isLoadingRef.current = false;
     }
-  }, []);
+  }, [label]);
 
   // Trigger the initial data fetch when the component mounts, unless data is
   // supplied by a parent.

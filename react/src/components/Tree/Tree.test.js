@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
@@ -160,5 +160,38 @@ describe("Tree Component", () => {
     await userEvent.click(target);
 
     expect(onExpandedPathsChange).toHaveBeenCalledWith([["CL/0000000"]]);
+  });
+
+  describe("standalone (no data prop)", () => {
+    let originalFetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () => Promise.resolve({ ...twoParentFixture, children: [] }),
+        }),
+      );
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    test("fetches its own root from /arango_api/hierarchy/ with the given label", async () => {
+      renderTree({ label: "SUB_CLASS_OF" });
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/arango_api/hierarchy/"),
+          expect.objectContaining({
+            body: JSON.stringify({ label: "SUB_CLASS_OF", parent_id: null }),
+          }),
+        );
+      });
+    });
   });
 });
