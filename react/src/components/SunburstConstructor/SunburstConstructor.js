@@ -39,13 +39,34 @@ function nodeKey(d) {
   return d._uid;
 }
 
+/**
+ * Resolve the exact d3 hierarchy node a root-to-node id path names, walking
+ * down from the root through `children` at each step -- never `root.find`,
+ * which returns the first node whose `_id` matches regardless of position.
+ * The hierarchy is a DAG rendered as a tree, so one `_id` can occur at
+ * several positions, and only the full path picks out one of them.
+ *
+ * Returns null for an empty/missing path or one that names the root itself
+ * (both mean "no special centering -- show the overview frame").
+ */
+function findNodeByPath(root, path) {
+  if (!root || !Array.isArray(path) || path.length <= 1) return null;
+  if (path[0] !== root.data._id) return null;
+  let node = root;
+  for (let i = 1; i < path.length; i++) {
+    node = node.children?.find((child) => child.data._id === path[i]);
+    if (!node) return null;
+  }
+  return node;
+}
+
 function SunburstConstructor(
   data,
   size,
   handleSunburstClickRef,
   handleNodeClickRef,
   handleCenterClickRef,
-  zoomedNodeId,
+  zoomedPath,
 ) {
   const width = size;
   const radius = width / 6;
@@ -132,7 +153,7 @@ function SunburstConstructor(
     return { svgNode: null, hierarchyRoot: null, d3Clicked: () => {}, update: () => {} };
   }
 
-  const pNode = zoomedNodeId ? root.find((d) => d.data._id === zoomedNodeId) : null;
+  const pNode = findNodeByPath(root, zoomedPath);
   const initialCenter = pNode || root;
 
   root.each((d) => {
@@ -185,13 +206,11 @@ function SunburstConstructor(
         return getColorForCollection(d.data?._id?.split("/")[0] || "unknown");
       })
       .attr("fill-opacity", (d) => {
-        if (d.data._id === zoomedNodeId || (d === root && !zoomedNodeId && d.depth === 0)) return 0;
+        if (d === pNode || (d === root && !pNode && d.depth === 0)) return 0;
         return arcVisible(d.current) ? (d.children || d.data._hasChildren ? 0.6 : 0.4) : 0;
       })
       .attr("pointer-events", (d) =>
-        d.data._id === zoomedNodeId ||
-        (d === root && !zoomedNodeId && d.depth === 0) ||
-        !arcVisible(d.current)
+        d === pNode || (d === root && !pNode && d.depth === 0) || !arcVisible(d.current)
           ? "none"
           : "auto",
       )
@@ -226,7 +245,7 @@ function SunburstConstructor(
       .append("text")
       .attr("dy", "0.35em")
       .attr("fill-opacity", (d) => {
-        if (d.data._id === zoomedNodeId || (d === root && !zoomedNodeId && d.depth === 0)) return 0;
+        if (d === pNode || (d === root && !pNode && d.depth === 0)) return 0;
         return +labelVisible(d.current);
       })
       .attr("transform", (d) => labelTransform(d.current))
@@ -291,7 +310,7 @@ function SunburstConstructor(
         };
       })
       .attr("fill-opacity", (d_node) =>
-        d_node.data._id === pClicked.data._id
+        d_node === pClicked
           ? 0
           : arcVisible(d_node.target)
             ? d_node.children || d_node.data._hasChildren
@@ -300,15 +319,13 @@ function SunburstConstructor(
             : 0,
       )
       .attr("pointer-events", (d_node) =>
-        d_node.data._id === pClicked.data._id || !arcVisible(d_node.target) ? "none" : "auto",
+        d_node === pClicked || !arcVisible(d_node.target) ? "none" : "auto",
       )
       .attrTween("d", (d_node) => () => arc(d_node));
 
     labelUpdate
       .transition(t)
-      .attr("fill-opacity", (d_node) =>
-        d_node.data._id === pClicked.data._id ? 0 : +labelVisible(d_node.target),
-      )
+      .attr("fill-opacity", (d_node) => (d_node === pClicked ? 0 : +labelVisible(d_node.target)))
       .attrTween("transform", (d_node) => () => labelTransform(d_node.current));
 
     centerText.transition(t).text(getLabel(pClicked.data) || pClicked.data._key || "Unknown");
@@ -316,7 +333,7 @@ function SunburstConstructor(
   }
 
   // --- update(newData): incremental data-join that transitions to new positions ---
-  function update(newData, activeZoomedNodeId) {
+  function update(newData, activeZoomedPath) {
     if (!newData) return;
 
     // 1. Save old animation state keyed by _id.
@@ -342,7 +359,7 @@ function SunburstConstructor(
     const newHierarchy = buildHierarchy(newData);
     root = d3.partition().size([2 * Math.PI, newHierarchy.height + 1])(newHierarchy);
 
-    const zoomRef = activeZoomedNodeId ? root.find((d) => d.data._id === activeZoomedNodeId) : null;
+    const zoomRef = findNodeByPath(root, activeZoomedPath);
 
     // 3. Compute target positions (relative to the currently-zoomed node if
     //    any, else the overview frame) AND seed d.current from old state for
@@ -428,11 +445,11 @@ function SunburstConstructor(
       })
       .attr("fill-opacity", (d) => {
         if (d === root && d.depth === 0) return 0;
-        if (zoomRef && d.data._id === activeZoomedNodeId) return 0;
+        if (d === zoomRef) return 0;
         return arcVisible(d.target) ? (d.children || d.data._hasChildren ? 0.6 : 0.4) : 0;
       })
       .attr("pointer-events", (d) => {
-        if (zoomRef && d.data._id === activeZoomedNodeId) return "none";
+        if (d === zoomRef) return "none";
         return arcVisible(d.target) ? "auto" : "none";
       })
       .attrTween("d", (d) => () => arc(d));
@@ -458,7 +475,7 @@ function SunburstConstructor(
       .duration(400)
       .attr("fill-opacity", (d) => {
         if (d === root && d.depth === 0) return 0;
-        if (zoomRef && d.data._id === activeZoomedNodeId) return 0;
+        if (d === zoomRef) return 0;
         return +labelVisible(d.target);
       })
       .attrTween("transform", (d) => () => labelTransform(d.current));
@@ -552,3 +569,4 @@ function SunburstConstructor(
 }
 
 export default SunburstConstructor;
+export { findNodeByPath };

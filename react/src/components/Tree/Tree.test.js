@@ -244,7 +244,7 @@ describe("Tree Component", () => {
         resolveB = resolve;
       });
 
-      global.fetch = jest.fn((url, options) => {
+      global.fetch = jest.fn((_url, options) => {
         const body = JSON.parse(options.body);
         const wait = body.label === "LABEL_A" ? promiseA : promiseB;
         const rootLabel = body.label === "LABEL_A" ? "root A" : "root B";
@@ -252,8 +252,7 @@ describe("Tree Component", () => {
           ok: true,
           status: 200,
           statusText: "OK",
-          json: () =>
-            Promise.resolve({ ...twoParentFixture, label: rootLabel, children: [] }),
+          json: () => Promise.resolve({ ...twoParentFixture, label: rootLabel, children: [] }),
         }));
       });
 

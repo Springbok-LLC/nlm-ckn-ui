@@ -1,9 +1,9 @@
 import AddToGraphButton from "components/AddToGraphButton";
 import DocumentPopup from "components/DocumentPopup";
-import SunburstConstructor from "components/SunburstConstructor";
+import SunburstConstructor, { findNodeByPath } from "components/SunburstConstructor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchHierarchyData } from "services";
-import { getLabel, LoadingBar, mergeChildren } from "utils";
+import { getLabel, LoadingBar, mergeChildren, pathKey } from "utils";
 
 /**
  * Sunburst hierarchy view.
@@ -33,10 +33,13 @@ const Sunburst = ({
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   // Lazily seeded from focusPath so the very first mount (e.g. after
   // switching from the tree) centers on the right node without a re-render.
-  const [zoomedNodeId, setZoomedNodeId] = useState(() => {
+  // Kept as the full root-to-node path, not just the final id: the
+  // hierarchy is a DAG, so one id can occur at more than one position, and
+  // only the full path picks out which occurrence is meant.
+  const [zoomedPath, setZoomedPath] = useState(() => {
     if (focusPath === undefined || focusPath.length === 0) return null;
     const focusedId = focusPath[focusPath.length - 1];
-    return focusedId && focusedId !== data?._id ? focusedId : null;
+    return focusedId && focusedId !== data?._id ? focusPath : null;
   });
   const prevControlledRootIdRef = useRef(data?._id);
 
@@ -71,13 +74,13 @@ const Sunburst = ({
       if (typeof rootData !== "object" || rootData === null || Array.isArray(rootData))
         throw new Error("API error for initial load/root");
       setOwnGraphData(rootData);
-      setZoomedNodeId(null);
+      setZoomedPath(null);
       currentHierarchyRootRef.current = null;
     } catch (err) {
       console.error("Fetch/Process Error:", err);
       setError(err.message);
       setOwnGraphData(null);
-      setZoomedNodeId(null);
+      setZoomedPath(null);
       currentHierarchyRootRef.current = null;
     } finally {
       setIsLoading(false);
@@ -137,7 +140,7 @@ const Sunburst = ({
     if (!isControlledData) return;
     if (prevControlledRootIdRef.current === data?._id) return;
     prevControlledRootIdRef.current = data?._id;
-    setZoomedNodeId(null);
+    setZoomedPath(null);
     currentHierarchyRootRef.current = null;
   }, [isControlledData, data?._id]);
 
@@ -148,7 +151,7 @@ const Sunburst = ({
     }
     if (isControlledData) return;
     setOwnGraphData(null);
-    setZoomedNodeId(null);
+    setZoomedPath(null);
     currentHierarchyRootRef.current = null;
     setClickedItem(null);
     setPopupVisible(false);
@@ -194,51 +197,56 @@ const Sunburst = ({
       const currentIsLoading = isLoadingRef.current;
       if (currentIsLoading) return false;
 
-      // Normal navigation within the drilled-down chart
+      // Normal navigation within the drilled-down chart. The clicked node's
+      // own ancestor chain is its exact position, so comparing paths (not
+      // just the bare id) tells a re-click on the same occurrence apart
+      // from a click on a different occurrence that happens to share an id.
+      const clickedPath = d3Node
+        .ancestors()
+        .reverse()
+        .map((ancestor) => ancestor.data._id);
       const needsLoad = checkNeedsLoad(d3Node);
-      if (d3Node.data._id === zoomedNodeId && !needsLoad) return false;
+      if (pathKey(clickedPath) === pathKey(zoomedPath) && !needsLoad) return false;
       if (needsLoad && !currentIsLoading) {
-        if (zoomedNodeId !== d3Node.data._id) setZoomedNodeId(d3Node.data._id);
+        if (pathKey(zoomedPath) !== pathKey(clickedPath)) setZoomedPath(clickedPath);
         reportFocus(d3Node);
         loadNodeChildren(d3Node.data._id);
         return true;
       }
       if (!needsLoad && d3Node.children) {
-        if (zoomedNodeId !== d3Node.data._id) setZoomedNodeId(d3Node.data._id);
+        if (pathKey(zoomedPath) !== pathKey(clickedPath)) setZoomedPath(clickedPath);
         reportFocus(d3Node);
         return true;
       }
       return false;
     },
-    [checkNeedsLoad, loadNodeChildren, reportFocus, zoomedNodeId],
+    [checkNeedsLoad, loadNodeChildren, reportFocus, zoomedPath],
   );
 
   const latestHandleCenterClick = useCallback(() => {
     const currentHierarchy = currentHierarchyRootRef.current;
-    const currentCenterId = zoomedNodeId;
     const currentIsLoading = isLoadingRef.current;
     if (!currentHierarchy) return;
 
-    let centeredNode;
-    if (currentCenterId) {
-      centeredNode = currentHierarchy.find((node) => node.data._id === currentCenterId);
-    } else {
-      centeredNode = currentHierarchy.find((node) => node.depth === 0);
-    }
+    // Resolve the centered occurrence by walking its own path, not by
+    // searching the hierarchy for the first node with a matching id -- a
+    // DAG node's id can occur at more than one position.
+    const centeredNode = zoomedPath
+      ? findNodeByPath(currentHierarchy, zoomedPath)
+      : currentHierarchy;
 
     if (!centeredNode) {
-      const absoluteRoot = currentHierarchy.find((d) => d.depth === 0);
-      if (absoluteRoot) {
-        if (zoomedNodeId !== null) setZoomedNodeId(null);
-        if (d3ClickedRef.current) d3ClickedRef.current(null, absoluteRoot);
-        reportFocus(null);
-      }
+      if (zoomedPath !== null) setZoomedPath(null);
+      if (d3ClickedRef.current) d3ClickedRef.current(null, currentHierarchy);
+      reportFocus(null);
       return;
     }
     const parentNode = centeredNode.parent;
     if (parentNode) {
-      const newZoomTargetId = parentNode.depth === 0 ? null : parentNode.data._id;
-      if (zoomedNodeId !== newZoomTargetId) setZoomedNodeId(newZoomTargetId);
+      // The parent occurrence's own path is just the centered path minus
+      // its last id -- no lookup needed, and no ambiguity possible.
+      const newZoomTarget = parentNode.depth === 0 ? null : zoomedPath.slice(0, -1);
+      if (pathKey(zoomedPath) !== pathKey(newZoomTarget)) setZoomedPath(newZoomTarget);
       if (d3ClickedRef.current) d3ClickedRef.current(null, parentNode);
       reportFocus(parentNode.depth === 0 ? null : parentNode);
       const needsLoadForParent = checkNeedsLoad(parentNode);
@@ -251,11 +259,11 @@ const Sunburst = ({
         loadNodeChildren(parentNode.data._id);
       }
     } else {
-      if (zoomedNodeId !== null) setZoomedNodeId(null);
+      if (zoomedPath !== null) setZoomedPath(null);
       if (d3ClickedRef.current && centeredNode) d3ClickedRef.current(null, centeredNode);
       reportFocus(null);
     }
-  }, [checkNeedsLoad, zoomedNodeId, loadNodeChildren, reportFocus]);
+  }, [checkNeedsLoad, zoomedPath, loadNodeChildren, reportFocus]);
 
   const latestHandleSunburstClick = useCallback((e, dataNode) => {
     setClickedItem(dataNode.data);
@@ -281,7 +289,7 @@ const Sunburst = ({
       handleSunburstClickRef,
       handleNodeClickRef,
       handleCenterClickRef,
-      zoomedNodeId,
+      zoomedPath,
     );
 
     if (sunburstInstance.svgNode) {
@@ -320,7 +328,7 @@ const Sunburst = ({
       return; // skip — mount effect already handled this render
     }
     if (!mountedRef.current || !updateRef.current || !graphData) return;
-    const newRoot = updateRef.current(graphData, zoomedNodeId);
+    const newRoot = updateRef.current(graphData, zoomedPath);
     // Re-expose the current hierarchy root after data-join rebuild.
     // update() now returns the rebuilt root directly so we don't have to
     // fish it out of DOM-bound data (which includes fading-out exit nodes
