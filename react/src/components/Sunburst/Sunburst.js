@@ -5,9 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchHierarchyData } from "services";
 import { getLabel, LoadingBar, mergeChildren } from "utils";
 
-const PREFETCH_CONCURRENCY = 4;
-const PREFETCH_SKIP_PREFIXES = ["CL/", "GS/", "MONDO/", "PR/", "CHEMBL/"];
-
 /**
  * Sunburst hierarchy view.
  *
@@ -63,43 +60,6 @@ const Sunburst = ({
 
   const shouldBloomRef = useRef(false);
 
-  // Prefetch state
-  const prefetchInFlightRef = useRef(new Set());
-  const prefetchFetchedRef = useRef(new Set());
-  const prefetchGenerationRef = useRef(0);
-
-  // Debounce queue: accumulate merges, flush once per rAF
-  const mergeQueueRef = useRef([]);
-  const rafIdRef = useRef(null);
-
-  // --- Debounced merge: batches multiple prefetch results into one setState ---
-  // Only used for the uncontrolled prefetch path; a controlled `data` prop
-  // already carries every merge its owner performs.
-  const flushMergeQueue = useCallback(() => {
-    rafIdRef.current = null;
-    const queue = mergeQueueRef.current;
-    if (queue.length === 0 || isControlledData) return;
-    mergeQueueRef.current = [];
-    setOwnGraphData((prev) => {
-      if (!prev) return prev;
-      let result = prev;
-      for (const { parentId, data: children } of queue) {
-        result = mergeChildren(result, parentId, children);
-      }
-      return result;
-    });
-  }, [isControlledData]);
-
-  const scheduleMerge = useCallback(
-    (parentId, data) => {
-      mergeQueueRef.current.push({ parentId, data });
-      if (rafIdRef.current == null) {
-        rafIdRef.current = requestAnimationFrame(flushMergeQueue);
-      }
-    },
-    [flushMergeQueue],
-  );
-
   // --- Fetch this component's own root (uncontrolled path only) ---
   const fetchRootData = useCallback(async () => {
     if (isLoadingRef.current) return;
@@ -110,14 +70,6 @@ const Sunburst = ({
       const rootData = await fetchHierarchyData(label, null);
       if (typeof rootData !== "object" || rootData === null || Array.isArray(rootData))
         throw new Error("API error for initial load/root");
-      prefetchGenerationRef.current += 1;
-      prefetchInFlightRef.current = new Set();
-      prefetchFetchedRef.current = new Set();
-      mergeQueueRef.current = [];
-      if (rafIdRef.current != null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
       setOwnGraphData(rootData);
       setZoomedNodeId(null);
       currentHierarchyRootRef.current = null;
@@ -154,7 +106,6 @@ const Sunburst = ({
         const loadChildren = fetchChildren ?? fetchNodeChildren;
         const children = await loadChildren(parentId);
         if (!Array.isArray(children)) throw new Error(`API error for parent ${parentId}`);
-        prefetchFetchedRef.current.add(parentId);
         if (!isControlledData) {
           setOwnGraphData((prev) => (prev ? mergeChildren(prev, parentId, children) : prev));
         }
@@ -169,66 +120,9 @@ const Sunburst = ({
     [fetchChildren, fetchNodeChildren, isControlledData],
   );
 
-  // --- Background prefetch (silent, no loading bar; uncontrolled path only,
-  // since a controlled `data` prop's fetching is entirely its owner's call) ---
-  const prefetchNode = useCallback(
-    async (parentId, generation) => {
-      if (prefetchInFlightRef.current.has(parentId)) return;
-      prefetchInFlightRef.current.add(parentId);
-      try {
-        const children = await fetchHierarchyData(label, parentId);
-        if (generation !== prefetchGenerationRef.current) return;
-        if (!Array.isArray(children)) return;
-        prefetchFetchedRef.current.add(parentId);
-        scheduleMerge(parentId, children);
-      } catch (err) {
-        console.debug(`Prefetch failed for ${parentId}:`, err);
-      } finally {
-        prefetchInFlightRef.current.delete(parentId);
-      }
-    },
-    [label, scheduleMerge],
-  );
-
-  const collectUnfetchedIds = useCallback((node, ids) => {
-    if (!node) return;
-    const id = node._id;
-    if (id && PREFETCH_SKIP_PREFIXES.some((p) => id.startsWith(p))) return;
-    if (
-      node._hasChildren &&
-      !node.children &&
-      id &&
-      !prefetchFetchedRef.current.has(id) &&
-      !prefetchInFlightRef.current.has(id)
-    ) {
-      ids.push(id);
-    }
-    if (node.children) {
-      for (const child of node.children) collectUnfetchedIds(child, ids);
-    }
-  }, []);
-
-  // Drive prefetch on graphData changes
-  useEffect(() => {
-    if (!graphData || isControlledData) return;
-    const generation = prefetchGenerationRef.current;
-    const ids = [];
-    collectUnfetchedIds(graphData, ids);
-    const free = PREFETCH_CONCURRENCY - prefetchInFlightRef.current.size;
-    for (let i = 0; i < ids.length && i < free; i++) {
-      prefetchNode(ids[i], generation);
-    }
-  }, [graphData, isControlledData, collectUnfetchedIds, prefetchNode]);
-
   useEffect(() => {
     isLoadingRef.current = isLoading;
   }, [isLoading]);
-
-  useEffect(() => {
-    return () => {
-      prefetchGenerationRef.current += 1;
-    };
-  }, []);
 
   // Initial data fetch on mount (uncontrolled path only)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - only run on mount
@@ -416,10 +310,6 @@ const Sunburst = ({
       updateRef.current = null;
       bloomInRef.current = null;
       mountedRef.current = false;
-      if (rafIdRef.current != null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
     };
   }, [graphData]);
 
