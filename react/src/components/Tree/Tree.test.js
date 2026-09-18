@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import nodesReducer from "../../store/nodesSlice";
@@ -263,10 +263,18 @@ describe("Tree Component", () => {
       rerender(wrapTree({ label: "LABEL_B" }));
       await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
 
-      // Resolve the superseded request first, then the latest one.
-      resolveA();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      resolveB();
+      // Resolve the superseded request first and let React flush its state
+      // update, so we can observe whether the stale response was applied
+      // before the latest request ever resolves.
+      await act(async () => {
+        resolveA();
+      });
+      expect(screen.queryAllByText("root A")).toHaveLength(0);
+
+      // Now resolve the latest request and confirm its data renders.
+      await act(async () => {
+        resolveB();
+      });
 
       await waitFor(() => {
         expect(screen.queryAllByText("root B").length).toBeGreaterThan(0);
