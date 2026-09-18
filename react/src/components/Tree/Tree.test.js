@@ -26,16 +26,17 @@ beforeAll(() => {
   });
 });
 
-const renderTree = (props) =>
-  render(
-    <Provider store={testStore()}>
-      <MemoryRouter>
-        <ToastProvider>
-          <Tree {...props} />
-        </ToastProvider>
-      </MemoryRouter>
-    </Provider>,
-  );
+const wrapTree = (props) => (
+  <Provider store={testStore()}>
+    <MemoryRouter>
+      <ToastProvider>
+        <Tree {...props} />
+      </ToastProvider>
+    </MemoryRouter>
+  </Provider>
+);
+
+const renderTree = (props) => render(wrapTree(props));
 
 const sharedCell = {
   _id: "CL/0000003",
@@ -97,7 +98,7 @@ describe("Tree Component", () => {
     // The click handler is bound to the enclosing node group; the label
     // itself renders twice (a white text-outline clone plus the real text),
     // so pick the first match rather than asserting a single unique node.
-    const [target] = await screen.findAllByText("test cell 0000003");
+    const [target] = await screen.findAllByText(/^test cell 0000003/);
     await userEvent.click(target);
 
     expect(onExpandedPathsChange).toHaveBeenCalledWith([
@@ -160,6 +161,46 @@ describe("Tree Component", () => {
     await userEvent.click(target);
 
     expect(onExpandedPathsChange).toHaveBeenCalledWith([["CL/0000000"]]);
+  });
+
+  test("two occurrences of one shared node each keep their own add-to-graph button", async () => {
+    const bothParentsExpanded = [
+      ["CL/0000000"],
+      ["CL/0000000", "CL/0000001"],
+      ["CL/0000000", "CL/0000002"],
+    ];
+
+    const { rerender } = renderTree({
+      data: twoParentFixture,
+      fetchChildren: jest.fn().mockResolvedValue([]),
+      expandedPaths: bothParentsExpanded,
+      onExpandedPathsChange: jest.fn(),
+    });
+
+    // Every visible node gets its own portal-mounted button: root, both
+    // parents, and both occurrences of the shared child (CL/0000003) -- 5
+    // nodes. If the map were keyed by bare id, the two CL/0000003 entries
+    // would collide and only one button would render.
+    await waitFor(() => {
+      expect(document.querySelectorAll(".add-to-graph-button")).toHaveLength(5);
+    });
+
+    // Collapse only the first occurrence's parent (CL/0000001), hiding its
+    // copy of the shared child. The second occurrence, still expanded under
+    // CL/0000002, must keep its button: root, both parents, and one
+    // remaining occurrence of the shared child -- 4 nodes.
+    rerender(
+      wrapTree({
+        data: twoParentFixture,
+        fetchChildren: jest.fn().mockResolvedValue([]),
+        expandedPaths: [["CL/0000000"], ["CL/0000000", "CL/0000002"]],
+        onExpandedPathsChange: jest.fn(),
+      }),
+    );
+
+    await waitFor(() => {
+      expect(document.querySelectorAll(".add-to-graph-button")).toHaveLength(4);
+    });
   });
 
   describe("standalone (no data prop)", () => {

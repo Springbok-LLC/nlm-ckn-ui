@@ -1,6 +1,3 @@
-// TreeConstructor.test.js - placeholder
-// TODO: Add tests for the TreeConstructor component
-
 import { render } from "@testing-library/react";
 import TreeConstructor from "./TreeConstructor";
 
@@ -36,10 +33,6 @@ const treeData = {
 };
 
 describe("TreeConstructor Component", () => {
-  it.todo("should construct tree from data");
-  it.todo("should update tree when data changes");
-  it.todo("should handle empty data gracefully");
-
   test("expanding a node only enters its new children, and does not exit unrelated nodes", () => {
     const onNodeEnter = jest.fn();
     const onNodeExit = jest.fn();
@@ -72,7 +65,53 @@ describe("TreeConstructor Component", () => {
     );
 
     expect(onNodeEnter).toHaveBeenCalledTimes(1);
-    expect(onNodeEnter).toHaveBeenCalledWith("CL/0000003", expect.anything());
+    expect(onNodeEnter).toHaveBeenCalledWith(
+      ["CL/0000000", "CL/0000001", "CL/0000003"],
+      expect.anything(),
+    );
     expect(onNodeExit).not.toHaveBeenCalled();
+  });
+
+  test("two visible occurrences of the same node id are reported with distinct paths", () => {
+    const sharedChild = {
+      _id: "CL/0000009",
+      label: "shared",
+      _hasChildren: false,
+      children: [],
+    };
+    const dagData = {
+      _id: "CL/0000000",
+      label: "root",
+      _hasChildren: true,
+      children: [
+        {
+          _id: "CL/0000001",
+          label: "parent a",
+          _hasChildren: true,
+          children: [{ ...sharedChild }],
+        },
+        {
+          _id: "CL/0000002",
+          label: "parent b",
+          _hasChildren: true,
+          children: [{ ...sharedChild }],
+        },
+      ],
+    };
+    const onNodeEnter = jest.fn();
+
+    render(
+      <TreeConstructor
+        data={dagData}
+        onNodeEnter={onNodeEnter}
+        onNodeExit={jest.fn()}
+        expandedPaths={[["CL/0000000"], ["CL/0000000", "CL/0000001"], ["CL/0000000", "CL/0000002"]]}
+        onToggle={jest.fn()}
+      />,
+    );
+
+    const paths = onNodeEnter.mock.calls.map(([path]) => path);
+    expect(paths).toContainEqual(["CL/0000000", "CL/0000001", "CL/0000009"]);
+    expect(paths).toContainEqual(["CL/0000000", "CL/0000002", "CL/0000009"]);
   });
 });

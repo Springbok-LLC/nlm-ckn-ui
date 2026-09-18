@@ -46,6 +46,8 @@ export {
   resolvePresetLabelStates,
 } from "./graph";
 export { captureGraphThumbnail } from "./graphThumbnail";
+// Path-keying for DAG hierarchy positions (tree + sunburst)
+export { pathKey } from "./paths";
 // Platform utilities
 export { isMac } from "./platform";
 // Set operations for graphs

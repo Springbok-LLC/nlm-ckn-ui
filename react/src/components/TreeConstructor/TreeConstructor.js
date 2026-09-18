@@ -1,8 +1,6 @@
 import * as d3 from "d3";
 import { useEffect, useRef } from "react";
-import { getColorForCollection, getLabel, truncateString } from "../../utils";
-
-const pathKey = (path) => JSON.stringify(path);
+import { getColorForCollection, getLabel, pathKey, truncateString } from "../../utils";
 
 /**
  * Tree Constructor Component.
@@ -24,8 +22,12 @@ const pathKey = (path) => JSON.stringify(path);
  * later tries to reconcile the now-orphaned portal target.
  *
  * @param {object} data - The hierarchical data object for the tree.
- * @param {function} onNodeEnter - Callback invoked when a new node's DOM element is created.
- * @param {function} onNodeExit - Callback invoked when a node's DOM element is about to be removed.
+ * @param {function} onNodeEnter - Callback(path, element) invoked with the node's
+ *   root-to-node id path when its DOM element is created. The path -- not the
+ *   bare node id -- identifies which DAG occurrence this is, since one id can
+ *   be visible at more than one position at once.
+ * @param {function} onNodeExit - Callback(path) invoked with the node's path when
+ *   its DOM element is about to be removed.
  * @param {Array<Array<string>>} expandedPaths - Root-to-node id paths whose children should render.
  * @param {function} onToggle - Callback(path) invoked when a node is clicked.
  */
@@ -131,9 +133,10 @@ const TreeConstructor = ({ data, onNodeEnter, onNodeExit, expandedPaths, onToggl
     const keyFor = (d) => pathKey(pathFor(d));
 
     // Build fresh from `data` every time, hiding a node's children right as
-    // each node is visited (pre-order) so hidden subtrees are never even
-    // walked -- this is also what keeps `root.descendants()` below limited
-    // to exactly the currently-visible nodes.
+    // each node is visited (breadth-first, per d3.hierarchy.each) so hidden
+    // subtrees are never even walked -- this is also what keeps
+    // `root.descendants()` below limited to exactly the currently-visible
+    // nodes.
     const expandedKeys = new Set((expandedPaths ?? []).map(pathKey));
     const root = d3.hierarchy(data);
     root.each((d) => {
@@ -235,7 +238,7 @@ const TreeConstructor = ({ data, onNodeEnter, onNodeExit, expandedPaths, onToggl
           // Create a div for React to mount into.
           const placeholder = document.createElement("div");
           this.appendChild(placeholder);
-          onNodeEnterRef.current(d.data._id, placeholder);
+          onNodeEnterRef.current(pathFor(d), placeholder);
         });
 
       // Transition existing nodes to their new positions.
@@ -251,7 +254,7 @@ const TreeConstructor = ({ data, onNodeEnter, onNodeExit, expandedPaths, onToggl
         .exit()
         .each((d) => {
           // Notify the parent component that this node is being removed.
-          onNodeExitRef.current(d.data._id);
+          onNodeExitRef.current(pathFor(d));
         })
         .transition(transition)
         .remove()

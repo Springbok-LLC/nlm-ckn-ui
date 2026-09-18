@@ -3,9 +3,7 @@ import TreeConstructor from "components/TreeConstructor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { fetchHierarchyData } from "services";
-import { LoadingBar, mergeChildren } from "utils";
-
-const pathKey = (path) => JSON.stringify(path);
+import { LoadingBar, mergeChildren, pathKey } from "utils";
 
 /**
  * Walk a path of ids down from the root of a hierarchy data tree, returning
@@ -29,6 +27,9 @@ const findNodeByPath = (root, path) => {
  * @param {function} [fetchChildren] - Async callback(parentId) returning that node's children.
  * @param {Array<Array<string>>} [expandedPaths] - Controlled set of expanded root-to-node paths.
  * @param {function} [onExpandedPathsChange] - Called with the new expandedPaths array on toggle.
+ * @param {function} [onFocusChange] - Called with the toggled node's root-to-node id path
+ *   whenever a node is expanded or collapsed, so a caller hosting both the tree and the
+ *   sunburst can centre the sunburst there on switching views.
  */
 const Tree = ({
   label = "SUB_CLASS_OF",
@@ -36,6 +37,7 @@ const Tree = ({
   fetchChildren,
   expandedPaths,
   onExpandedPathsChange,
+  onFocusChange,
 }) => {
   // Init states, used only when Tree fetches and owns its own data/expansion state.
   const [ownTreeData, setOwnTreeData] = useState(null);
@@ -55,11 +57,15 @@ const Tree = ({
   /**
    * Callback passed to the D3 constructor.
    * D3 calls this function whenever it creates a new node in the visualization,
-   * providing the node's ID and a placeholder DOM element for React to render into.
+   * providing the node's root-to-node id path and a placeholder DOM element for
+   * React to render into. Keyed by path, not the bare node id: the hierarchy is
+   * a DAG, so one id can be visible at more than one position at once, and an
+   * id-keyed map would let the second occurrence's entry overwrite the first's.
    */
-  const handleNodeEnter = useCallback((nodeId, element) => {
-    // Add the new placeholder element to map, triggering a re-render.
-    setMountPoints((prev) => new Map(prev).set(nodeId, element));
+  const handleNodeEnter = useCallback((path, element) => {
+    setMountPoints((prev) =>
+      new Map(prev).set(pathKey(path), { nodeId: path[path.length - 1], element }),
+    );
   }, []);
 
   /**
@@ -67,11 +73,10 @@ const Tree = ({
    * D3 calls this function whenever it removes a node from the visualization,
    * allowing React to clean up the corresponding portal and component.
    */
-  const handleNodeExit = useCallback((nodeId) => {
-    // Remove the placeholder from our map.
+  const handleNodeExit = useCallback((path) => {
     setMountPoints((prev) => {
       const newMap = new Map(prev);
-      newMap.delete(nodeId);
+      newMap.delete(pathKey(path));
       return newMap;
     });
   }, []);
@@ -134,6 +139,7 @@ const Tree = ({
       const isExpanded = paths.some((p) => pathKey(p) === key);
       const nextPaths = isExpanded ? paths.filter((p) => pathKey(p) !== key) : [...paths, path];
       reportExpandedPaths(nextPaths);
+      if (onFocusChange) onFocusChange(path);
 
       if (isExpanded) return;
 
@@ -153,7 +159,15 @@ const Tree = ({
           console.error(`Failed to fetch children for ${nodeId}:`, fetchError);
         });
     },
-    [paths, reportExpandedPaths, treeData, fetchChildren, fetchTreeChildren, isControlledData],
+    [
+      paths,
+      reportExpandedPaths,
+      onFocusChange,
+      treeData,
+      fetchChildren,
+      fetchTreeChildren,
+      isControlledData,
+    ],
   );
 
   // Render
@@ -186,8 +200,8 @@ const Tree = ({
         expandedPaths={paths}
         onToggle={handleToggle}
       />
-      {Array.from(mountPoints.entries()).map(([nodeId, element]) =>
-        ReactDOM.createPortal(<AddToGraphButton nodeId={nodeId} />, element),
+      {Array.from(mountPoints.entries()).map(([key, { nodeId, element }]) =>
+        ReactDOM.createPortal(<AddToGraphButton nodeId={nodeId} />, element, key),
       )}
     </div>
   );
