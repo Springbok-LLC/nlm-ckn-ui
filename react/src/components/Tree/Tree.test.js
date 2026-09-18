@@ -233,5 +233,46 @@ describe("Tree Component", () => {
         );
       });
     });
+
+    test("applies the response for the latest label, not a slower earlier one", async () => {
+      let resolveA;
+      let resolveB;
+      const promiseA = new Promise((resolve) => {
+        resolveA = resolve;
+      });
+      const promiseB = new Promise((resolve) => {
+        resolveB = resolve;
+      });
+
+      global.fetch = jest.fn((url, options) => {
+        const body = JSON.parse(options.body);
+        const wait = body.label === "LABEL_A" ? promiseA : promiseB;
+        const rootLabel = body.label === "LABEL_A" ? "root A" : "root B";
+        return wait.then(() => ({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () =>
+            Promise.resolve({ ...twoParentFixture, label: rootLabel, children: [] }),
+        }));
+      });
+
+      const { rerender } = renderTree({ label: "LABEL_A" });
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+      // Switch labels before the first (slower) request resolves.
+      rerender(wrapTree({ label: "LABEL_B" }));
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+
+      // Resolve the superseded request first, then the latest one.
+      resolveA();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      resolveB();
+
+      await waitFor(() => {
+        expect(screen.queryAllByText("root B").length).toBeGreaterThan(0);
+      });
+      expect(screen.queryAllByText("root A")).toHaveLength(0);
+    });
   });
 });

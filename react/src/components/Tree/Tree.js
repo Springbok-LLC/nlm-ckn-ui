@@ -44,7 +44,11 @@ const Tree = ({
   const [ownExpandedPaths, setOwnExpandedPaths] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const isLoadingRef = useRef(false);
+  // Bumped on every root fetch. A request applies its result only if it is
+  // still the most recent one when it resolves, so a label change that
+  // starts a new request while an older one is in flight can't have the
+  // older response overwrite the newer label's data.
+  const latestRequestIdRef = useRef(0);
 
   // State to manage the DOM elements provided by D3 for React Portals.
   const [mountPoints, setMountPoints] = useState(new Map());
@@ -98,11 +102,8 @@ const Tree = ({
    * Fetches the hierarchical tree data from the backend API.
    */
   const fetchTreeData = useCallback(async () => {
-    if (isLoadingRef.current) {
-      return;
-    }
+    const requestId = ++latestRequestIdRef.current;
     setIsLoading(true);
-    isLoadingRef.current = true;
     setError(null);
 
     try {
@@ -112,14 +113,20 @@ const Tree = ({
         throw new Error("Invalid data format: Expected a single root object.");
       }
 
+      // A newer request has since started (e.g. the label changed while this
+      // one was in flight) -- drop this response rather than let it clobber
+      // the newer request's data.
+      if (latestRequestIdRef.current !== requestId) return;
       setOwnTreeData(rootData);
     } catch (fetchError) {
+      if (latestRequestIdRef.current !== requestId) return;
       console.error("Failed to fetch or process tree data:", fetchError);
       setError(fetchError.message);
       setOwnTreeData(null);
     } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
+      if (latestRequestIdRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   }, [label]);
 
