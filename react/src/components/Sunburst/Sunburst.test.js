@@ -13,14 +13,20 @@ describe("Sunburst Component", () => {
         statusText: "OK",
         json: () =>
           Promise.resolve({
-            label: "NLM Cell Knowledge Network",
+            _id: "CL/0000000",
+            label: "cell",
+            descendant_count: 4,
+            weight: 2,
+            value: 2,
+            _hasChildren: true,
             children: [
               {
-                label: "cell",
-                children: [],
-              },
-              {
-                label: "biological_process",
+                _id: "CL/0000001",
+                label: "test cell 0000001",
+                descendant_count: 1,
+                weight: 1,
+                value: 1,
+                _hasChildren: true,
                 children: [],
               },
             ],
@@ -33,21 +39,17 @@ describe("Sunburst Component", () => {
     global.fetch = originalFetch;
   });
 
-  test("Fetches data correctly from /arango_api/sunburst/", async () => {
+  test("Fetches data from /arango_api/hierarchy/ with the selected label", async () => {
     render(<Sunburst addSelectedItem={jest.fn()} />);
 
-    // Ensure fetch was called
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/arango_api/hierarchy/"),
+        expect.objectContaining({
+          body: JSON.stringify({ label: "SUB_CLASS_OF", parent_id: null }),
+        }),
+      );
     });
-
-    expect(fetch).toHaveBeenCalledWith(
-      "/arango_api/sunburst/",
-      expect.objectContaining({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
   });
 
   test("Popup button is hidden on load when data loads", async () => {

@@ -8,7 +8,7 @@ import { getLabel, LoadingBar, mergeChildren } from "utils";
 const PREFETCH_CONCURRENCY = 4;
 const PREFETCH_SKIP_PREFIXES = ["CL/", "GS/", "MONDO/", "PR/", "CHEMBL/"];
 
-const Sunburst = ({ addSelectedItem }) => {
+const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
   const [graphData, setGraphData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -51,8 +51,6 @@ const Sunburst = ({ addSelectedItem }) => {
 
   const returnTimerRef = useRef(null);
 
-  const graphType = "phenotypes";
-
   // --- Debounced merge: batches multiple prefetch results into one setState ---
   const flushMergeQueue = useCallback(() => {
     rafIdRef.current = null;
@@ -80,52 +78,55 @@ const Sunburst = ({ addSelectedItem }) => {
   );
 
   // --- Primary data fetch (shows loading bar) ---
-  const fetchSunburstData = useCallback(async (parentId = null, isInitialLoad = false) => {
-    if (!isInitialLoad && isLoadingRef.current) return;
-    if (returnTimerRef.current != null) {
-      clearTimeout(returnTimerRef.current);
-      returnTimerRef.current = null;
-    }
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    setError(null);
-    try {
-      const data = await fetchHierarchyData(parentId, graphType);
-      if (parentId) {
-        if (!Array.isArray(data)) throw new Error(`API error for parent ${parentId}`);
-        prefetchFetchedRef.current.add(parentId);
-        setGraphData((prevData) => {
-          if (!prevData) return null;
-          return mergeChildren(prevData, parentId, data);
-        });
-      } else {
-        if (typeof data !== "object" || data === null || Array.isArray(data))
-          throw new Error("API error for initial load/root");
-        prefetchGenerationRef.current += 1;
-        prefetchInFlightRef.current = new Set();
-        prefetchFetchedRef.current = new Set();
-        mergeQueueRef.current = [];
-        if (rafIdRef.current != null) {
-          cancelAnimationFrame(rafIdRef.current);
-          rafIdRef.current = null;
+  const fetchSunburstData = useCallback(
+    async (parentId = null, isInitialLoad = false) => {
+      if (!isInitialLoad && isLoadingRef.current) return;
+      if (returnTimerRef.current != null) {
+        clearTimeout(returnTimerRef.current);
+        returnTimerRef.current = null;
+      }
+      setIsLoading(true);
+      isLoadingRef.current = true;
+      setError(null);
+      try {
+        const data = await fetchHierarchyData(label, parentId);
+        if (parentId) {
+          if (!Array.isArray(data)) throw new Error(`API error for parent ${parentId}`);
+          prefetchFetchedRef.current.add(parentId);
+          setGraphData((prevData) => {
+            if (!prevData) return null;
+            return mergeChildren(prevData, parentId, data);
+          });
+        } else {
+          if (typeof data !== "object" || data === null || Array.isArray(data))
+            throw new Error("API error for initial load/root");
+          prefetchGenerationRef.current += 1;
+          prefetchInFlightRef.current = new Set();
+          prefetchFetchedRef.current = new Set();
+          mergeQueueRef.current = [];
+          if (rafIdRef.current != null) {
+            cancelAnimationFrame(rafIdRef.current);
+            rafIdRef.current = null;
+          }
+          overviewDataRef.current = data;
+          isDrilledDownRef.current = false;
+          setGraphData(data);
+          setZoomedNodeId(null);
+          currentHierarchyRootRef.current = null;
         }
-        overviewDataRef.current = data;
-        isDrilledDownRef.current = false;
-        setGraphData(data);
+      } catch (err) {
+        console.error("Fetch/Process Error:", err);
+        setError(err.message);
+        setGraphData(null);
         setZoomedNodeId(null);
         currentHierarchyRootRef.current = null;
+      } finally {
+        setIsLoading(false);
+        isLoadingRef.current = false;
       }
-    } catch (err) {
-      console.error("Fetch/Process Error:", err);
-      setError(err.message);
-      setGraphData(null);
-      setZoomedNodeId(null);
-      currentHierarchyRootRef.current = null;
-    } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
-    }
-  }, []);
+    },
+    [label],
+  );
 
   // --- Return to overview: full SVG rebuild ---
   const returnToOverview = useCallback(() => {
@@ -152,83 +153,13 @@ const Sunburst = ({ addSelectedItem }) => {
     }, 200);
   }, []);
 
-  // --- Drilldown: zoom → fetch → full SVG rebuild ---
-  const drillIntoOrgan = useCallback(
-    async (organNode, d3Node, event) => {
-      if (isLoadingRef.current) return;
-
-      setError(null);
-      prefetchGenerationRef.current += 1;
-      mergeQueueRef.current = [];
-      if (rafIdRef.current != null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-      if (returnTimerRef.current != null) {
-        clearTimeout(returnTimerRef.current);
-        returnTimerRef.current = null;
-      }
-
-      const drilldownGeneration = prefetchGenerationRef.current;
-
-      // 1. Zoom + fetch in parallel
-      if (d3ClickedRef.current && d3Node) {
-        d3ClickedRef.current(event, d3Node);
-      }
-      setZoomedNodeId(organNode._id);
-
-      isLoadingRef.current = true;
-      try {
-        const [clList] = await Promise.all([
-          fetchHierarchyData(organNode._id, graphType),
-          new Promise((resolve) => setTimeout(resolve, 800)),
-        ]);
-
-        if (drilldownGeneration !== prefetchGenerationRef.current) return;
-        if (!Array.isArray(clList)) throw new Error(`Drilldown error for ${organNode._id}`);
-
-        const drilldownRoot = {
-          _id: organNode._id,
-          _key: organNode._key,
-          label: organNode.label,
-          value: organNode.value,
-          subtree_size: organNode.subtree_size,
-          _hasChildren: clList.length > 0,
-          children: clList,
-        };
-
-        // 2. Fade out old SVG
-        const oldSvg = svgNodeRef.current;
-        if (oldSvg) {
-          oldSvg.style.transition = "opacity 200ms ease-out";
-          oldSvg.style.opacity = "0";
-        }
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        if (drilldownGeneration !== prefetchGenerationRef.current) return;
-
-        // 3. Full rebuild — clean slate, no stale d3 state
-        isDrilledDownRef.current = true;
-        mountedRef.current = false;
-        setGraphData(drilldownRoot);
-        setZoomedNodeId(null);
-      } catch (err) {
-        console.error("Drilldown error:", err);
-        setError(err.message);
-        returnToOverview();
-      } finally {
-        isLoadingRef.current = false;
-      }
-    },
-    [returnToOverview],
-  );
-
   // --- Background prefetch (silent, no loading bar) ---
   const prefetchNode = useCallback(
     async (parentId, generation) => {
       if (prefetchInFlightRef.current.has(parentId)) return;
       prefetchInFlightRef.current.add(parentId);
       try {
-        const data = await fetchHierarchyData(parentId, graphType);
+        const data = await fetchHierarchyData(label, parentId);
         if (generation !== prefetchGenerationRef.current) return;
         if (!Array.isArray(data)) return;
         prefetchFetchedRef.current.add(parentId);
@@ -239,7 +170,7 @@ const Sunburst = ({ addSelectedItem }) => {
         prefetchInFlightRef.current.delete(parentId);
       }
     },
-    [scheduleMerge],
+    [label, scheduleMerge],
   );
 
   const collectUnfetchedIds = useCallback((node, ids) => {
@@ -319,16 +250,10 @@ const Sunburst = ({ addSelectedItem }) => {
 
   // --- Click handlers ---
   const latestHandleNodeClick = useCallback(
-    (event, d3Node) => {
+    (_event, d3Node) => {
       if (!d3Node.data._hasChildren) return false;
       const currentIsLoading = isLoadingRef.current;
       if (currentIsLoading) return false;
-
-      // If we're at the overview level and clicking an organ, drilldown
-      if (!isDrilledDownRef.current && d3Node.data._id?.startsWith("UBERON/")) {
-        drillIntoOrgan(d3Node.data, d3Node, event);
-        return true; // Animate the zoom first, swap happens after
-      }
 
       // Normal navigation within the drilled-down chart
       const needsLoad = checkNeedsLoad(d3Node);
@@ -344,7 +269,7 @@ const Sunburst = ({ addSelectedItem }) => {
       }
       return false;
     },
-    [checkNeedsLoad, fetchSunburstData, zoomedNodeId, drillIntoOrgan],
+    [checkNeedsLoad, fetchSunburstData, zoomedNodeId],
   );
 
   const latestHandleCenterClick = useCallback(() => {
