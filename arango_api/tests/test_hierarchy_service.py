@@ -85,6 +85,100 @@ class _FakeDB:
         self.aql = _FakeAQL(counts_by_label)
 
 
+class _RecordingAQL:
+    """Records every execute() call's query and bind_vars, and yields `rows`."""
+
+    def __init__(self, rows):
+        self._rows = list(rows)
+        self.calls = []
+
+    def execute(self, query, bind_vars):
+        self.calls.append({"query": query, "bind_vars": bind_vars})
+        return iter(self._rows)
+
+
+class _RecordingCursorDB:
+    """A fake db whose aql.execute records every call, for asserting query shape."""
+
+    def __init__(self, rows=()):
+        self.aql = _RecordingAQL(rows)
+
+
+class QueryShapeTestCase(SimpleTestCase):
+    """The AQL run for edges and children binds collection names from the
+    curated config, never from caller-supplied request data -- the label
+    selects a config entry, and only the entry's own values reach AQL as
+    `@@edges`/`@@collection`.
+    """
+
+    def test_edges_for_binds_the_edge_collection_from_config_not_the_label(self):
+        db = _RecordingCursorDB(rows=[])
+
+        hierarchy_service._edges_for(db, "SUB_CLASS_OF")
+
+        call = db.aql.calls[0]
+        self.assertEqual(call["bind_vars"]["@edges"], "CL-CL")
+        self.assertEqual(call["bind_vars"]["label"], "SUB_CLASS_OF")
+        # The bound collection name is a config value, never the raw label
+        # string standing in for it.
+        self.assertNotEqual(call["bind_vars"]["@edges"], call["bind_vars"]["label"])
+
+    def test_child_docs_binds_edges_and_collection_from_config(self):
+        db = _RecordingCursorDB(rows=[])
+
+        hierarchy_service._child_docs(db, "SUB_CLASS_OF", "CL/0000000")
+
+        call = db.aql.calls[0]
+        self.assertEqual(call["bind_vars"]["@edges"], "CL-CL")
+        self.assertEqual(call["bind_vars"]["@collection"], "CL")
+        self.assertEqual(call["bind_vars"]["parent"], "CL/0000000")
+        # parent_id itself is bound as a plain value, never interpolated into
+        # the query text.
+        self.assertNotIn("CL/0000000", call["query"])
+
+
+class DescendantCountsCacheTestCase(SimpleTestCase):
+    """The descendant-count memo is keyed by (graph_name, label) and rebuilds
+    when the graph name changes -- a re-ingest under a new graph name must not
+    keep serving stale counts computed under the old one.
+    """
+
+    def setUp(self):
+        hierarchy_service._DESCENDANT_COUNT_CACHE.clear()
+        self.addCleanup(hierarchy_service._DESCENDANT_COUNT_CACHE.clear)
+
+    def test_second_call_for_the_same_graph_and_label_does_not_requery(self):
+        db = _RecordingCursorDB(rows=[["CL/0000001", "CL/0000000"]])
+
+        first = hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+        second = hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+
+        self.assertEqual(len(db.aql.calls), 1)
+        self.assertEqual(first, second)
+
+    def test_a_new_graph_name_rebuilds_instead_of_reusing_the_old_graph_s_counts(self):
+        db = _RecordingCursorDB(rows=[["CL/0000001", "CL/0000000"]])
+
+        hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+        hierarchy_service.descendant_counts(db, "graph-v2", "SUB_CLASS_OF")
+
+        # One query per distinct graph name, not a cache hit reused across them.
+        self.assertEqual(len(db.aql.calls), 2)
+
+    def test_a_different_label_on_the_same_graph_also_rebuilds(self):
+        db = _RecordingCursorDB(rows=[["CL/0000001", "CL/0000000"]])
+        fake_config = dict(
+            hierarchy_service.CL_HIERARCHY_LABELS,
+            DEVELOPS_FROM={"collection": "CL", "edges": "CL-CL", "root": "CL/0000000"},
+        )
+
+        with mock.patch.object(hierarchy_service, "CL_HIERARCHY_LABELS", fake_config):
+            hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+            hierarchy_service.descendant_counts(db, "graph-v1", "DEVELOPS_FROM")
+
+        self.assertEqual(len(db.aql.calls), 2)
+
+
 class AvailableLabelsTestCase(SimpleTestCase):
     """Tests for available_labels's filtering of labels absent from the data.
 
