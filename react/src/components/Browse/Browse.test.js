@@ -1,6 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import nodesReducer from "../../store/nodesSlice";
@@ -152,14 +151,14 @@ describe("Browse", () => {
     renderBrowse();
     await screen.findAllByText("cell");
 
-    await userEvent.click(await screen.findByText(/^test cell 0000001/));
+    fireEvent.click(await screen.findByText(/^test cell 0000001/));
     // Wait for the drill-in fetch's merge to actually land in state -- the
     // newly centered node's child arc appears once it has -- before
     // counting requests.
     await screen.findByText(/^test cell 0000003/);
     const callsAfterExpand = global.fetch.mock.calls.length;
 
-    await userEvent.click(screen.getByRole("button", { name: /tree/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tree/i }));
 
     // The tree renders the expanded node without refetching it. Each node's
     // label is drawn twice (an outline pass then a fill pass), so this
@@ -172,10 +171,10 @@ describe("Browse", () => {
     renderBrowse();
     await screen.findAllByText("cell");
 
-    await userEvent.click(await screen.findByText(/^test cell 0000001/));
+    fireEvent.click(await screen.findByText(/^test cell 0000001/));
     await screen.findByText(/^test cell 0000003/);
 
-    await userEvent.click(screen.getByRole("button", { name: /tree/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tree/i }));
 
     // Both the focused node and its child are open -- the whole focus chain.
     expect(await screen.findAllByText(/^test cell 0000001/)).not.toHaveLength(0);
@@ -186,14 +185,14 @@ describe("Browse", () => {
     renderBrowse();
     await screen.findAllByText("cell");
 
-    await userEvent.click(screen.getByRole("button", { name: /tree/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tree/i }));
     await screen.findAllByText("cell");
 
     const [target] = await screen.findAllByText(/^test cell 0000001/);
-    await userEvent.click(target);
+    fireEvent.click(target);
     await screen.findAllByText(/^test cell 0000003/);
 
-    await userEvent.click(screen.getByRole("button", { name: /sunburst/i }));
+    fireEvent.click(screen.getByRole("button", { name: /sunburst/i }));
 
     // The sunburst's center text (bold, distinct from an arc label) names the
     // node last toggled open in the tree, not the hierarchy root.
@@ -220,16 +219,16 @@ describe("Browse", () => {
     renderBrowse();
     await screen.findAllByText("cell");
 
-    await userEvent.click(screen.getByRole("button", { name: /tree/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tree/i }));
     await screen.findAllByText("branch a");
 
     // Expand both sibling branches in turn.
     const [branchA] = await screen.findAllByText("branch a");
-    await userEvent.click(branchA);
+    fireEvent.click(branchA);
     await screen.findAllByText("leaf a1");
 
     const [branchB] = await screen.findAllByText("branch b");
-    await userEvent.click(branchB);
+    fireEvent.click(branchB);
     await screen.findAllByText("leaf b1");
 
     // Expanding branch b did not close branch a -- both stay open at once,

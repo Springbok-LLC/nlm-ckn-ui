@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Sunburst from "./Sunburst";
 
 describe("Sunburst Component", () => {
@@ -161,7 +160,7 @@ describe("Sunburst Component controlled mode", () => {
       />,
     );
 
-    await userEvent.click(await screen.findByText(/^test cell 0000001/));
+    fireEvent.click(await screen.findByText(/^test cell 0000001/));
 
     await waitFor(() => expect(fetchChildren).toHaveBeenCalledWith("CL/0000001"));
     expect(global.fetch).not.toHaveBeenCalled();

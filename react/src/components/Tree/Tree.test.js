@@ -1,6 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import nodesReducer from "../../store/nodesSlice";
@@ -99,7 +98,7 @@ describe("Tree Component", () => {
     // itself renders twice (a white text-outline clone plus the real text),
     // so pick the first match rather than asserting a single unique node.
     const [target] = await screen.findAllByText(/^test cell 0000003/);
-    await userEvent.click(target);
+    fireEvent.click(target);
 
     expect(onExpandedPathsChange).toHaveBeenCalledWith([
       ["CL/0000000"],
@@ -137,7 +136,7 @@ describe("Tree Component", () => {
     });
 
     const [target] = await screen.findAllByText("shared under parent two");
-    await userEvent.click(target);
+    fireEvent.click(target);
 
     expect(onExpandedPathsChange).toHaveBeenCalledWith([
       ["CL/0000000"],
@@ -158,7 +157,7 @@ describe("Tree Component", () => {
     });
 
     const [target] = await screen.findAllByText("test cell 0000001");
-    await userEvent.click(target);
+    fireEvent.click(target);
 
     expect(onExpandedPathsChange).toHaveBeenCalledWith([["CL/0000000"]]);
   });
