@@ -2,7 +2,19 @@ import * as d3 from "d3";
 import { getColorForCollection, getLabel } from "../../utils";
 
 function sumAccessor(d) {
-  return d.children?.length ? 0 : (d.subtree_size ?? d.value ?? 1);
+  return d.children?.length ? 0 : (d.value ?? 1);
+}
+
+/**
+ * Format an arc's tooltip: the label plus the raw descendant_count, never the
+ * (sqrt-compressed) weight the arc is actually sized by.
+ */
+function tooltipText(d) {
+  const label = getLabel(d.data) || d.data._key || "Unknown";
+  const count = d.data.descendant_count;
+  if (typeof count !== "number") return label;
+  const noun = count === 1 ? "cell type" : "cell types";
+  return `${label} (${count.toLocaleString()} ${noun})`;
 }
 
 function buildHierarchy(data) {
@@ -185,7 +197,7 @@ function SunburstConstructor(
       )
       .style("cursor", (d) => (d.children || d.data._hasChildren ? "pointer" : "default"))
       .attr("d", (d) => arc(d));
-    pathEnter.append("title").text((d) => getLabel(d.data) || d.data._key || "Unknown");
+    pathEnter.append("title").text((d) => tooltipText(d));
     pathUpdate = path.merge(pathEnter);
     pathUpdate
       .on("contextmenu", (event, d_node) => {
@@ -390,7 +402,7 @@ function SunburstConstructor(
       .attr("pointer-events", "none")
       .style("cursor", (d) => (d.children || d.data._hasChildren ? "pointer" : "default"))
       .attr("d", (d) => arc(d));
-    pathEnter.append("title").text((d) => getLabel(d.data) || d.data._key || "Unknown");
+    pathEnter.append("title").text((d) => tooltipText(d));
 
     pathUpdate = pathJoin.merge(pathEnter);
     pathUpdate

@@ -118,7 +118,7 @@ describe("Sunburst Component controlled mode", () => {
       />,
     );
 
-    await screen.findByText("test cell 0000001");
+    await screen.findByText(/^test cell 0000001/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -134,7 +134,7 @@ describe("Sunburst Component controlled mode", () => {
 
     // getByText also matches the arc's hover-title element, so this checks
     // specifically for the center label that only the focused node gets.
-    const centerLabels = await screen.findAllByText("test cell 0000001");
+    const centerLabels = await screen.findAllByText(/^test cell 0000001/);
     const centerText = centerLabels.find((el) => el.tagName === "text");
     expect(centerText).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
@@ -161,7 +161,7 @@ describe("Sunburst Component controlled mode", () => {
       />,
     );
 
-    await userEvent.click(await screen.findByText("test cell 0000001"));
+    await userEvent.click(await screen.findByText(/^test cell 0000001/));
 
     await waitFor(() => expect(fetchChildren).toHaveBeenCalledWith("CL/0000001"));
     expect(global.fetch).not.toHaveBeenCalled();
