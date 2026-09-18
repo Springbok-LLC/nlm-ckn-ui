@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ActiveNavProvider, GraphContext } from "contexts";
-import { MemoryRouter } from "react-router-dom"; // Wrap with Router for routing context
+import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom"; // Wrap with Router for routing context
 import Header from "./Header";
 
 // SearchBar pulls in the results table + search service; stub the table so the
@@ -40,7 +40,7 @@ describe("Header Component", () => {
     renderHeader();
 
     // Check if each navigation link is rendered
-    expect(screen.getByText(/Explore/i)).toBeInTheDocument();
+    expect(screen.getByText(/Browse/i)).toBeInTheDocument();
     expect(screen.getByText(/collections/i)).toBeInTheDocument();
     expect(screen.getByText(/Graph/i)).toBeInTheDocument();
     expect(screen.getByText(/About/i)).toBeInTheDocument();
@@ -48,9 +48,9 @@ describe("Header Component", () => {
 
   test("sets active class for correct link based on location", () => {
     // Simulate different routes and check if the active class is applied to the correct link
-    renderHeader(["/tree"]);
+    renderHeader(["/browse"]);
 
-    expect(screen.getByText(/Explore/i)).toHaveClass("active-nav"); // /tree should be active
+    expect(screen.getByText(/Browse/i)).toHaveClass("active-nav"); // /browse should be active
     expect(screen.getByText(/collections/i)).not.toHaveClass("active-nav");
   });
 
@@ -59,13 +59,36 @@ describe("Header Component", () => {
 
     // Check the initial active class
     expect(screen.getByText(/collections/i)).toHaveClass("active-nav");
-    expect(screen.getByText(/Explore/i)).not.toHaveClass("active-nav");
+    expect(screen.getByText(/Browse/i)).not.toHaveClass("active-nav");
 
-    // Simulate a click event on the "Explore" link to navigate to `/tree`
-    fireEvent.click(screen.getByText(/Explore/i));
+    // Simulate a click event on the "Browse" link to navigate to `/browse`
+    fireEvent.click(screen.getByText(/Browse/i));
 
-    // Check if the active class switches to the "Explore" link after the click
-    expect(screen.getByText(/Explore/i)).toHaveClass("active-nav");
+    // Check if the active class switches to the "Browse" link after the click
+    expect(screen.getByText(/Browse/i)).toHaveClass("active-nav");
     expect(screen.getByText(/collections/i)).not.toHaveClass("active-nav");
+  });
+});
+
+describe("Legacy sunburst/tree redirects", () => {
+  const renderAt = (initialEntries) =>
+    render(
+      <MemoryRouter initialEntries={initialEntries}>
+        <Routes>
+          <Route path="/browse" element={<div>Browse page</div>} />
+          <Route path="/sunburst" element={<Navigate to="/browse?view=sunburst" replace />} />
+          <Route path="/tree" element={<Navigate to="/browse?view=tree" replace />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("redirects /sunburst to /browse", () => {
+    renderAt(["/sunburst"]);
+    expect(screen.getByText("Browse page")).toBeInTheDocument();
+  });
+
+  it("redirects /tree to /browse", () => {
+    renderAt(["/tree"]);
+    expect(screen.getByText("Browse page")).toBeInTheDocument();
   });
 });

@@ -8,14 +8,40 @@ import { getLabel, LoadingBar, mergeChildren } from "utils";
 const PREFETCH_CONCURRENCY = 4;
 const PREFETCH_SKIP_PREFIXES = ["CL/", "GS/", "MONDO/", "PR/", "CHEMBL/"];
 
-const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
-  const [graphData, setGraphData] = useState(null);
+/**
+ * Sunburst hierarchy view.
+ *
+ * @param {function} [addSelectedItem] - Adds the popup's clicked node as a graph origin.
+ * @param {string} [label] - The edge predicate the hierarchy follows.
+ * @param {object} [data] - Hierarchy data to render. When omitted, Sunburst fetches its own root.
+ * @param {function} [fetchChildren] - Async callback(nodeId) returning that node's children.
+ * @param {Array<string>} [focusPath] - Root-to-node id path naming the node to center on.
+ * @param {function} [onFocusChange] - Called with the new focus path when the user re-centers.
+ */
+const Sunburst = ({
+  addSelectedItem,
+  label = "SUB_CLASS_OF",
+  data,
+  fetchChildren,
+  focusPath,
+  onFocusChange,
+}) => {
+  const isControlledData = data !== undefined;
+  const [ownGraphData, setOwnGraphData] = useState(null);
+  const graphData = isControlledData ? data : ownGraphData;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [clickedItem, setClickedItem] = useState(null);
   const [popupVisible, setPopupVisible] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
-  const [zoomedNodeId, setZoomedNodeId] = useState(null);
+  // Lazily seeded from focusPath so the very first mount (e.g. after
+  // switching from the tree) centers on the right node without a re-render.
+  const [zoomedNodeId, setZoomedNodeId] = useState(() => {
+    if (focusPath === undefined || focusPath.length === 0) return null;
+    const focusedId = focusPath[focusPath.length - 1];
+    return focusedId && focusedId !== data?._id ? focusedId : null;
+  });
+  const prevControlledRootIdRef = useRef(data?._id);
 
   const svgContainerRef = useRef(null);
   const svgNodeRef = useRef(null);
@@ -35,9 +61,6 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
   const mountedRef = useRef(false);
   const justMountedRef = useRef(false); // skip update effect on the mount render
 
-  // Drilldown: store overview data so center-click can return to it
-  const overviewDataRef = useRef(null);
-  const isDrilledDownRef = useRef(false);
   const shouldBloomRef = useRef(false);
 
   // Prefetch state
@@ -49,23 +72,23 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
   const mergeQueueRef = useRef([]);
   const rafIdRef = useRef(null);
 
-  const returnTimerRef = useRef(null);
-
   // --- Debounced merge: batches multiple prefetch results into one setState ---
+  // Only used for the uncontrolled prefetch path; a controlled `data` prop
+  // already carries every merge its owner performs.
   const flushMergeQueue = useCallback(() => {
     rafIdRef.current = null;
     const queue = mergeQueueRef.current;
-    if (queue.length === 0) return;
+    if (queue.length === 0 || isControlledData) return;
     mergeQueueRef.current = [];
-    setGraphData((prev) => {
+    setOwnGraphData((prev) => {
       if (!prev) return prev;
       let result = prev;
-      for (const { parentId, data } of queue) {
-        result = mergeChildren(result, parentId, data);
+      for (const { parentId, data: children } of queue) {
+        result = mergeChildren(result, parentId, children);
       }
       return result;
     });
-  }, []);
+  }, [isControlledData]);
 
   const scheduleMerge = useCallback(
     (parentId, data) => {
@@ -77,93 +100,87 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
     [flushMergeQueue],
   );
 
-  // --- Primary data fetch (shows loading bar) ---
-  const fetchSunburstData = useCallback(
-    async (parentId = null, isInitialLoad = false) => {
-      if (!isInitialLoad && isLoadingRef.current) return;
-      if (returnTimerRef.current != null) {
-        clearTimeout(returnTimerRef.current);
-        returnTimerRef.current = null;
+  // --- Fetch this component's own root (uncontrolled path only) ---
+  const fetchRootData = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    setIsLoading(true);
+    isLoadingRef.current = true;
+    setError(null);
+    try {
+      const rootData = await fetchHierarchyData(label, null);
+      if (typeof rootData !== "object" || rootData === null || Array.isArray(rootData))
+        throw new Error("API error for initial load/root");
+      prefetchGenerationRef.current += 1;
+      prefetchInFlightRef.current = new Set();
+      prefetchFetchedRef.current = new Set();
+      mergeQueueRef.current = [];
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
+      setOwnGraphData(rootData);
+      setZoomedNodeId(null);
+      currentHierarchyRootRef.current = null;
+    } catch (err) {
+      console.error("Fetch/Process Error:", err);
+      setError(err.message);
+      setOwnGraphData(null);
+      setZoomedNodeId(null);
+      currentHierarchyRootRef.current = null;
+    } finally {
+      setIsLoading(false);
+      isLoadingRef.current = false;
+    }
+  }, [label]);
+
+  // --- Fetch one node's children, via the caller's fetchChildren when the
+  // component is controlled, falling back to its own fetch otherwise. ---
+  const fetchNodeChildren = useCallback(
+    async (parentId) => {
+      const result = await fetchHierarchyData(label, parentId);
+      if (!Array.isArray(result)) throw new Error(`API error for parent ${parentId}`);
+      return result;
+    },
+    [label],
+  );
+
+  const loadNodeChildren = useCallback(
+    async (parentId) => {
+      if (isLoadingRef.current) return;
       setIsLoading(true);
       isLoadingRef.current = true;
       setError(null);
       try {
-        const data = await fetchHierarchyData(label, parentId);
-        if (parentId) {
-          if (!Array.isArray(data)) throw new Error(`API error for parent ${parentId}`);
-          prefetchFetchedRef.current.add(parentId);
-          setGraphData((prevData) => {
-            if (!prevData) return null;
-            return mergeChildren(prevData, parentId, data);
-          });
-        } else {
-          if (typeof data !== "object" || data === null || Array.isArray(data))
-            throw new Error("API error for initial load/root");
-          prefetchGenerationRef.current += 1;
-          prefetchInFlightRef.current = new Set();
-          prefetchFetchedRef.current = new Set();
-          mergeQueueRef.current = [];
-          if (rafIdRef.current != null) {
-            cancelAnimationFrame(rafIdRef.current);
-            rafIdRef.current = null;
-          }
-          overviewDataRef.current = data;
-          isDrilledDownRef.current = false;
-          setGraphData(data);
-          setZoomedNodeId(null);
-          currentHierarchyRootRef.current = null;
+        const loadChildren = fetchChildren ?? fetchNodeChildren;
+        const children = await loadChildren(parentId);
+        if (!Array.isArray(children)) throw new Error(`API error for parent ${parentId}`);
+        prefetchFetchedRef.current.add(parentId);
+        if (!isControlledData) {
+          setOwnGraphData((prev) => (prev ? mergeChildren(prev, parentId, children) : prev));
         }
       } catch (err) {
         console.error("Fetch/Process Error:", err);
         setError(err.message);
-        setGraphData(null);
-        setZoomedNodeId(null);
-        currentHierarchyRootRef.current = null;
       } finally {
         setIsLoading(false);
         isLoadingRef.current = false;
       }
     },
-    [label],
+    [fetchChildren, fetchNodeChildren, isControlledData],
   );
 
-  // --- Return to overview: full SVG rebuild ---
-  const returnToOverview = useCallback(() => {
-    if (!overviewDataRef.current) return;
-
-    prefetchGenerationRef.current += 1;
-    isLoadingRef.current = false;
-
-    const oldSvg = svgNodeRef.current;
-    if (oldSvg) {
-      oldSvg.style.transition = "opacity 200ms ease-out";
-      oldSvg.style.opacity = "0";
-    }
-
-    if (returnTimerRef.current != null) {
-      clearTimeout(returnTimerRef.current);
-    }
-    returnTimerRef.current = setTimeout(() => {
-      returnTimerRef.current = null;
-      isDrilledDownRef.current = false;
-      mountedRef.current = false;
-      setGraphData({ ...overviewDataRef.current });
-      setZoomedNodeId(null);
-    }, 200);
-  }, []);
-
-  // --- Background prefetch (silent, no loading bar) ---
+  // --- Background prefetch (silent, no loading bar; uncontrolled path only,
+  // since a controlled `data` prop's fetching is entirely its owner's call) ---
   const prefetchNode = useCallback(
     async (parentId, generation) => {
       if (prefetchInFlightRef.current.has(parentId)) return;
       prefetchInFlightRef.current.add(parentId);
       try {
-        const data = await fetchHierarchyData(label, parentId);
+        const children = await fetchHierarchyData(label, parentId);
         if (generation !== prefetchGenerationRef.current) return;
-        if (!Array.isArray(data)) return;
+        if (!Array.isArray(children)) return;
         prefetchFetchedRef.current.add(parentId);
-        scheduleMerge(parentId, data);
+        scheduleMerge(parentId, children);
       } catch (err) {
         console.debug(`Prefetch failed for ${parentId}:`, err);
       } finally {
@@ -193,7 +210,7 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
 
   // Drive prefetch on graphData changes
   useEffect(() => {
-    if (!graphData) return;
+    if (!graphData || isControlledData) return;
     const generation = prefetchGenerationRef.current;
     const ids = [];
     collectUnfetchedIds(graphData, ids);
@@ -201,7 +218,7 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
     for (let i = 0; i < ids.length && i < free; i++) {
       prefetchNode(ids[i], generation);
     }
-  }, [graphData, collectUnfetchedIds, prefetchNode]);
+  }, [graphData, isControlledData, collectUnfetchedIds, prefetchNode]);
 
   useEffect(() => {
     isLoadingRef.current = isLoading;
@@ -209,32 +226,40 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
 
   useEffect(() => {
     return () => {
-      if (returnTimerRef.current != null) {
-        clearTimeout(returnTimerRef.current);
-        returnTimerRef.current = null;
-      }
       prefetchGenerationRef.current += 1;
     };
   }, []);
 
-  // Initial data fetch on mount
+  // Initial data fetch on mount (uncontrolled path only)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - only run on mount
   useEffect(() => {
-    if (!graphData && !isLoadingRef.current) fetchSunburstData(null, true);
+    if (!isControlledData && !graphData && !isLoadingRef.current) fetchRootData();
   }, []);
+
+  // Re-derive focus when a controlled root actually changes identity (a new
+  // label was picked upstream); same-label focus changes are already
+  // reflected by the click handlers below, so this only resets on that edge.
+  useEffect(() => {
+    if (!isControlledData) return;
+    if (prevControlledRootIdRef.current === data?._id) return;
+    prevControlledRootIdRef.current = data?._id;
+    setZoomedNodeId(null);
+    currentHierarchyRootRef.current = null;
+  }, [isControlledData, data?._id]);
 
   useEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       return;
     }
-    setGraphData(null);
+    if (isControlledData) return;
+    setOwnGraphData(null);
     setZoomedNodeId(null);
     currentHierarchyRootRef.current = null;
     setClickedItem(null);
     setPopupVisible(false);
-    fetchSunburstData(null, false);
-  }, [fetchSunburstData]);
+    fetchRootData();
+  }, [fetchRootData, isControlledData]);
 
   // --- Needs-load check ---
   const checkNeedsLoad = useCallback((d) => {
@@ -248,6 +273,26 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
     return false;
   }, []);
 
+  // --- Report the focused node up as a root-to-node id path; `null` means
+  // "back to the root". Ancestors come from the clicked d3 node itself, so
+  // the path names the exact DAG occurrence the user is looking at. ---
+  const reportFocus = useCallback(
+    (d3Node) => {
+      if (!onFocusChange) return;
+      if (!d3Node) {
+        onFocusChange(graphData?._id ? [graphData._id] : []);
+        return;
+      }
+      onFocusChange(
+        d3Node
+          .ancestors()
+          .reverse()
+          .map((ancestor) => ancestor.data._id),
+      );
+    },
+    [onFocusChange, graphData],
+  );
+
   // --- Click handlers ---
   const latestHandleNodeClick = useCallback(
     (_event, d3Node) => {
@@ -260,16 +305,18 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
       if (d3Node.data._id === zoomedNodeId && !needsLoad) return false;
       if (needsLoad && !currentIsLoading) {
         if (zoomedNodeId !== d3Node.data._id) setZoomedNodeId(d3Node.data._id);
-        fetchSunburstData(d3Node.data._id, false);
+        reportFocus(d3Node);
+        loadNodeChildren(d3Node.data._id);
         return true;
       }
       if (!needsLoad && d3Node.children) {
         if (zoomedNodeId !== d3Node.data._id) setZoomedNodeId(d3Node.data._id);
+        reportFocus(d3Node);
         return true;
       }
       return false;
     },
-    [checkNeedsLoad, fetchSunburstData, zoomedNodeId],
+    [checkNeedsLoad, loadNodeChildren, reportFocus, zoomedNodeId],
   );
 
   const latestHandleCenterClick = useCallback(() => {
@@ -278,8 +325,6 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
     const currentIsLoading = isLoadingRef.current;
     if (!currentHierarchy) return;
 
-    // If we're drilled down and at the organ root (no zoom or depth-0 zoom),
-    // return to the overview instead of trying to go up further.
     let centeredNode;
     if (currentCenterId) {
       centeredNode = currentHierarchy.find((node) => node.data._id === currentCenterId);
@@ -287,15 +332,12 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
       centeredNode = currentHierarchy.find((node) => node.depth === 0);
     }
 
-    if (isDrilledDownRef.current && centeredNode && !centeredNode.parent) {
-      returnToOverview();
-      return;
-    }
     if (!centeredNode) {
       const absoluteRoot = currentHierarchy.find((d) => d.depth === 0);
       if (absoluteRoot) {
         if (zoomedNodeId !== null) setZoomedNodeId(null);
         if (d3ClickedRef.current) d3ClickedRef.current(null, absoluteRoot);
+        reportFocus(null);
       }
       return;
     }
@@ -304,6 +346,7 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
       const newZoomTargetId = parentNode.depth === 0 ? null : parentNode.data._id;
       if (zoomedNodeId !== newZoomTargetId) setZoomedNodeId(newZoomTargetId);
       if (d3ClickedRef.current) d3ClickedRef.current(null, parentNode);
+      reportFocus(parentNode.depth === 0 ? null : parentNode);
       const needsLoadForParent = checkNeedsLoad(parentNode);
       if (
         needsLoadForParent &&
@@ -311,13 +354,14 @@ const Sunburst = ({ addSelectedItem, label = "SUB_CLASS_OF" }) => {
         parentNode.data?._id &&
         parentNode.depth !== 0
       ) {
-        fetchSunburstData(parentNode.data._id, false);
+        loadNodeChildren(parentNode.data._id);
       }
     } else {
       if (zoomedNodeId !== null) setZoomedNodeId(null);
       if (d3ClickedRef.current && centeredNode) d3ClickedRef.current(null, centeredNode);
+      reportFocus(null);
     }
-  }, [checkNeedsLoad, zoomedNodeId, fetchSunburstData, returnToOverview]);
+  }, [checkNeedsLoad, zoomedNodeId, loadNodeChildren, reportFocus]);
 
   const latestHandleSunburstClick = useCallback((e, dataNode) => {
     setClickedItem(dataNode.data);
