@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import nodesReducer from "../../store/nodesSlice";
@@ -235,6 +235,108 @@ describe("Browse", () => {
     // exactly as standalone /tree behaves today.
     expect(screen.queryAllByText("leaf a1").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("leaf b1").length).toBeGreaterThan(0);
+  });
+});
+
+describe("Browse stale request guard", () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  // Shares node id CL/0000001 with `root` -- the same CL node can sit under
+  // more than one hierarchy predicate -- so a stale merge under label B has
+  // somewhere real to (wrongly) land, rather than being harmlessly dropped
+  // by mergeChildren's "parent not found" path.
+  const rootB = {
+    _id: "CL/0000900",
+    label: "other root",
+    descendant_count: 1,
+    weight: 1,
+    value: 1,
+    _hasChildren: true,
+    children: [
+      {
+        _id: "CL/0000001",
+        label: "test cell 0000001",
+        descendant_count: 1,
+        weight: 1,
+        value: 1,
+        _hasChildren: true,
+        children: null,
+      },
+    ],
+  };
+
+  test("a child fetch that resolves after the label switches never reaches the new label's data", async () => {
+    let resolveChildA;
+    const childAResponse = new Promise((resolve) => {
+      resolveChildA = resolve;
+    });
+
+    global.fetch = jest.fn((url, options) => {
+      if (url.includes("/hierarchy/labels/")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { label: "SUB_CLASS_OF", root: "CL/0000000" },
+              { label: "PART_OF", root: "CL/0000900" },
+            ]),
+        });
+      }
+      const body = options?.body ? JSON.parse(options.body) : {};
+      if (body.label === "SUB_CLASS_OF" && body.parent_id === null) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(root) });
+      }
+      if (body.label === "SUB_CLASS_OF" && body.parent_id === "CL/0000001") {
+        // Stays pending until resolveChildA() is called below, so the test
+        // controls exactly when this response lands relative to the label
+        // switch.
+        return childAResponse.then(() => ({
+          ok: true,
+          json: () => Promise.resolve(grandchild),
+        }));
+      }
+      if (body.label === "PART_OF" && body.parent_id === null) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(rootB) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    renderBrowse();
+    await screen.findAllByText("cell");
+
+    // Start a child fetch under label A (SUB_CLASS_OF) that will not resolve
+    // until resolveChildA() is called.
+    fireEvent.click(await screen.findByText(/^test cell 0000001/));
+
+    // Switch to label B while A's child fetch is still in flight, and let
+    // B's root load.
+    fireEvent.change(screen.getByLabelText(/hierarchy/i), {
+      target: { value: "PART_OF" },
+    });
+    await screen.findAllByText("other root");
+
+    // Now let A's stale child response resolve, and flush the microtasks its
+    // resolution schedules (including any -- correct or not -- state
+    // update) before asserting anything.
+    await act(async () => {
+      resolveChildA();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Assert right here, at the moment the stale response resolves: A's
+    // children must not have merged into B's data. Waiting until the end of
+    // the test would let an implementation that briefly merges them and then
+    // "corrects" itself pass anyway.
+    expect(screen.queryByText(/^test cell 0000003/)).not.toBeInTheDocument();
+    expect(screen.queryAllByText("other root").length).toBeGreaterThan(0);
   });
 });
 

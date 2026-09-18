@@ -51,6 +51,14 @@ const Browse = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // One shared staleness guard for every request Browse issues against the
+  // current `label` -- the root fetch below and every `fetchChildren` call.
+  // Bumped whenever `label` changes; a response is applied only if the
+  // generation it captured when it started is still current, so a child
+  // fetch begun under a previous label can never merge into `data` after the
+  // label (and its root) has moved on.
+  const requestGenerationRef = useRef(0);
+
   // Fetch the labels present in the loaded data once, and pick the first.
   useEffect(() => {
     let cancelled = false;
@@ -76,42 +84,46 @@ const Browse = () => {
     };
   }, []);
 
-  // Fetch the root whenever the working label changes.
+  // Fetch the root whenever the working label changes. Bumping the
+  // generation here -- before the request goes out -- also retires any
+  // `fetchChildren` call still in flight for the previous label.
   useEffect(() => {
     if (!label) return;
-    let cancelled = false;
+    const generation = ++requestGenerationRef.current;
     setIsLoading(true);
     setError(null);
     fetchHierarchyData(label, null)
       .then((rootData) => {
-        if (cancelled) return;
+        if (requestGenerationRef.current !== generation) return;
         setData(rootData);
         const rootPath = rootData?._id ? [rootData._id] : [];
         setFocusPath(rootPath);
         setExpandedPaths(prefixesOf(rootPath));
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err.message);
-          setData(null);
-        }
+        if (requestGenerationRef.current !== generation) return;
+        setError(err.message);
+        setData(null);
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (requestGenerationRef.current !== generation) return;
+        setIsLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [label]);
 
   // Fetching is keyed by node id; the merge lands in `data`, which both
   // views read, so whichever view didn't do the fetching sees the result
-  // without a request of its own.
+  // without a request of its own. Guarded against the same staleness as the
+  // root fetch: a child request started under one label can resolve after
+  // the label (and `data`) has already moved on to another.
   const fetchChildren = useCallback(
     async (nodeId) => {
+      const generation = requestGenerationRef.current;
       const children = await fetchHierarchyData(label, nodeId);
       if (!Array.isArray(children)) throw new Error(`API error for parent ${nodeId}`);
-      setData((prev) => (prev ? mergeChildren(prev, nodeId, children) : prev));
+      if (requestGenerationRef.current === generation) {
+        setData((prev) => (prev ? mergeChildren(prev, nodeId, children) : prev));
+      }
       return children;
     },
     [label],
