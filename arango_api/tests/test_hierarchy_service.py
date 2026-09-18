@@ -1,5 +1,7 @@
 """Unit tests for hierarchy_service. No database required."""
 
+from unittest import mock
+
 from django.test import SimpleTestCase
 
 from arango_api.services import hierarchy_service
@@ -54,8 +56,61 @@ class LabelConfigTestCase(SimpleTestCase):
         self.assertEqual(config["collection"], "CL")
         self.assertEqual(config["edges"], "CL-CL")
         self.assertEqual(config["root"], "CL/0000000")
-        self.assertEqual(config["direction"], "INBOUND")
 
     def test_unknown_label_is_rejected(self):
         with self.assertRaises(hierarchy_service.UnknownLabelError):
             hierarchy_service.config_for("NOT_A_PREDICATE")
+
+
+class _FakeCursor:
+    """Iterates once over a fixed count, like an AQL COLLECT WITH COUNT cursor."""
+
+    def __init__(self, count):
+        self._count = count
+
+    def __iter__(self):
+        return iter([self._count])
+
+
+class _FakeAQL:
+    def __init__(self, counts_by_label):
+        self._counts_by_label = counts_by_label
+
+    def execute(self, query, bind_vars):
+        return _FakeCursor(self._counts_by_label[bind_vars["label"]])
+
+
+class _FakeDB:
+    def __init__(self, counts_by_label):
+        self.aql = _FakeAQL(counts_by_label)
+
+
+class AvailableLabelsTestCase(SimpleTestCase):
+    """Tests for available_labels's filtering of labels absent from the data.
+
+    This filtering is what turns a renamed predicate into a visible error
+    instead of an empty chart, so it is covered directly against a fake db
+    rather than relying on the fixtures happening to include every label.
+    """
+
+    def test_omits_a_configured_label_with_no_edges_in_the_data(self):
+        fake_config = {
+            "SUB_CLASS_OF": {
+                "collection": "CL",
+                "edges": "CL-CL",
+                "root": "CL/0000000",
+            },
+            "RENAMED_PREDICATE": {
+                "collection": "CL",
+                "edges": "CL-CL",
+                "root": "CL/0000000",
+            },
+        }
+        fake_db = _FakeDB({"SUB_CLASS_OF": 6, "RENAMED_PREDICATE": 0})
+
+        with mock.patch.object(
+            hierarchy_service, "CL_HIERARCHY_LABELS", fake_config
+        ), mock.patch.object(hierarchy_service, "db_ontologies", fake_db):
+            labels = hierarchy_service.available_labels()
+
+        self.assertEqual([entry["label"] for entry in labels], ["SUB_CLASS_OF"])

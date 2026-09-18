@@ -19,14 +19,17 @@ logger = logging.getLogger(__name__)
 # The predicates offered by the Browse page. Only SUB_CLASS_OF describes a
 # usable hierarchy in the loaded data: 3,325 CL nodes under one root. The next
 # densest, DEVELOPS_FROM, is a forest of 124 roots over 515 nodes, and the rest
-# carry 1-35 edges each. Adding a label here is the only change needed to offer
-# it, but confirm it has a single root first.
+# carry 1-35 edges each. Adding a label here is a starting point, not a
+# finished change: the query shape below is hard-coded to child -> parent
+# edges read INBOUND to the root (e._to == parent, returning e._from), so a
+# new label must first be checked for that same direction, and for having a
+# single root — DEVELOPS_FROM does not and would need more than a config
+# entry.
 CL_HIERARCHY_LABELS = {
     "SUB_CLASS_OF": {
         "collection": "CL",
         "edges": "CL-CL",
         "root": "CL/0000000",
-        "direction": "INBOUND",
     },
 }
 
