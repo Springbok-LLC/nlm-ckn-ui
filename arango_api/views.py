@@ -274,11 +274,8 @@ class HierarchyView(APIView):
         except hierarchy_service.UnknownLabelError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except hierarchy_service.HierarchyServiceError as e:
-            error_response = {"error": str(e)}
-            if e.db_error:
-                error_response["db_error"] = e.db_error
             return Response(
-                error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 

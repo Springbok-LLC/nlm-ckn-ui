@@ -179,6 +179,53 @@ class DescendantCountsCacheTestCase(SimpleTestCase):
         self.assertEqual(len(db.aql.calls), 2)
 
 
+class DescendantCountsVersionKeyingTestCase(SimpleTestCase):
+    """The descendant-count cache must key on the loaded dataset version, not
+    just the graph name -- a blue-green swap can replace data under an
+    unchanged graph name, and a long-running worker must not keep serving
+    counts computed under the previous dataset.
+    """
+
+    def setUp(self):
+        hierarchy_service._DESCENDANT_COUNT_CACHE.clear()
+        self.addCleanup(hierarchy_service._DESCENDANT_COUNT_CACHE.clear)
+
+    def test_a_dataset_version_change_rebuilds_the_cache(self):
+        db = _RecordingCursorDB(rows=[["CL/0000001", "CL/0000000"]])
+
+        with mock.patch.object(
+            hierarchy_service.version_service,
+            "get_loaded_etl_version",
+            return_value="v1.7.0",
+        ):
+            hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+
+        with mock.patch.object(
+            hierarchy_service.version_service,
+            "get_loaded_etl_version",
+            return_value="v1.8.0",
+        ):
+            hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+
+        # Same graph name, different dataset version -- two queries, not a
+        # cache hit reused across the swap.
+        self.assertEqual(len(db.aql.calls), 2)
+
+    def test_an_unknown_version_still_serves_from_cache(self):
+        db = _RecordingCursorDB(rows=[["CL/0000001", "CL/0000000"]])
+
+        with mock.patch.object(
+            hierarchy_service.version_service,
+            "get_loaded_etl_version",
+            return_value="unknown",
+        ):
+            first = hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+            second = hierarchy_service.descendant_counts(db, "graph-v1", "SUB_CLASS_OF")
+
+        self.assertEqual(len(db.aql.calls), 1)
+        self.assertEqual(first, second)
+
+
 class AvailableLabelsTestCase(SimpleTestCase):
     """Tests for available_labels's filtering of labels absent from the data.
 

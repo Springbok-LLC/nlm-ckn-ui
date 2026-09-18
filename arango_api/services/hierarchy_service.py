@@ -19,6 +19,7 @@ import threading
 import time
 
 from arango_api.db import GRAPH_NAME_ONTOLOGIES, db_ontologies
+from arango_api.services import version_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,6 @@ CL_HIERARCHY_LABELS = {
 class HierarchyServiceError(Exception):
     """Raised when the hierarchy cannot be read."""
 
-    def __init__(self, message, db_error=None):
-        super().__init__(message)
-        self.db_error = db_error
-
 
 class UnknownLabelError(ValueError):
     """Raised for a label that is not in the curated config."""
@@ -67,9 +64,9 @@ def config_for(label):
         ) from None
 
 
-# {(graph_name, label): {node_id: descendant_count}}. Graph names embed a
-# version, so a re-ingest under a new version key rebuilds this without
-# intervention.
+# {(graph_name, label[, dataset_version]): {node_id: descendant_count}}. The
+# dataset version is folded into the key (see `_cache_key`) so a blue-green
+# swap under an unchanged graph name rebuilds this without intervention.
 _DESCENDANT_COUNT_CACHE = {}
 _DESCENDANT_COUNT_LOCK = threading.Lock()
 
@@ -129,15 +126,32 @@ def _edges_for(db, label):
     return [(row[0], row[1]) for row in cursor]
 
 
+def _cache_key(graph_name, label):
+    """Return the descendant-count cache key, including the dataset version.
+
+    Dataset deployments are blue-green swaps that can replace data under an
+    unchanged graph name, so the graph name alone is not enough to detect a
+    swap. The loaded dataset version is folded in so a swap rebuilds the
+    cache instead of serving stale counts. When the version is unrecorded
+    ("unknown") it is left out of the key rather than treated as a value
+    that could change and force a rebuild on every request.
+    """
+    version = version_service.get_loaded_etl_version()
+    if not version or version == version_service.UNKNOWN:
+        return (graph_name, label)
+    return (graph_name, label, version)
+
+
 def descendant_counts(db, graph_name, label):
-    """Return {node_id: distinct descendant count}, memoised per graph and label.
+    """Return {node_id: distinct descendant count}, memoised per graph, label
+    and loaded dataset version.
 
     Computed in Python from the edge list rather than by traversing per node:
     the whole collection takes a single query plus a memoised walk, against
     roughly one traversal per node in AQL. The organ-count cache this replaces
     was the heaviest read on the Arango host.
     """
-    key = (graph_name, label)
+    key = _cache_key(graph_name, label)
     cached = _DESCENDANT_COUNT_CACHE.get(key)
     if cached is not None:
         return cached
@@ -248,12 +262,7 @@ def get_hierarchy(label, parent_id=None):
             label,
             parent_id,
         )
-        db_error = None
-        if hasattr(e, "response") and hasattr(e.response, "text"):
-            db_error = e.response.text
-        raise HierarchyServiceError(
-            "Failed to fetch the hierarchy.", db_error=db_error
-        ) from e
+        raise HierarchyServiceError("Failed to fetch the hierarchy.") from e
 
 
 def available_labels():
