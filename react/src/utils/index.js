@@ -39,7 +39,7 @@ export { getDatasetFigures, getDatasetPlotKey } from "./datasetFigures";
 export { findFtuUrlById } from "./ftu";
 // Graph and tree utilities
 export {
-  findNodeById,
+  findAllNodesById,
   hasNodesInRawData,
   mergeChildren,
   parseId,
