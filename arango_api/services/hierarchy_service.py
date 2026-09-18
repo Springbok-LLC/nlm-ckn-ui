@@ -5,6 +5,12 @@ The hierarchy follows one curated predicate from the root of the CL collection.
 Edges are read from their edge collection directly rather than by filtering a
 traversal on a predicate label: labels get renamed between ETL releases, and a
 stale label filter returns fewer rows with no error.
+
+Descendant counts are a single query plus a memoised walk (see
+`descendant_counts`). Fetching children is not: `get_hierarchy`'s
+`with_grandchildren` issues one query per child to fetch that child's own
+children, so loading the root costs 1 + (number of root children) round
+trips -- an N+1, left as-is rather than optimised.
 """
 
 import logging
