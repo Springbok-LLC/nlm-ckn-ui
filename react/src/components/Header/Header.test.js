@@ -1,6 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { configureStore } from "@reduxjs/toolkit";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ActiveNavProvider, GraphContext } from "contexts";
-import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom"; // Wrap with Router for routing context
+import { Provider } from "react-redux";
+import { MemoryRouter, useLocation } from "react-router-dom"; // Wrap with Router for routing context
+import AppRoutes from "../../AppRoutes";
+import nodesReducer from "../../store/nodesSlice";
+import { ToastProvider } from "../Toast";
 import Header from "./Header";
 
 // SearchBar pulls in the results table + search service; stub the table so the
@@ -71,24 +76,79 @@ describe("Header Component", () => {
 });
 
 describe("Legacy sunburst/tree redirects", () => {
+  // Reads the router's live location so the assertion below reflects
+  // whatever AppRoutes actually resolved to, not a value the test hands it.
+  const LocationDisplay = () => {
+    const location = useLocation();
+    return <div data-testid="location-display">{location.pathname + location.search}</div>;
+  };
+
+  const testStore = () =>
+    configureStore({
+      reducer: { nodesSlice: nodesReducer },
+      preloadedState: { nodesSlice: { originNodeIds: [] } },
+    });
+
   const renderAt = (initialEntries) =>
     render(
-      <MemoryRouter initialEntries={initialEntries}>
-        <Routes>
-          <Route path="/browse" element={<div>Browse page</div>} />
-          <Route path="/sunburst" element={<Navigate to="/browse?view=sunburst" replace />} />
-          <Route path="/tree" element={<Navigate to="/browse?view=tree" replace />} />
-        </Routes>
-      </MemoryRouter>,
+      <Provider store={testStore()}>
+        <MemoryRouter initialEntries={initialEntries}>
+          <ToastProvider>
+            <LocationDisplay />
+            <AppRoutes />
+          </ToastProvider>
+        </MemoryRouter>
+      </Provider>,
     );
 
-  it("redirects /sunburst to /browse", () => {
-    renderAt(["/sunburst"]);
-    expect(screen.getByText("Browse page")).toBeInTheDocument();
+  beforeEach(() => {
+    // AppRoutes lands on /browse, which fetches its own hierarchy data. The
+    // redirect target is all this test cares about, so answer with a
+    // minimal, well-formed root and label list rather than mocking every
+    // request shape Browse might otherwise send.
+    global.fetch = jest.fn((url) => {
+      if (url.includes("/hierarchy/labels/")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () => Promise.resolve([{ label: "SUB_CLASS_OF", root: "CL/0000000" }]),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: () =>
+          Promise.resolve({
+            _id: "CL/0000000",
+            label: "cell",
+            descendant_count: 0,
+            weight: 1,
+            value: 1,
+            _hasChildren: false,
+            children: [],
+          }),
+      });
+    });
   });
 
-  it("redirects /tree to /browse", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // This asserts against AppRoutes, the same route table App.js renders --
+  // not a redeclared copy of the two redirect routes, which would keep
+  // passing even if App.js dropped them.
+  it("redirects /sunburst to /browse with view=sunburst", async () => {
+    renderAt(["/sunburst"]);
+    expect(screen.getByTestId("location-display")).toHaveTextContent("/browse?view=sunburst");
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+  });
+
+  it("redirects /tree to /browse with view=tree", async () => {
     renderAt(["/tree"]);
-    expect(screen.getByText("Browse page")).toBeInTheDocument();
+    expect(screen.getByTestId("location-display")).toHaveTextContent("/browse?view=tree");
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
   });
 });
