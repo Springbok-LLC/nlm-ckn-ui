@@ -307,6 +307,21 @@ class SunburstRequestSerializer(GraphRequestSerializer):
     )
 
 
+class HierarchyRequestSerializer(serializers.Serializer):
+    """Serializer for CL hierarchy requests."""
+
+    label = serializers.CharField(
+        required=True,
+        help_text="Curated edge predicate the hierarchy follows",
+    )
+    parent_id = serializers.CharField(
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text="Parent node ID for on-demand loading",
+    )
+
+
 class EdgeFilterOptionsSerializer(GraphRequestSerializer):
     """Serializer for edge filter options requests."""
 

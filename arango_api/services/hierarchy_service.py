@@ -9,6 +9,10 @@ stale label filter returns fewer rows with no error.
 
 import logging
 import math
+import threading
+import time
+
+from arango_api.db import GRAPH_NAME_ONTOLOGIES, db_ontologies
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +58,13 @@ def config_for(label):
         ) from None
 
 
+# {(graph_name, label): {node_id: descendant_count}}. Graph names embed a
+# version, so a re-ingest under a new version key rebuilds this without
+# intervention.
+_DESCENDANT_COUNT_CACHE = {}
+_DESCENDANT_COUNT_LOCK = threading.Lock()
+
+
 def build_descendant_counts(edges):
     """Return {node_id: distinct descendant count} for child -> parent edges.
 
@@ -93,3 +104,177 @@ def weight_for(count):
     the raw count, never the weight.
     """
     return max(1, math.sqrt(count))
+
+
+def _edges_for(db, label):
+    """Return [(child_id, parent_id)] for every edge carrying the label."""
+    config = config_for(label)
+    query = """
+        FOR e IN @@edges
+            FILTER e.Label == @label
+            RETURN [e._from, e._to]
+    """
+    cursor = db.aql.execute(
+        query, bind_vars={"@edges": config["edges"], "label": label}
+    )
+    return [(row[0], row[1]) for row in cursor]
+
+
+def descendant_counts(db, graph_name, label):
+    """Return {node_id: distinct descendant count}, memoised per graph and label.
+
+    Computed in Python from the edge list rather than by traversing per node:
+    the whole collection takes a single query plus a memoised walk, against
+    roughly one traversal per node in AQL. The organ-count cache this replaces
+    was the heaviest read on the Arango host.
+    """
+    key = (graph_name, label)
+    cached = _DESCENDANT_COUNT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    with _DESCENDANT_COUNT_LOCK:
+        cached = _DESCENDANT_COUNT_CACHE.get(key)
+        if cached is not None:
+            return cached
+        start = time.monotonic()
+        edges = _edges_for(db, label)
+        if not edges:
+            logger.warning("No %s edges found for %s; not caching", label, graph_name)
+            return {}
+        counts = build_descendant_counts(edges)
+        _DESCENDANT_COUNT_CACHE[key] = counts
+        logger.info(
+            "Cached %s descendant counts for %d nodes (%.2fs)",
+            label,
+            len(counts),
+            time.monotonic() - start,
+        )
+        return counts
+
+
+def _node(doc, counts, with_children=None):
+    """Shape one document for the client."""
+    count = counts.get(doc["_id"], 0)
+    return {
+        "_id": doc["_id"],
+        "label": doc.get("label") or doc.get("name") or doc["_key"],
+        "descendant_count": count,
+        "weight": weight_for(count),
+        "value": weight_for(count),
+        "_hasChildren": count > 0,
+        "children": with_children,
+    }
+
+
+def _child_docs(db, label, parent_id):
+    """Return the documents one level below parent_id, by the label's edges."""
+    config = config_for(label)
+    query = """
+        FOR e IN @@edges
+            FILTER e.Label == @label AND e._to == @parent
+            FOR doc IN @@collection
+                FILTER doc._id == e._from
+                RETURN DISTINCT doc
+    """
+    cursor = db.aql.execute(
+        query,
+        bind_vars={
+            "@edges": config["edges"],
+            "@collection": config["collection"],
+            "label": label,
+            "parent": parent_id,
+        },
+    )
+    return list(cursor)
+
+
+def get_hierarchy(label, parent_id=None):
+    """Return the hierarchy root with two levels, or one node's children.
+
+    With no parent_id: the configured root, its children, and their children.
+    With a parent_id: that node's children, each carrying its own children.
+    The two-level shape is what the sunburst's prefetch expects.
+    """
+    db = db_ontologies
+    if db is None:
+        raise HierarchyServiceError("Database connection not available.")
+    config = config_for(label)
+    graph_name = GRAPH_NAME_ONTOLOGIES
+
+    if parent_id is not None and not parent_id.startswith(f"{config['collection']}/"):
+        raise UnknownLabelError(
+            f"parent_id '{parent_id}' is not in collection "
+            f"'{config['collection']}'."
+        )
+
+    try:
+        counts = descendant_counts(db, graph_name, label)
+
+        def with_grandchildren(parent):
+            return [
+                _node(grandchild, counts)
+                for grandchild in _child_docs(db, label, parent["_id"])
+            ]
+
+        target = parent_id or config["root"]
+        children = [
+            _node(child, counts, with_children=with_grandchildren(child))
+            for child in _child_docs(db, label, target)
+        ]
+
+        if parent_id is not None:
+            return children
+
+        root_doc = db.document(config["root"])
+        if root_doc is None:
+            raise HierarchyServiceError(
+                f"Configured root {config['root']} is missing from the data."
+            )
+        return _node(root_doc, counts, with_children=children)
+    except (HierarchyServiceError, UnknownLabelError):
+        raise
+    except Exception as e:
+        logger.exception(
+            "AQL execution failed for the %s hierarchy (parent=%s)",
+            label,
+            parent_id,
+        )
+        db_error = None
+        if hasattr(e, "response") and hasattr(e.response, "text"):
+            db_error = e.response.text
+        raise HierarchyServiceError(
+            "Failed to fetch the hierarchy.", db_error=db_error
+        ) from e
+
+
+def available_labels():
+    """Return the curated labels that have edges in the loaded data.
+
+    A configured label absent from the data is omitted, so the page can show an
+    error instead of an empty chart. Predicates get renamed between ETL
+    releases, and this is the only place that failure becomes visible.
+    """
+    db = db_ontologies
+    if db is None:
+        raise HierarchyServiceError("Database connection not available.")
+    try:
+        labels = []
+        for label, config in CL_HIERARCHY_LABELS.items():
+            query = """
+                FOR e IN @@edges
+                    FILTER e.Label == @label
+                    COLLECT WITH COUNT INTO n
+                    RETURN n
+            """
+            cursor = db.aql.execute(
+                query, bind_vars={"@edges": config["edges"], "label": label}
+            )
+            count = next(iter(cursor), 0)
+            if count:
+                labels.append(
+                    {"label": label, "root": config["root"], "edge_count": count}
+                )
+        return labels
+    except Exception as e:
+        logger.exception("Failed to read available hierarchy labels")
+        raise HierarchyServiceError("Failed to read hierarchy labels.") from e

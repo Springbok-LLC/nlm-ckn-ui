@@ -30,13 +30,14 @@ from arango_api.serializers import (
     SearchRequestSerializer,
     AQLQuerySerializer,
     SunburstRequestSerializer,
+    HierarchyRequestSerializer,
     EdgeFilterOptionsSerializer,
     DocumentsRequestSerializer,
     WorkflowExecuteSerializer,
 )
 from arango_api.services import collection_service, graph_service, search_service
 from arango_api.services import document_service, sunburst_service, workflow_service
-from arango_api.services import label_service, version_service
+from arango_api.services import label_service, version_service, hierarchy_service
 from arango_api.services.sunburst_service import SunburstServiceError
 
 logger = logging.getLogger(__name__)
@@ -284,6 +285,42 @@ class SunburstView(APIView):
                 error_response["db_error"] = e.db_error
             return Response(
                 error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class HierarchyView(APIView):
+    """Get CL hierarchy data for one curated predicate."""
+
+    def post(self, request):
+        serializer = HierarchyRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            results = hierarchy_service.get_hierarchy(
+                data["label"], data.get("parent_id")
+            )
+            return Response(results)
+        except hierarchy_service.UnknownLabelError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except hierarchy_service.HierarchyServiceError as e:
+            error_response = {"error": str(e)}
+            if e.db_error:
+                error_response["db_error"] = e.db_error
+            return Response(
+                error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class HierarchyLabelsView(APIView):
+    """List the curated hierarchy predicates present in the loaded data."""
+
+    def get(self, request):
+        try:
+            return Response(hierarchy_service.available_labels())
+        except hierarchy_service.HierarchyServiceError as e:
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
