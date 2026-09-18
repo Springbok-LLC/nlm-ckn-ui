@@ -1,6 +1,6 @@
 import Sunburst from "components/Sunburst";
 import Tree from "components/Tree";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { fetchHierarchyData, fetchHierarchyLabels } from "services";
 import { LoadingBar, mergeChildren } from "utils";
@@ -18,20 +18,36 @@ const prefixesOf = (path) => path.map((_, index) => path.slice(0, index + 1));
  * hierarchy data, so toggling between them is free -- no refetch, and the
  * view you switch to opens on the node you were just looking at.
  *
- * Owns exactly three pieces of state -- `label`, `data`, `focusPath` -- plus
- * loading/error. `focusPath` is a root-to-node id path rather than a bare id
- * because the hierarchy is a DAG: a node can appear at more than one
+ * Owns four pieces of state -- `label`, `data`, `focusPath`, `expandedPaths`
+ * -- plus loading/error. `focusPath` is a root-to-node id path rather than a
+ * bare id because the hierarchy is a DAG: a node can appear at more than one
  * position, and only a path names a single occurrence.
+ *
+ * `expandedPaths` is its own state, not derived from `focusPath`: the tree
+ * can hold many branches open at once (expanding sibling A then sibling B
+ * keeps both open, exactly as standalone /tree always has), while the
+ * sunburst can only center on one node at a time. Deriving `expandedPaths`
+ * from `focusPath` on every render would collapse every branch outside the
+ * current focus on each tree interaction, which is a regression, not the
+ * intended hand-off. The hand-off -- and the only place a collapse is
+ * intended -- is switching from the sunburst to the tree: `expandedPaths` is
+ * reseeded to `focusPath`'s prefixes at that moment, so the tree opens on the
+ * node the sunburst was centered on. The reverse hand-off (tree to sunburst)
+ * does not update `focusPath`; the sunburst has nowhere to represent more
+ * than one open branch, so it simply keeps showing wherever it was last
+ * centered.
  */
 const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
   const view = VIEWS.includes(requestedView) ? requestedView : "sunburst";
+  const previousViewRef = useRef(view);
 
   const [labels, setLabels] = useState(null);
   const [label, setLabel] = useState(null);
   const [data, setData] = useState(null);
   const [focusPath, setFocusPath] = useState([]);
+  const [expandedPaths, setExpandedPaths] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -70,7 +86,9 @@ const Browse = () => {
       .then((rootData) => {
         if (cancelled) return;
         setData(rootData);
-        setFocusPath(rootData?._id ? [rootData._id] : []);
+        const rootPath = rootData?._id ? [rootData._id] : [];
+        setFocusPath(rootPath);
+        setExpandedPaths(prefixesOf(rootPath));
       })
       .catch((err) => {
         if (!cancelled) {
@@ -99,17 +117,21 @@ const Browse = () => {
     [label],
   );
 
-  // The tree can hold many branches open at once; the sunburst can only
-  // center on one. Whichever view was just used to navigate becomes the new
-  // focus, and the other view's other open branches close on the round
-  // trip -- that's intended, not a bug.
+  // Tree owns its own multi-branch expansion; Browse just stores whatever it
+  // reports.
   const handleExpandedPathsChange = useCallback((nextPaths) => {
-    if (nextPaths.length === 0) return;
-    const deepest = nextPaths.reduce((a, b) => (b.length > a.length ? b : a));
-    setFocusPath(deepest);
+    setExpandedPaths(nextPaths);
   }, []);
 
-  const expandedPaths = useMemo(() => prefixesOf(focusPath), [focusPath]);
+  // The one place a collapse is intended: switching from the sunburst (which
+  // can only center on one node) to the tree reseeds the tree's open
+  // branches to exactly the path the sunburst was centered on.
+  useEffect(() => {
+    if (previousViewRef.current === "sunburst" && view === "tree") {
+      setExpandedPaths(prefixesOf(focusPath));
+    }
+    previousViewRef.current = view;
+  }, [view, focusPath]);
 
   const handleViewChange = useCallback(
     (nextView) => {
