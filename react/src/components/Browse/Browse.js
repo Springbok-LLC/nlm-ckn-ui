@@ -86,12 +86,21 @@ const Browse = () => {
 
   // Fetch the root whenever the working label changes. Bumping the
   // generation here -- before the request goes out -- also retires any
-  // `fetchChildren` call still in flight for the previous label.
+  // `fetchChildren` call still in flight for the previous label. Clearing
+  // `data` (and the focus/expansion state that only makes sense relative to
+  // it) in the same breath keeps the previous label's hierarchy from staying
+  // on screen -- and therefore expandable -- while the new root is in
+  // flight: a `fetchChildren` call issued against that stale hierarchy would
+  // capture the new label and the new generation, pass the staleness check,
+  // and merge new-label children into old-label data.
   useEffect(() => {
     if (!label) return;
     const generation = ++requestGenerationRef.current;
     setIsLoading(true);
     setError(null);
+    setData(null);
+    setFocusPath([]);
+    setExpandedPaths([]);
     fetchHierarchyData(label, null)
       .then((rootData) => {
         if (requestGenerationRef.current !== generation) return;

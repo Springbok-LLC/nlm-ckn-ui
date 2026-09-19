@@ -338,6 +338,71 @@ describe("Browse stale request guard", () => {
     expect(screen.queryByText(/^test cell 0000003/)).not.toBeInTheDocument();
     expect(screen.queryAllByText("other root").length).toBeGreaterThan(0);
   });
+
+  // Mirror-image of the test above: here it's the ROOT load for the new
+  // label that is slow, not a child fetch under the old one. If `data`
+  // stayed on label A's hierarchy until B's root arrived, the user could
+  // click a still-rendered A node while waiting, and that click's
+  // `fetchChildren` would capture label B and the post-switch generation --
+  // passing the staleness check -- so its response could merge into B's
+  // data once it lands. Asserting A is gone before B resolves is what rules
+  // that out.
+  test("switching labels clears the previous hierarchy before the new root arrives", async () => {
+    let resolveRootB;
+    const rootBResponse = new Promise((resolve) => {
+      resolveRootB = resolve;
+    });
+
+    global.fetch = jest.fn((url, options) => {
+      if (url.includes("/hierarchy/labels/")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              { label: "SUB_CLASS_OF", root: "CL/0000000" },
+              { label: "PART_OF", root: "CL/0000900" },
+            ]),
+        });
+      }
+      const body = options?.body ? JSON.parse(options.body) : {};
+      if (body.label === "SUB_CLASS_OF" && body.parent_id === null) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(root) });
+      }
+      if (body.label === "PART_OF" && body.parent_id === null) {
+        // Stays pending until resolveRootB() is called below, so the test
+        // controls exactly when B's root lands relative to the switch.
+        return rootBResponse.then(() => ({
+          ok: true,
+          json: () => Promise.resolve(rootB),
+        }));
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+
+    renderBrowse();
+    await screen.findAllByText("cell");
+
+    // Switch to label B while its root fetch is still in flight.
+    fireEvent.change(screen.getByLabelText(/hierarchy/i), {
+      target: { value: "PART_OF" },
+    });
+
+    // A's hierarchy must already be gone -- not just about to be replaced --
+    // so there is no A node left on screen to click while B's root is
+    // pending.
+    await waitFor(() => {
+      expect(screen.queryByText(/^cell$/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^test cell 0000001/)).not.toBeInTheDocument();
+    });
+
+    // Now let B's root resolve, and confirm B renders.
+    await act(async () => {
+      resolveRootB();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findAllByText("other root")).not.toHaveLength(0);
+  });
 });
 
 describe("Browse error state", () => {
