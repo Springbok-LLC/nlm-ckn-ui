@@ -105,21 +105,24 @@ const decorateCellSetDatasetLabel = (item, label) => {
 };
 
 /**
- * Citations keyed by DOI and anatomical structure names keyed by UBERON CURIE,
- * loaded once at startup. Labels are built synchronously, so they read these
- * rather than fetching the documents a cell set references.
+ * Citations keyed by DOI, anatomical structure names keyed by UBERON CURIE, and
+ * the fields a cell set's own label reads keyed by its document key, loaded once
+ * at startup. Labels are built synchronously, so they read these rather than
+ * fetching the documents a label names.
  */
-let cellSetLabelLookups = { publications: {}, anatomical_structures: {} };
+let cellSetLabelLookups = { publications: {}, anatomical_structures: {}, cell_sets: {} };
 
 /**
  * Install the lookups cell set labels read. A missing or failed load leaves
  * them empty, and labels omit the parts they would have named.
- * @param {{publications?: Object, anatomical_structures?: Object}|null} lookups
+ * @param {{publications?: Object, anatomical_structures?: Object,
+ *   cell_sets?: Object}|null} lookups
  */
 export const setCellSetLabelLookups = (lookups) => {
   cellSetLabelLookups = {
     publications: lookups?.publications ?? {},
     anatomical_structures: lookups?.anatomical_structures ?? {},
+    cell_sets: lookups?.cell_sets ?? {},
   };
 };
 
@@ -154,6 +157,25 @@ const decorateCellSetLabel = (item, label) => {
 };
 
 /**
+ * Decorate a biomarker combination label with the cell set it characterizes
+ * (#271): `<markers> for <cell set label>`. A biomarker combination is 1:1 with
+ * its cell set and shares its key, so the markers alone name 470 of them
+ * ambiguously.
+ *
+ * Without the cell set in the lookups the markers stand alone, as before.
+ * @param {object} item - The BMC document.
+ * @param {string} label - The label chosen from the collection config.
+ * @returns {string} The decorated label.
+ */
+const decorateMarkerSetLabel = (item, label) => {
+  const cellSet = cellSetLabelLookups.cell_sets[item._key];
+  if (!cellSet?.author_cell_term) {
+    return label;
+  }
+  return `${label} for ${decorateCellSetLabel(cellSet, cellSet.author_cell_term)}`;
+};
+
+/**
  * Generates display label for data item based on dynamic configuration.
  * Finds first valid field from options, applies transformations, and returns result.
  * @param {object} item - Data object needing label. Must contain `_id` property.
@@ -185,6 +207,9 @@ export const getLabel = (item) => {
     }
     if (label && itemCollection === "CS") {
       return decorateCellSetLabel(item, label);
+    }
+    if (label && itemCollection === "BMC") {
+      return decorateMarkerSetLabel(item, label);
     }
 
     return label || "NAME UNKNOWN";

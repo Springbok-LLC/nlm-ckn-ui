@@ -405,3 +405,37 @@ describe("getLabel for cell sets", () => {
     );
   });
 });
+
+describe("getLabel for biomarker combinations", () => {
+  // A biomarker combination shares its cell set's key, and its markers alone
+  // name 470 of them ambiguously, so the label names the cell set too (#271).
+  // The collection map renders markers as "A | B"; the cell set follows it.
+  const bmc = { _id: "BMC/0kw5mi0nr49p", _key: "0kw5mi0nr49p", markers: "TRPA1,F3" };
+  const lookups = {
+    publications: { "10.1038/s41586-021-03852-1": "Elmentaite (2021) Nature" },
+    anatomical_structures: { "UBERON:0001555": "digestive tract" },
+    cell_sets: {
+      "0kw5mi0nr49p": {
+        author_cell_term: "Stromal-2-(NPY+)",
+        publication: "10.1038/s41586-021-03852-1",
+        dataset_name: "Cells of the human intestinal tract",
+        anatomical_structure: "UBERON:0001555",
+      },
+    },
+  };
+
+  afterEach(() => setCellSetLabelLookups(null));
+
+  it("names the cell set the markers characterize", () => {
+    setCellSetLabelLookups(lookups);
+    expect(getLabel(bmc)).toBe(
+      'TRPA1 | F3 for Stromal-2-(NPY+) in Elmentaite (2021) Nature - "Cells of the human intestinal tract" for digestive tract',
+    );
+  });
+
+  it("leaves the markers alone when the cell set is not in the lookups", () => {
+    expect(getLabel(bmc)).toBe("TRPA1 | F3");
+    setCellSetLabelLookups({ ...lookups, cell_sets: { "0kw5mi0nr49p": {} } });
+    expect(getLabel(bmc)).toBe("TRPA1 | F3");
+  });
+});
