@@ -157,7 +157,8 @@ const decorateCellSetLabel = (item, label) => {
  * Generates display label for data item based on dynamic configuration.
  * Finds first valid field from options, applies transformations, and returns result.
  * @param {object} item - Data object needing label. Must contain `_id` property.
- * @returns {string} Processed label string or default "NAME UNKNOWN" fallback.
+ * @returns {string} Processed label, or the document's identifier when no label
+ *   option names it.
  */
 export const getLabel = (item) => {
   try {
@@ -187,7 +188,11 @@ export const getLabel = (item) => {
       return decorateCellSetLabel(item, label);
     }
 
-    return label || "NAME UNKNOWN";
+    // A graph can hold a term loaded as an edge endpoint but never with a label
+    // of its own — four such nodes exist today. The node id names which term is
+    // missing, where "NAME UNKNOWN" named none of them. getNodeLabel falls back
+    // the same way (#277).
+    return label || item._id;
   } catch (error) {
     console.error(`getLabel failed with exception: ${error}`);
     return "NAME UNKNOWN";
