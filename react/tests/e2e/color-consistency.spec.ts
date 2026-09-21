@@ -151,8 +151,8 @@ test.describe("Collection colors consistency", () => {
       return route.continue();
     });
 
-    // Navigate to Browse (sunburst is the default view)
-    await page.goto("/#/browse");
+    // Browse defaults to the tree, so ask for the sunburst explicitly
+    await page.goto("/#/browse?view=sunburst");
 
     // Wait for SVG to be visible
     const svg = page.locator("#sunburst-container svg");
@@ -318,7 +318,7 @@ test.describe("Collection colors consistency", () => {
     }, originId);
 
     // 1. Start at Browse's sunburst view, capture color
-    await page.goto("/#/browse");
+    await page.goto("/#/browse?view=sunburst");
     const sunburstSvg = page.locator("#sunburst-container svg");
     await expect(sunburstSvg).toBeVisible();
     const sunburstPaths = page.locator('#sunburst-container svg path[fill]:not([fill="none"])');

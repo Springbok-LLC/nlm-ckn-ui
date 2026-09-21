@@ -25,10 +25,10 @@ beforeAll(() => {
   });
 });
 
-const renderBrowse = () =>
+const renderBrowse = (initialEntry = "/browse") =>
   render(
     <Provider store={testStore()}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <Browse />
         </ToastProvider>
@@ -147,8 +147,19 @@ describe("Browse", () => {
     global.fetch = originalFetch;
   });
 
-  test("keeps loaded children and focus when the view toggles", async () => {
+  test("defaults to the tree when no view is requested", async () => {
     renderBrowse();
+    await screen.findAllByText("cell");
+
+    // The tree draws a node's label twice (outline pass, then fill pass); the
+    // sunburst draws each arc's label once and its center text separately.
+    // Two matches for a child label means the tree is the view on screen.
+    expect(await screen.findAllByText(/^test cell 0000001/)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /tree/i })).toHaveClass("active");
+  });
+
+  test("keeps loaded children and focus when the view toggles", async () => {
+    renderBrowse("/browse?view=sunburst");
     await screen.findAllByText("cell");
 
     fireEvent.click(await screen.findByText(/^test cell 0000001/));
@@ -168,7 +179,7 @@ describe("Browse", () => {
   });
 
   test("hand-off: focusing a node in the sunburst opens that path in the tree", async () => {
-    renderBrowse();
+    renderBrowse("/browse?view=sunburst");
     await screen.findAllByText("cell");
 
     fireEvent.click(await screen.findByText(/^test cell 0000001/));
@@ -309,7 +320,9 @@ describe("Browse stale request guard", () => {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
 
-    renderBrowse();
+    // Pinned to the sunburst: this test clicks one arc to start a single
+    // child fetch, and the tree draws each label twice.
+    renderBrowse("/browse?view=sunburst");
     await screen.findAllByText("cell");
 
     // Start a child fetch under label A (SUB_CLASS_OF) that will not resolve

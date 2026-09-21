@@ -31,12 +31,13 @@ test("Browse loads Sunburst visualization", async ({ page }) => {
     return route.continue();
   });
 
-  // Navigate -> Browse
+  // Navigate -> Browse, then switch to the sunburst: Browse defaults to the
+  // tree view.
   await page.goto("/");
   await page.getByRole("link", { name: "Browse" }).click();
-
-  // URL -- Browse defaults to the sunburst view.
   await expect(page).toHaveURL(/#\/browse$/);
+  await page.getByRole("button", { name: /sunburst/i }).click();
+  await expect(page).toHaveURL(/#\/browse\?view=sunburst$/);
 
   // SVG visible
   const svg = page.locator("#sunburst-container svg");

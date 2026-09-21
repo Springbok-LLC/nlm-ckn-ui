@@ -6,7 +6,10 @@ import { fetchHierarchyData, fetchHierarchyLabels } from "services";
 import { LoadingBar, mergeChildren } from "utils";
 import BrowseToolbar from "./BrowseToolbar";
 
+// The tree is the default view; `/sunburst` still redirects to the sunburst,
+// so the legacy link keeps landing on the visualization it named.
 const VIEWS = ["sunburst", "tree"];
+const DEFAULT_VIEW = "tree";
 
 // Every ancestor's own root-to-node path, root first, focused node last --
 // what TreeConstructor's `expandedPaths` needs so each ancestor along the
@@ -40,7 +43,7 @@ const prefixesOf = (path) => path.map((_, index) => path.slice(0, index + 1));
 const Browse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
-  const view = VIEWS.includes(requestedView) ? requestedView : "sunburst";
+  const view = VIEWS.includes(requestedView) ? requestedView : DEFAULT_VIEW;
   const previousViewRef = useRef(view);
 
   const [labels, setLabels] = useState(null);
