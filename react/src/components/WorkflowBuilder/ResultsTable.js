@@ -18,6 +18,7 @@ import {
   getCollectionFields,
   getNodeExternalUrl,
   getNodeLabel,
+  humanizeFieldLabel,
 } from "utils";
 
 /**
@@ -210,7 +211,10 @@ const ResultsTable = ({ graphData, collapseMode = "off", originNodeIds = [] }) =
         for (const [, config] of collectionConfigMap) {
           const fieldConfig = config.individual_fields?.find((f) => f.field_to_display === field);
           if (fieldConfig) {
-            return { fieldName: field, displayName: fieldConfig.display_field_as };
+            return {
+              fieldName: field,
+              displayName: humanizeFieldLabel(fieldConfig.display_field_as),
+            };
           }
         }
         return { fieldName: field, displayName: field };

@@ -405,3 +405,12 @@ describe("getLabel for cell sets", () => {
     );
   });
 });
+
+describe("attribute names from the collection maps", () => {
+  // display_field_as is mostly underscore_case; the file is synced with the ETL
+  // repo, so the underscores come out in the UI (#279).
+  it("reads an underscore_case display name as words", () => {
+    const fields = getDisplayFields({ _id: "CL/0000084", hasExactSynonym: "T-cell" });
+    expect(fields.find((f) => f.key === "hasExactSynonym").label).toBe("Exact synonym(s)");
+  });
+});

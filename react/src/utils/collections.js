@@ -3,7 +3,7 @@
  */
 import { fieldSections, omittedFields } from "config/fieldSections";
 import collMaps from "../assets/nlm-ckn-collection-maps.json";
-import { capitalCase } from "./strings";
+import { capitalCase, humanizeFieldLabel } from "./strings";
 
 /**
  * Module-level collection config map built from the JSON asset.
@@ -260,7 +260,7 @@ export const getDisplayFields = (item) => {
 
         return {
           key: config.field_to_display,
-          label: config.display_field_as,
+          label: humanizeFieldLabel(config.display_field_as),
           value: value,
           url: fieldUrl,
         };
@@ -432,7 +432,7 @@ export const getCollectionFields = (collection) => {
   if (!config?.individual_fields) return [];
   return config.individual_fields.map((f) => ({
     fieldName: f.field_to_display,
-    displayName: f.display_field_as,
+    displayName: humanizeFieldLabel(f.display_field_as),
   }));
 };
 

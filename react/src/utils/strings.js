@@ -96,3 +96,17 @@ export const humanizeSlug = (value) => {
   const words = value.replace(/_plus_/g, "_and_").replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 };
+
+/**
+ * Render a collection map display name as words (#279).
+ *
+ * `display_field_as` is mostly underscore_case ("Exact_synonym(s)"), though a
+ * few entries already use spaces. The file is kept byte-identical with the ETL
+ * repo, so the underscores come out here rather than there. Case is left alone:
+ * "mRNA_(NM)_..." and "UniProt_ID" carry their own.
+ *
+ * @param {*} value - Raw display name; non-strings pass through untouched.
+ * @returns {*} The name with underscores as spaces, or the input unchanged.
+ */
+export const humanizeFieldLabel = (value) =>
+  typeof value === "string" ? value.replaceAll("_", " ") : value;
