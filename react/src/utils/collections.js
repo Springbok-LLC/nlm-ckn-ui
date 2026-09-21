@@ -154,10 +154,29 @@ const decorateCellSetLabel = (item, label) => {
 };
 
 /**
+ * The identifier to show for a document no label option names (#277). An
+ * ontology term's key is its local id, so it reads as the CURIE users see
+ * elsewhere; anything else falls back to the key, then to the document id.
+ *
+ * A graph can hold a term that was loaded as an edge endpoint but never with a
+ * label of its own — four such nodes exist today. "NAME UNKNOWN" identified
+ * none of them.
+ *
+ * @param {object} item - Data object. Must contain `_id`.
+ * @returns {string} The identifier.
+ */
+const identifierLabel = (item) => {
+  const [collection, ...rest] = item._id.split("/");
+  const key = item._key ?? rest.join("/");
+  return /^\d+$/.test(key) ? `${collection}:${key}` : key || item._id;
+};
+
+/**
  * Generates display label for data item based on dynamic configuration.
  * Finds first valid field from options, applies transformations, and returns result.
  * @param {object} item - Data object needing label. Must contain `_id` property.
- * @returns {string} Processed label string or default "NAME UNKNOWN" fallback.
+ * @returns {string} Processed label, or the document's identifier when no label
+ *   option names it.
  */
 export const getLabel = (item) => {
   try {
@@ -187,7 +206,7 @@ export const getLabel = (item) => {
       return decorateCellSetLabel(item, label);
     }
 
-    return label || "NAME UNKNOWN";
+    return label || identifierLabel(item);
   } catch (error) {
     console.error(`getLabel failed with exception: ${error}`);
     return "NAME UNKNOWN";

@@ -405,3 +405,16 @@ describe("getLabel for cell sets", () => {
     );
   });
 });
+
+describe("getLabel for a document no label option names", () => {
+  // Four nodes in the graph carry nothing but a key; "NAME UNKNOWN" named none
+  // of them, so the label falls back to the identifier (#277).
+  it("reads an ontology term as its CURIE", () => {
+    expect(getLabel({ _id: "CL/00007013", _key: "00007013" })).toBe("CL:00007013");
+    expect(getLabel({ _id: "UBERON/0002535", _key: "0002535" })).toBe("UBERON:0002535");
+  });
+
+  it("reads a non-numeric key as the key itself", () => {
+    expect(getLabel({ _id: "GS/UNLABELED", _key: "UNLABELED" })).toBe("UNLABELED");
+  });
+});

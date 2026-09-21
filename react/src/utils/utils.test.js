@@ -244,9 +244,9 @@ describe("Utils Module", () => {
       expect(getLabel(item)).toBe("12345");
     });
 
-    it("should return NAME UNKNOWN if no label options are found", () => {
+    it("should fall back to the identifier if no label options are found", () => {
       const item = { _id: "nodes_a/5", other_prop: "value" }; // neither 'name' nor 'key' exist
-      expect(getLabel(item)).toBe("NAME UNKNOWN");
+      expect(getLabel(item)).toBe("nodes_a:5");
     });
   });
 
@@ -414,10 +414,10 @@ describe("getNodeLabel", () => {
 
   it("treats an empty string as absent, unlike getLabel", () => {
     expect(getNodeLabel({ name: "", key: "key_a2" }, "nodes_a/1")).toBe("key_a2");
-    expect(getLabel({ _id: "nodes_a/1", name: "", key: "key_a2" })).toBe("NAME UNKNOWN");
+    expect(getLabel({ _id: "nodes_a/1", name: "", key: "key_a2" })).toBe("nodes_a:1");
   });
 
-  it("falls back to the node id, not to NAME UNKNOWN", () => {
+  it("falls back to the node id, not to a label", () => {
     expect(getNodeLabel({}, "nodes_a/1")).toBe("nodes_a/1");
     expect(getNodeLabel(null, "nodes_a/1")).toBe("nodes_a/1");
     expect(getNodeLabel({}, "nodes_a")).toBe("-");
