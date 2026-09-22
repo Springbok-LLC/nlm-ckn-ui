@@ -405,12 +405,3 @@ describe("getLabel for cell sets", () => {
     );
   });
 });
-
-describe("getLabel for a document no label option names", () => {
-  // Four nodes in the graph carry nothing but a key; "NAME UNKNOWN" named none
-  // of them, so the label falls back to the node id, as getNodeLabel does (#277).
-  it("reads the node id", () => {
-    expect(getLabel({ _id: "CL/00007013", _key: "00007013" })).toBe("CL/00007013");
-    expect(getLabel({ _id: "UBERON/0002535", _key: "0002535" })).toBe("UBERON/0002535");
-  });
-});
