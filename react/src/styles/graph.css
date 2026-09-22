@@ -775,15 +775,14 @@ g.node.pinned .node-pin-marker path {
 /* Related nodes' cards, stacked under the card they give context to. The cards
    size to their content and the inspector column scrolls, rather than each card
    filling the column and scrolling on its own. */
-.node-inspector > * {
-  flex-shrink: 0;
-}
 .node-inspector .document-item-list-wrapper {
+  flex-shrink: 0;
   height: auto;
   max-height: none;
   overflow-y: visible;
 }
 .inspector-related {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
