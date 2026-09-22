@@ -40,11 +40,20 @@ const CKN_FILTERING_CRITERIA = {
 
 export const fieldSections = {
   // Section order and slot names follow the node card specification sheet
-  // attached to nlm-ckn#327. Slots the sheet asks for that no CS document
-  // carries — disease and embedding — are omitted rather than configured, so
-  // they cannot render as blank rows.
+  // (09/16) attached to nlm-ckn#335. Slots the sheet asks for that no CS
+  // document carries are omitted rather than configured, so they cannot render
+  // as blank rows: embedding, disease and the F-beta score appear on the
+  // related dataset and biomarker combination cards, the binary score on the
+  // related binary gene set card; PMID, SKOS mapping and per-gene binary scores
+  // are on no node.
   CS: [
-    { section: "Context", fields: [{ key: "publication", label: "Publication" }] },
+    {
+      section: "Context",
+      fields: [
+        { key: "author_cell_term", label: "Author cell set annotation" },
+        { key: "publication", label: "Publication" },
+      ],
+    },
     {
       section: "Provenance",
       fields: [
@@ -57,7 +66,7 @@ export const fieldSections = {
     },
     {
       section: "Analysis Metadata",
-      fields: [{ key: "cluster_annotation", label: "Cluster annotation level" }],
+      fields: [{ key: "cluster_annotation", label: "Annotation level" }],
     },
     CKN_FILTERING_CRITERIA,
     {
@@ -65,6 +74,8 @@ export const fieldSections = {
       fields: [
         { key: "species", label: "Species" },
         { key: "anatomical_structure", label: "Anatomical Structure Collection" },
+        // Only ~28% of cell sets carry a Cell Ontology term; the rest omit the row.
+        { key: "ontology_purl", label: "Cell Type" },
       ],
     },
     {
@@ -72,7 +83,6 @@ export const fieldSections = {
       fields: [
         { key: "cell_count", label: "Cell count" },
         { key: "median_silhouette", label: "Median silhouette score" },
-        { key: "f_beta_score", label: "F-beta score" },
       ],
     },
     {
@@ -88,7 +98,6 @@ export const fieldSections = {
       // they grade.
       section: "Biomarker Combination Metrics",
       fields: [
-        { key: "f_beta_score", label: "F-beta score" },
         { key: "precision", label: "Precision: TP/(TP+FP)" },
         { key: "recall", label: "Recall: TP/(TP+FN)" },
         { key: "on_target", label: "On-target fraction" },
@@ -199,6 +208,7 @@ export const omittedFields = {
   CSD: ["cell_count"],
   // The specification removes the DOI row.
   PUB: ["publication_doi"],
-  // expressed_genes repeats binary_gene_set verbatim in every cell set.
-  CS: ["expressed_genes"],
+  // expressed_genes repeats binary_gene_set, and cluster_cell_count repeats
+  // cell_count, in every cell set.
+  CS: ["expressed_genes", "cluster_cell_count"],
 };

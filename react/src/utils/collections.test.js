@@ -171,7 +171,6 @@ describe("getSectionedFields for cell sets", () => {
     biomarker_combination: "ACKR1",
     binary_gene_set: "SOCS3,PECAM1,AQP1",
     expressed_genes: "SOCS3,PECAM1,AQP1",
-    f_beta_score: "0.469166734017619",
     precision: "0.4738775510204082",
     recall: "0.451224251846094",
     on_target: "0.4645175337791443",
@@ -204,12 +203,29 @@ describe("getSectionedFields for cell sets", () => {
     ]);
   });
 
-  it("reports the cell set statistics post-filtering", () => {
+  it("opens with the author's annotation and the publication", () => {
+    expect(section("Context").fields.map((f) => f.label)).toEqual([
+      "Author cell set annotation",
+      "Publication",
+    ]);
+  });
+
+  it("reports the cell set statistics post-filtering, once each", () => {
     expect(section("Post-filtering Cell Set Statistics").fields.map((f) => f.label)).toEqual([
       "Cell count",
       "Median silhouette score",
-      "F-beta score",
     ]);
+    const keys = getSectionedFields(cs()).flatMap((s) => s.fields.map((f) => f.key));
+    expect(keys).not.toContain("cluster_cell_count");
+  });
+
+  it("names the Cell Ontology term as the cell type when the cell set carries one", () => {
+    const metadata = (doc) => section("Post-filtering Cell Set Metadata", doc).fields;
+    expect(metadata(cs({ ontology_purl: "CL:0000128" })).at(-1)).toMatchObject({
+      label: "Cell Type",
+      url: "http://purl.obolibrary.org/obo/CL_0000128",
+    });
+    expect(metadata(cs()).map((f) => f.label)).not.toContain("Cell Type");
   });
 
   it("shows the binary gene set but not the expressed genes it repeats", () => {
@@ -224,7 +240,6 @@ describe("getSectionedFields for cell sets", () => {
   it("scores the biomarker combination, with true negatives marked unused", () => {
     const metrics = section("Biomarker Combination Metrics").fields;
     expect(metrics.map((f) => f.label)).toEqual([
-      "F-beta score",
       "Precision: TP/(TP+FP)",
       "Recall: TP/(TP+FN)",
       "On-target fraction",
