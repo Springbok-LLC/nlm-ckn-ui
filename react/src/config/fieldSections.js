@@ -208,7 +208,8 @@ export const omittedFields = {
   CSD: ["cell_count"],
   // The specification removes the DOI row.
   PUB: ["publication_doi"],
-  // expressed_genes repeats binary_gene_set, and cluster_cell_count repeats
-  // cell_count, in every cell set.
-  CS: ["expressed_genes", "cluster_cell_count"],
+  // expressed_genes repeats binary_gene_set, cluster_cell_count repeats
+  // cell_count, and silhouette_score repeats median_silhouette, in every cell
+  // set.
+  CS: ["expressed_genes", "cluster_cell_count", "silhouette_score"],
 };

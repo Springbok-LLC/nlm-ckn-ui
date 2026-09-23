@@ -217,6 +217,7 @@ describe("getSectionedFields for cell sets", () => {
     ]);
     const keys = getSectionedFields(cs()).flatMap((s) => s.fields.map((f) => f.key));
     expect(keys).not.toContain("cluster_cell_count");
+    expect(keys).not.toContain("silhouette_score");
   });
 
   it("names the Cell Ontology term as the cell type when the cell set carries one", () => {
