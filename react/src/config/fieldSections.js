@@ -46,7 +46,7 @@ const MARKERS_INFO =
 const BIOMARKER_METRICS_INFO =
   "Performance metrics of the biomarker combination reported by NS-Forest. The F-beta score is " +
   "also used as a quality control metric for the cell set quality, indicating whether good " +
-  "markers exist for charactering this cell set.";
+  "markers exist for characterizing this cell set.";
 const BINARY_SCORE_INFO =
   "Binary score is a metric that quantifies the binaryness of gene expression of a gene in the " +
   "target cluster versus off-target clusters (Aevermann et al. 2021, Liu et al. 2024). Binary " +
