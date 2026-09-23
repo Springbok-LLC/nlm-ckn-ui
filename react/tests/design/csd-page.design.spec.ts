@@ -38,7 +38,6 @@ const px = (n: number) => Math.round(n);
 test.beforeEach(async ({ page }) => {
   await page.goto(CSD_PATH);
   await expect(page.locator(".graph-title")).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator(".saved-graph-card").first()).toBeVisible();
 });
 
 test("page fits the viewport with no scrolling", async ({ page }) => {
@@ -131,7 +130,24 @@ test("info panel", async ({ page }) => {
     )
     .toBe("solid");
 
-  // The card scrolls inside the panel instead of stretching the page (pin 22).
+  // The card scrolls inside the panel instead of stretching the page (pin 22):
+  // some ancestor of the last section must scroll, and scrolling it to the end
+  // must bring that section fully into its visible area.
+  const lastSectionReachable = await page
+    .locator(".inspector-section")
+    .last()
+    .evaluate((section) => {
+      let el = section.parentElement;
+      while (el && !["auto", "scroll"].includes(getComputedStyle(el).overflowY)) {
+        el = el.parentElement;
+      }
+      if (!el || el === document.documentElement || el === document.body) return false;
+      el.scrollTop = el.scrollHeight;
+      return section.getBoundingClientRect().bottom <= el.getBoundingClientRect().bottom + 1;
+    });
+  expect
+    .soft(lastSectionReachable, "panel scrolls internally to its last section (pin 22)")
+    .toBe(true);
   const card = await box(page, ".inspector-card");
   const learn = await box(page, ".learn-explore");
   expect
@@ -183,6 +199,11 @@ test("graph section", async ({ page }) => {
   expect
     .soft(await css(page, ".graph-canvas-icon-button", "color"), "control glyph (pin 18)")
     .toBe(GRAY_DARK);
+  // The frame shows two controls; the app adds its own, so require at least two.
+  expect.soft(boxes.length, "control count (pin 18)").toBeGreaterThanOrEqual(2);
+  boxes.forEach((b, i) => {
+    expect.soft([px(b.width), px(b.height)], `control ${i} size (pin 18)`).toEqual([40, 40]);
+  });
   for (let i = 1; i < boxes.length; i++) {
     expect.soft(px(boxes[i].x), `control ${i} stacked vertically (pin 18)`).toBe(px(boxes[0].x));
     expect.soft(px(boxes[i].y - boxes[i - 1].bottom), `control ${i} spacing (pin 18)`).toBe(12);
@@ -190,12 +211,16 @@ test("graph section", async ({ page }) => {
 });
 
 test("history strip", async ({ page }) => {
+  await expect(page.locator(".saved-graph-card").first()).toBeVisible();
   const graph = await box(page, ".graph-workspace-canvas-body");
   const shelf = await box(page, ".graph-workspace-shelf");
   const gap = px(shelf.y - (graph.y + graph.height));
   expect.soft(gap, "graph to strip gap (pin 19)").toBeGreaterThanOrEqual(16);
   expect.soft(gap, "graph to strip gap (pin 19)").toBeLessThanOrEqual(20);
-  expect.soft(px(shelf.y + shelf.height), "strip pinned to the bottom").toBeLessThanOrEqual(1060);
+  expect.soft(px(shelf.y + shelf.height), "strip on screen").toBeLessThanOrEqual(1060);
+  expect
+    .soft(px(shelf.y + shelf.height), "strip pinned to the bottom")
+    .toBeGreaterThanOrEqual(1040);
   expect
     .soft(await css(page, ".graph-workspace-shelf", "background-color"), "strip bg (pin 21)")
     .toBe(BG_LIGHT_BLUE);
