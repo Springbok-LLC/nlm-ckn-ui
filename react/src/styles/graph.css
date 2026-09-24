@@ -1187,9 +1187,7 @@ fieldset.collection-picker {
   padding: 10px 20px;
 }
 
-/* History strip heading = the graph's origin (Figma Body Small 12px Medium).
-   Single-line box that ellipsis-truncates when too long, so long/multi-origin
-   titles don't wrap and disturb the strip spacing. */
+/* History strip heading (Figma Body Small 12px Medium) with a help icon. */
 .graph-history-title {
   margin: 0 0 4px;
   max-width: 100%;
@@ -1201,6 +1199,11 @@ fieldset.collection-picker {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.graph-history-help {
+  margin-left: 4px;
+  color: var(--color-gray); /* #5B616B */
+  cursor: help;
 }
 
 @media (max-width: 768px) {

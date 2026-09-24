@@ -226,8 +226,8 @@ test("history strip", async ({ page }) => {
     .toBe(BG_LIGHT_BLUE);
 
   await expect
-    .soft(page.locator(".graph-history-title"), "breadcrumb (pin 20)")
-    .toHaveText(/^Workflow Builder \/ /);
+    .soft(page.locator(".graph-history-title"), "heading (pin 20, agreed as History)")
+    .toHaveText(/^History/);
 
   // Vis card 674:3149 (pin 24).
   const card = ".saved-graph-card";
