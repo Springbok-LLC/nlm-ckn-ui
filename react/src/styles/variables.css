@@ -84,6 +84,9 @@
   --line-height-relaxed: 1.8;
 
   /* Border Radius */
+  /* Title bar (64px) + menu bar (46px), Figma frame V at desktop widths. */
+  --app-header-height: 110px;
+
   --radius-sm: 3px;
   --radius-md: 4px;
   --radius-lg: 8px;
