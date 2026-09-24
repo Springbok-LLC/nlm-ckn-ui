@@ -669,15 +669,20 @@ a.document-popup-button {
   }
 }
 
-/* Desktop: the workspace fills the viewport under the title and menu bars, so
-   the history strip sits on the bottom edge (Figma frame V, 930:487). */
+/* Desktop: the workspace fills the viewport between the title and menu bars
+   and the site footer, so the whole page fits without scrolling (Figma frame
+   V, 930:487; the footer is a team requirement the frame doesn't show). */
 @media (min-width: 1024px) {
   .content-page-layout.document-details-page-layout {
     min-height: 0;
   }
 
   .content-box.document-details-content-box {
-    padding: var(--spacing-md) var(--spacing-2xl) 0;
+    padding: var(--spacing-md) var(--spacing-2xl);
+  }
+
+  .site-container:has(.document-details-page-layout) .site-footer {
+    margin-top: 0;
   }
 
   /* An exact height rather than one grown by flex: WebKit resolved the
@@ -685,7 +690,13 @@ a.document-popup-button {
      Firefox used the flexed one, so the graph rendered ~136px shorter there. */
   .document-page-main-content-area {
     flex: none;
-    height: calc(100vh - var(--app-header-height) - var(--spacing-md));
+    height: calc(
+      100vh -
+      var(--app-header-height) -
+      var(--app-footer-height) -
+      2 *
+      var(--spacing-md)
+    );
   }
 }
 
