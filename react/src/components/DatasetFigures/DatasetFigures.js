@@ -124,20 +124,24 @@ const FigureModal = ({ figure, onClose }) => {
     return () => opener?.focus?.();
   }, []);
 
+  // Every Tab is moved by hand rather than only at the ends: Safari skips links
+  // when tabbing by default, so from the close button its own Tab would pass
+  // the dialog's link and leave the dialog.
   const trapTab = (event) => {
     if (event.key !== "Tab") {
       return;
     }
-    const focusable = dialogRef.current.querySelectorAll("button, a[href], iframe");
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
+    const focusable = [...dialogRef.current.querySelectorAll("button, a[href], iframe")];
+    const current = focusable.indexOf(document.activeElement);
+    const count = focusable.length;
+    let next;
+    if (current === -1) {
+      next = event.shiftKey ? count - 1 : 0;
+    } else {
+      next = (current + (event.shiftKey ? -1 : 1) + count) % count;
     }
+    event.preventDefault();
+    focusable[next].focus();
   };
 
   // Key events inside the frame never reach the parent window, so Escape is

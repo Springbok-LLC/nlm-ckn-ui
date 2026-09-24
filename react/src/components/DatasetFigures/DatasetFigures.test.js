@@ -123,4 +123,14 @@ describe("DatasetFigures", () => {
     fireEvent.keyDown(link, { key: "Tab" });
     expect(close).toHaveFocus();
   });
+
+  it("moves Tab through the dialog itself, not only at its ends", () => {
+    // Safari skips links when tabbing, so its own Tab from the close button
+    // would leave the dialog; every Tab is handled here instead.
+    render(<DatasetFigures document={datasetDocument} />);
+    openFigure(/Cell set dendrogram/);
+    const close = screen.getByTitle("Close");
+    fireEvent.keyDown(close, { key: "Tab" });
+    expect(screen.getByRole("link", { name: "Open the SVG in a new tab" })).toHaveFocus();
+  });
 });
