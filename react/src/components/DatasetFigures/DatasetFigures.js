@@ -121,7 +121,18 @@ const FigureModal = ({ figure, onClose }) => {
   useEffect(() => {
     const opener = document.activeElement;
     closeRef.current?.focus();
-    return () => opener?.focus?.();
+    // Tab inside the interactive frame is handled by the frame's own document,
+    // so trapTab never sees it leave; bring back any focus that lands outside.
+    const keepFocusInside = (event) => {
+      if (dialogRef.current && !dialogRef.current.contains(event.target)) {
+        closeRef.current?.focus();
+      }
+    };
+    document.addEventListener("focusin", keepFocusInside);
+    return () => {
+      document.removeEventListener("focusin", keepFocusInside);
+      opener?.focus?.();
+    };
   }, []);
 
   // Every Tab is moved by hand rather than only at the ends: Safari skips links

@@ -124,6 +124,19 @@ describe("DatasetFigures", () => {
     expect(close).toHaveFocus();
   });
 
+  it("brings focus back when it lands outside the dialog", () => {
+    // Tab out of the interactive frame is handled by the frame, not trapTab.
+    render(
+      <>
+        <button type="button">Behind the modal</button>
+        <DatasetFigures document={datasetDocument} />
+      </>,
+    );
+    openFigure(/Silhouette and F-beta scores/);
+    screen.getByRole("button", { name: "Behind the modal" }).focus();
+    expect(screen.getByTitle("Close")).toHaveFocus();
+  });
+
   it("moves Tab through the dialog itself, not only at its ends", () => {
     // Safari skips links when tabbing, so its own Tab from the close button
     // would leave the dialog; every Tab is handled here instead.
