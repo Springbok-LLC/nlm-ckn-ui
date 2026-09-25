@@ -528,6 +528,17 @@ export const executePhase = createAsyncThunk(
 );
 
 /**
+ * Ids whose node details have been requested this session. Stable empty array
+ * so the selector does not churn identity.
+ * @param {object} state
+ * @returns {Array<string>}
+ */
+export const selectRequestedNodeIds = (state) =>
+  state.workflowBuilder.requestedNodeIds ?? EMPTY_REQUESTED_NODE_IDS;
+
+const EMPTY_REQUESTED_NODE_IDS = [];
+
+/**
  * Async thunk for fetching node details (for display names).
  */
 export const fetchNodeDetails = createAsyncThunk(
@@ -594,6 +605,12 @@ const initialState = {
   // Node details cache (nodeId -> node object with label, etc.)
   nodeDetails: {},
 
+  // Ids whose details have been requested, so an id in flight is not fetched
+  // again on the next render. Kept in the slice rather than a component ref so
+  // it is cleared in step with nodeDetails: a record that outlived the cache
+  // left origin chips showing raw ids that were never re-fetched.
+  requestedNodeIds: [],
+
   // Currently active phase (for display)
   activePhaseId: null,
 
@@ -624,6 +641,7 @@ const workflowBuilderSlice = createSlice({
       state.phases = [createEmptyPhase(0)];
       state.phaseResults = {};
       state.nodeDetails = {};
+      state.requestedNodeIds = [];
       state.activePhaseId = null;
       state.activeGraph = null;
       state.status = GRAPH_STATUS.IDLE;
@@ -898,9 +916,20 @@ const workflowBuilderSlice = createSlice({
       })
 
       // Fetch node details
+      .addCase(fetchNodeDetails.pending, (state, action) => {
+        const requested = new Set(state.requestedNodeIds);
+        for (const id of action.meta.arg.nodeIds || []) requested.add(id);
+        state.requestedNodeIds = [...requested];
+      })
       .addCase(fetchNodeDetails.fulfilled, (state, action) => {
         // Merge new details into existing cache
         Object.assign(state.nodeDetails, action.payload);
+      })
+      .addCase(fetchNodeDetails.rejected, (state, action) => {
+        // Release the ids so a later render retries them. Holding them would
+        // pin the chips to raw ids for the rest of the session.
+        const failed = new Set(action.meta.arg.nodeIds || []);
+        state.requestedNodeIds = state.requestedNodeIds.filter((id) => !failed.has(id));
       });
   },
 });
