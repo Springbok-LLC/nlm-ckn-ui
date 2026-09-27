@@ -14,6 +14,7 @@ const {
   default: workflowBuilderReducer,
   fetchNodeDetails,
   initializeWorkflow,
+  selectFailedNodeIds,
   selectRequestedNodeIds,
 } = slice;
 
@@ -73,12 +74,38 @@ describe("node details request bookkeeping", () => {
     expect(wb(store).nodeDetails["UBERON/0001004"].Label).toBe("bronchus");
   });
 
-  it("releases the ids when the fetch fails, so a later attempt can retry", async () => {
+  it("holds a failed id back until a new workflow starts, instead of re-requesting it", async () => {
     services.fetchNodeDetailsByIds.mockRejectedValue(new Error("network down"));
     const store = makeStore();
 
     await store.dispatch(fetchNodeDetails({ nodeIds: ["UBERON/0001004"] }));
 
     expect(selectRequestedNodeIds(store.getState())).not.toContain("UBERON/0001004");
+    expect(selectFailedNodeIds(store.getState())).toContain("UBERON/0001004");
+
+    store.dispatch(initializeWorkflow());
+    expect(selectFailedNodeIds(store.getState())).toEqual([]);
+  });
+
+  it("does not let a stale failed request release an id a newer request owns", async () => {
+    let rejectFirst;
+    services.fetchNodeDetailsByIds
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectFirst = reject;
+          }),
+      )
+      .mockImplementationOnce(() => new Promise(() => {}));
+    const store = makeStore();
+
+    const first = store.dispatch(fetchNodeDetails({ nodeIds: ["UBERON/0001004"] }));
+    store.dispatch(initializeWorkflow());
+    store.dispatch(fetchNodeDetails({ nodeIds: ["UBERON/0001004"] }));
+    rejectFirst(new Error("network down"));
+    await first;
+
+    expect(selectRequestedNodeIds(store.getState())).toContain("UBERON/0001004");
+    expect(selectFailedNodeIds(store.getState())).not.toContain("UBERON/0001004");
   });
 });

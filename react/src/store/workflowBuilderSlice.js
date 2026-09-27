@@ -536,6 +536,14 @@ export const executePhase = createAsyncThunk(
 export const selectRequestedNodeIds = (state) =>
   state.workflowBuilder.requestedNodeIds ?? EMPTY_REQUESTED_NODE_IDS;
 
+/**
+ * Ids whose node-details fetch failed, held back until a new workflow starts.
+ * @param {object} state
+ * @returns {Array<string>}
+ */
+export const selectFailedNodeIds = (state) =>
+  state.workflowBuilder.failedNodeIds ?? EMPTY_REQUESTED_NODE_IDS;
+
 const EMPTY_REQUESTED_NODE_IDS = [];
 
 /**
@@ -611,6 +619,15 @@ const initialState = {
   // left origin chips showing raw ids that were never re-fetched.
   requestedNodeIds: [],
 
+  // The request that currently owns each requested id, so a stale request that
+  // fails cannot release an id a newer request is still fetching.
+  nodeRequestOwners: {},
+
+  // Ids whose fetch failed. Not retried automatically: releasing them into
+  // requestedNodeIds would re-run the fetch effect at once and loop on a
+  // persistent error. Starting a new workflow clears them for another try.
+  failedNodeIds: [],
+
   // Currently active phase (for display)
   activePhaseId: null,
 
@@ -642,6 +659,8 @@ const workflowBuilderSlice = createSlice({
       state.phaseResults = {};
       state.nodeDetails = {};
       state.requestedNodeIds = [];
+      state.nodeRequestOwners = {};
+      state.failedNodeIds = [];
       state.activePhaseId = null;
       state.activeGraph = null;
       state.status = GRAPH_STATUS.IDLE;
@@ -917,19 +936,37 @@ const workflowBuilderSlice = createSlice({
 
       // Fetch node details
       .addCase(fetchNodeDetails.pending, (state, action) => {
+        const ids = action.meta.arg.nodeIds || [];
         const requested = new Set(state.requestedNodeIds);
-        for (const id of action.meta.arg.nodeIds || []) requested.add(id);
+        state.nodeRequestOwners ??= {};
+        for (const id of ids) {
+          requested.add(id);
+          state.nodeRequestOwners[id] = action.meta.requestId;
+        }
         state.requestedNodeIds = [...requested];
+        const retrying = new Set(ids);
+        state.failedNodeIds = (state.failedNodeIds ?? []).filter((id) => !retrying.has(id));
       })
       .addCase(fetchNodeDetails.fulfilled, (state, action) => {
         // Merge new details into existing cache
         Object.assign(state.nodeDetails, action.payload);
+        for (const id of action.meta.arg.nodeIds || []) {
+          if (state.nodeRequestOwners?.[id] === action.meta.requestId) {
+            delete state.nodeRequestOwners[id];
+          }
+        }
       })
       .addCase(fetchNodeDetails.rejected, (state, action) => {
-        // Release the ids so a later render retries them. Holding them would
-        // pin the chips to raw ids for the rest of the session.
-        const failed = new Set(action.meta.arg.nodeIds || []);
+        // Only ids this request still owns: a newer request for the same id may
+        // be in flight. They move to failedNodeIds rather than back into the
+        // fetch queue, so a persistent error does not re-request them forever.
+        const owners = state.nodeRequestOwners ?? {};
+        const failed = new Set(
+          (action.meta.arg.nodeIds || []).filter((id) => owners[id] === action.meta.requestId),
+        );
+        for (const id of failed) delete owners[id];
         state.requestedNodeIds = state.requestedNodeIds.filter((id) => !failed.has(id));
+        state.failedNodeIds = [...new Set([...(state.failedNodeIds ?? []), ...failed])];
       });
   },
 });

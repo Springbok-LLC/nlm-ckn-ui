@@ -54,6 +54,7 @@ const WorkflowBuilder = ({ onGraphReady }) => {
     error,
     nodeDetails,
     requestedNodeIds,
+    failedNodeIds,
     showPresetSelector,
     unknownLabels,
   } = useSelector((state) => state.workflowBuilder);
@@ -90,13 +91,14 @@ const WorkflowBuilder = ({ onGraphReady }) => {
   // Fetch node details when origin nodes change
   useEffect(() => {
     const allNodeIds = phases.flatMap((phase) => phase.originNodeIds || []);
-    const alreadyRequested = new Set(requestedNodeIds);
-    const missingNodeIds = allNodeIds.filter((id) => !alreadyRequested.has(id));
+    // Failed ids wait for the next workflow rather than retrying on every render.
+    const skip = new Set([...requestedNodeIds, ...(failedNodeIds ?? [])]);
+    const missingNodeIds = allNodeIds.filter((id) => !skip.has(id));
 
     if (missingNodeIds.length > 0) {
       dispatch(fetchNodeDetails({ nodeIds: missingNodeIds }));
     }
-  }, [dispatch, phases, requestedNodeIds]);
+  }, [dispatch, phases, requestedNodeIds, failedNodeIds]);
 
   // Notify parent when graph is ready
   useEffect(() => {
