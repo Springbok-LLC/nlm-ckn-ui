@@ -79,6 +79,31 @@ const renderWorkspace = (props = {}, preloadedGraph) => {
 };
 
 describe("GraphWorkspace", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("collapses the history and figures strip and remembers the choice", () => {
+    const { unmount } = renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse history and figures" }));
+    expect(screen.queryByTestId("shelf")).toBeNull();
+    unmount();
+
+    renderWorkspace();
+    expect(screen.queryByTestId("shelf")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand history and figures" }));
+    expect(screen.getByTestId("shelf")).toBeInTheDocument();
+  });
+
+  it("expands a collapsed strip when one of its views is chosen", () => {
+    renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse history and figures" }));
+    fireEvent.click(screen.getByRole("button", { name: "Figures (2)" }));
+    expect(screen.getByTestId("dataset-figures")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse history and figures" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("shows the origin document in the inspector by default", () => {
     renderWorkspace();
     expect(screen.getByTestId("inspector")).toHaveTextContent("CSD/origin");
