@@ -215,15 +215,17 @@ const GraphWorkspace = ({
                   </svg>
                 </button>
               </h3>
-              {!stripCollapsed && (
-                <div id={stripContentId}>
-                  {showingFigures ? (
+              {/* The container stays mounted so the toggle's aria-controls always
+                  names an element; only its content goes when collapsed, which
+                  also keeps the figures from loading while hidden. */}
+              <div id={stripContentId} hidden={stripCollapsed}>
+                {!stripCollapsed &&
+                  (showingFigures ? (
                     <DatasetFigures document={figuresDocument} />
                   ) : (
                     <SavedGraphShelf />
-                  )}
-                </div>
-              )}
+                  ))}
+              </div>
             </div>
           </div>
         </section>

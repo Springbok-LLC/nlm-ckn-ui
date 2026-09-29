@@ -83,8 +83,13 @@ describe("GraphWorkspace", () => {
 
   it("collapses the history and figures strip and remembers the choice", () => {
     const { unmount } = renderWorkspace();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse history and figures" }));
+    const toggle = screen.getByRole("button", { name: "Collapse history and figures" });
+    fireEvent.click(toggle);
     expect(screen.queryByTestId("shelf")).toBeNull();
+    // The controlled element stays in the document, hidden.
+    const controlled = document.getElementById(toggle.getAttribute("aria-controls"));
+    expect(controlled).not.toBeNull();
+    expect(controlled).not.toBeVisible();
     unmount();
 
     renderWorkspace();
