@@ -35,6 +35,12 @@ import { getAllSearchableFields } from "./collections";
  * format the result with Biome. A stale snapshot can hide real drift, so
  * refresh it whenever the view's indexed fields change.
  */
+// Known gap: fields the view indexes but the frontend never sends as search_fields.
+// `_search` holds each node's identifier forms (CURIE, underscore form, PURL). The
+// backend must add it to the search itself, which is tracked in #195 ("Resolve typed
+// ontology identifiers to nodes in search"). Until #195 lands it is indexed but not searched.
+const BACKEND_ONLY_FIELDS = ["_search"];
+
 describe("search field coverage", () => {
   // Read the view definition straight from disk so the test tracks the real
   // exported view config, not a hand-maintained copy.
@@ -57,9 +63,8 @@ describe("search field coverage", () => {
   });
 
   test("every field indexed by the view is in the frontend searchable set", () => {
-    // _search is an identifier field searched server-side, never sent by the frontend.
     const missing = [...viewFields].filter(
-      (field) => field !== "_search" && !searchableFields.has(field),
+      (field) => !BACKEND_ONLY_FIELDS.includes(field) && !searchableFields.has(field),
     );
 
     // If this fails, the listed fields are indexed in indexed.json but the
