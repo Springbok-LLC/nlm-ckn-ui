@@ -15,8 +15,9 @@ import { getAllSearchableFields } from "./collections";
  * source from the view definition. If the two drift apart, a field can be
  * indexed in the view yet never actually searched (or vice-versa).
  *
- * This test asserts every field indexed by the view is covered by the frontend
- * searchable set, so "all view fields are searchable" stays true.
+ * This test asserts every field indexed by the view, except the names in
+ * BACKEND_ONLY_FIELDS, is covered by the frontend searchable set. `_search` is the
+ * documented exception (see #195): it is indexed but not yet searched.
  *
  * NOTE: This is the real coverage gate. It does NOT involve LABEL_FIELDS in the
  * backend -- those only shape the RETURN projection, not what is searched.
