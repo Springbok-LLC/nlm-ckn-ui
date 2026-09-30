@@ -751,6 +751,28 @@ WORKFLOW_PRESETS = [
                 },
                 "perNodeSettings": {},
             },
+            {
+                "id": "preset-uc7-hcp-phase-5",
+                "name": "The dipper with its cell leg",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "previousPhaseIds": [
+                    "preset-uc7-hcp-phase-3",
+                    "preset-uc7-hcp-phase-4",
+                ],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                # A traversal phase keeps only edges matching its own labels,
+                # so the cell-leg phase drops the disease, gene, protein and
+                # compound edges. The union restores them.
+                "settings": {
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
         ],
     },
     {
