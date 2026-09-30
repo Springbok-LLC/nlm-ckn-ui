@@ -890,7 +890,7 @@ WORKFLOW_PRESETS = [
     },
     {
         "id": "pah-kcnk3-uc9",
-        "name": "Pulmonary arterial hypertension / KCNK3 (UC9)",
+        "name": "Pulmonary arterial hypertension / KCNK3",
         "description": (
             "KCNK3-related pulmonary arterial hypertension as a Big "
             "Dipper: the causal gene, its protein targets and interacting "
