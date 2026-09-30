@@ -568,6 +568,25 @@ WORKFLOW_PRESETS = [
                 },
                 "perNodeSettings": {},
             },
+            {
+                "id": "preset-uc6-phase-3",
+                "name": "The dipper with its cell leg",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "previousPhaseIds": ["preset-uc6-phase-1", "preset-uc6-phase-2"],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                # A traversal phase keeps only edges matching its own labels,
+                # so the cell-leg phase drops the disease, gene, protein and
+                # compound edges. The union restores them.
+                "settings": {
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
         ],
     },
     {
@@ -811,6 +830,25 @@ WORKFLOW_PRESETS = [
                         "Source": [],
                     },
                     "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-uc11-phase-3",
+                "name": "The dipper with its cell leg",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "previousPhaseIds": ["preset-uc11-phase-1", "preset-uc11-phase-2"],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                # A traversal phase keeps only edges matching its own labels,
+                # so the cell-leg phase drops the disease, gene, protein and
+                # compound edges. The union restores them.
+                "settings": {
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
                     "collapseLeafNodes": "off",
