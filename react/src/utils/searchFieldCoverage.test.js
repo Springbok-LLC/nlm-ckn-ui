@@ -22,16 +22,18 @@ import { getAllSearchableFields } from "./collections";
  * backend -- those only shape the RETURN projection, not what is searched.
  *
  * FIXTURE PROVENANCE: __fixtures__/indexed.json is a static snapshot of the
- * deployed ArangoSearch view, so it can drift from the live view. Regenerate it
- * after any view change by dumping the live definition, e.g.:
+ * deployed ArangoSearch view, so it can drift from the live view. Search is
+ * phenotypes-only, so regenerate it from Cell-KN-Phenotypes after any view
+ * change by dumping the live definition, e.g.:
  *
- *   arangosh --server.database Cell-KN-Ontologies \
+ *   arangosh --server.database Cell-KN-Phenotypes \
  *     --javascript.execute-string \
  *     'print(JSON.stringify(db._view("indexed").properties(), null, 2))' \
  *     > react/src/utils/__fixtures__/indexed.json
  *
- * (or via the _api/view/indexed/properties REST endpoint). A stale snapshot can
- * hide real drift, so refresh it whenever the view's indexed fields change.
+ * or fetch GET /_db/Cell-KN-Phenotypes/_api/view/indexed/properties (REST) and
+ * format the result with Biome. A stale snapshot can hide real drift, so
+ * refresh it whenever the view's indexed fields change.
  */
 describe("search field coverage", () => {
   // Read the view definition straight from disk so the test tracks the real
@@ -55,13 +57,24 @@ describe("search field coverage", () => {
   });
 
   test("every field indexed by the view is in the frontend searchable set", () => {
-    const missing = [...viewFields].filter((field) => !searchableFields.has(field));
+    // _search is an identifier field searched server-side, never sent by the frontend.
+    const missing = [...viewFields].filter(
+      (field) => field !== "_search" && !searchableFields.has(field),
+    );
 
     // If this fails, the listed fields are indexed in indexed.json but the
     // frontend never searches them -- add them to a collection's
     // individual_fields in nlm-ckn-collection-maps.json (or remove them from
     // the view if they are intentionally not searchable).
     expect(missing).toEqual([]);
+  });
+
+  test("every collection link indexes _search with exactly norm-lower", () => {
+    const links = Object.entries(view.links ?? {});
+    expect(links.length).toBeGreaterThan(0);
+    for (const [collection, link] of links) {
+      expect([collection, link.fields?._search?.analyzers]).toEqual([collection, ["norm-lower"]]);
+    }
   });
 
   test.each([
