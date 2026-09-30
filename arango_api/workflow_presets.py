@@ -803,6 +803,25 @@ WORKFLOW_PRESETS = [
                 },
                 "perNodeSettings": {},
             },
+            {
+                "id": "preset-uc12-phase-3",
+                "name": "The dipper with its cell leg",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "previousPhaseIds": ["preset-uc12-phase-1", "preset-uc12-phase-2"],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                # A traversal phase keeps only edges matching its own labels,
+                # so the cell-leg phase drops the disease, gene, protein and
+                # compound edges. The union restores them.
+                "settings": {
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
         ],
     },
     {
