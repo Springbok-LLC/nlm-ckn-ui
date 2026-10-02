@@ -11,12 +11,14 @@ making them discoverable by non-browser clients (MCP tools, agents, etc.).
 
 PRESET_SECTIONS = [
     {"id": "graph-results", "label": "Graph Result Examples"},
+    {"id": "big-dipper", "label": "Big Dipper"},
     {"id": "list-results", "label": "List Result Examples"},
 ]
 
 PRESET_CATEGORIES = [
     # Graph result examples
     {"id": "Use Cases", "label": "Use Cases", "section": "graph-results"},
+    {"id": "Big Dipper", "label": "Big Dipper", "section": "big-dipper"},
     # List result examples
     {
         "id": "Ontology Exploration",
@@ -154,8 +156,48 @@ WORKFLOW_PRESETS = [
     # Use Cases
     # -------------------------------------------------------------------------
     {
+        "id": "datasets-provenance-uc1",
+        "name": "Single-cell datasets and their provenance (UC1)",
+        "description": (
+            "Every single-cell dataset in NLM-CKN with the publication it is "
+            "attributed to and the organ it is about. Select a dataset to see "
+            "its provenance (CELLxGENE collection, assay, donors, cell counts) "
+            "and quality evidence (mean F-beta and silhouette scores)."
+        ),
+        "category": "Use Cases",
+        "layoutMode": "force",
+        "phases": [
+            {
+                "id": "preset-uc1-phase-1",
+                "name": "Datasets, publications, and organs",
+                "originSource": "collection",
+                "originCollection": "CSD",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "originFilter": "all",
+                "settings": {
+                    # CSD -WAS_ATTRIBUTED_TO-> PUB and CSD -IS_ABOUT-> UBERON.
+                    # IS_ABOUT also reaches every cell set in the dataset;
+                    # allowedCollections keeps those out.
+                    "depth": 1,
+                    "edgeDirection": "OUTBOUND",
+                    "allowedCollections": ["PUB", "UBERON"],
+                    "edgeFilters": {
+                        "Label": ["WAS_ATTRIBUTED_TO", "IS_ABOUT"],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
+        ],
+    },
+    {
         "id": "hlca-lung-cell-types",
-        "name": "HLCA lung cell types (UC1)",
+        "name": "HLCA lung cell types (UC2)",
         "description": (
             "The HLCA respiratory dataset (Sikkema et al.) with its ~61 cell "
             "sets and the cell types they map to. The dataset sits at the "
@@ -185,96 +227,6 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "ANY",
                     "allowedCollections": ["CS", "CL"],
                     "edgeFilters": {"Label": [], "Source": []},
-                    "setOperation": "Union",
-                    "graphType": "phenotypes",
-                    "includeInterNodeEdges": True,
-                },
-                "perNodeSettings": {},
-            },
-        ],
-    },
-    {
-        "id": "datasets-epithelial-respiratory-uc2",
-        "name": "Epithelial cell sets in the respiratory system (UC2)",
-        "description": (
-            "The experimental cell sets that characterise epithelial cells in "
-            "the respiratory system, and the datasets they come from. Cell "
-            "sets are scoped by the anatomy they derive from and the cell "
-            "type they are composed of; the datasets follow from the cell "
-            "sets rather than the other way round."
-        ),
-        "category": "Use Cases",
-        "layoutMode": "force",
-        "phases": [
-            {
-                "id": "preset-uc2-phase-1",
-                "name": "Epithelial cell sets in respiratory anatomy",
-                "originSource": "manual",
-                "originNodeIds": ["CL/0000066", "UBERON/0001004"],
-                "previousPhaseId": None,
-                "originFilter": "all",
-                "settings": {
-                    "depth": 9,
-                    "edgeDirection": "INBOUND",
-                    "allowedCollections": ["CL", "CS", "UBERON"],
-                    "edgeFilters": {
-                        "Label": [
-                            "SUB_CLASS_OF",
-                            "COMPOSED_PRIMARILY_OF",
-                            "PART_OF",
-                            "DERIVES_FROM",
-                        ],
-                        "Source": [],
-                    },
-                    "setOperation": "Intersection",
-                    "graphType": "phenotypes",
-                    "includeInterNodeEdges": True,
-                },
-                # Each origin descends to cell sets by its own route, and the
-                # intersection keeps the cell sets both routes reach. Scoping
-                # the anatomy on the cell set (CS -DERIVES_FROM-> UBERON)
-                # rather than on the cell type matters: CL carries almost no
-                # PART_OF edges into respiratory anatomy, so requiring the
-                # cell type itself to be respiratory drops club cells, type II
-                # pneumocytes and lung goblet cells — the very cells the
-                # question is about.
-                "perNodeSettings": {
-                    "CL/0000066": {
-                        "depth": 9,
-                        "edgeDirection": "INBOUND",
-                        "allowedCollections": ["CL", "CS"],
-                        "edgeFilters": {
-                            "Label": ["SUB_CLASS_OF", "COMPOSED_PRIMARILY_OF"],
-                            "Source": [],
-                        },
-                    },
-                    "UBERON/0001004": {
-                        "depth": 9,
-                        "edgeDirection": "INBOUND",
-                        "allowedCollections": ["UBERON", "CS"],
-                        "edgeFilters": {
-                            "Label": ["PART_OF", "DERIVES_FROM"],
-                            "Source": [],
-                        },
-                    },
-                },
-            },
-            {
-                "id": "preset-uc2-phase-2",
-                "name": "Datasets those cell sets come from",
-                "originSource": "previousPhase",
-                "originNodeIds": [],
-                "previousPhaseId": "preset-uc2-phase-1",
-                "originFilter": "all",
-                "settings": {
-                    # CSD -IS_ABOUT-> CS, so the datasets sit inbound of the
-                    # cell sets. Depth 1 keeps the answer to the datasets that
-                    # contain these cell sets; the cell sets stay in the result
-                    # as the origins, so the table lists both.
-                    "depth": 1,
-                    "edgeDirection": "INBOUND",
-                    "allowedCollections": ["CSD"],
-                    "edgeFilters": {"Label": ["IS_ABOUT"], "Source": []},
                     "setOperation": "Union",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
@@ -349,59 +301,73 @@ WORKFLOW_PRESETS = [
         ],
     },
     {
-        "id": "respiratory-spatial-panel-uc4",
-        "name": "Respiratory system spatial transcriptomics panel (UC4)",
+        "id": "hlca-dendritic-markers-uc4",
+        "name": "HLCA marker gene combinations for dendritic cells (UC4)",
         "description": (
-            "A respiratory-system marker gene panel for targeted spatial "
-            "transcriptomics. Starts from respiratory anatomy to anchor on "
-            "respiratory experiments, then fans out to their cell sets, "
-            "biomarker combinations, marker genes, and cell types."
+            "The marker gene combinations that differentiate dendritic cells "
+            "in the healthy human respiratory system, from the HLCA core "
+            "dataset (Sikkema et al.). Each dendritic cell set carries its "
+            "own combination; select one for its F-beta score."
         ),
         "category": "Use Cases",
-        "layoutMode": "strict-cluster",
+        "layoutMode": "force",
         "phases": [
             {
                 "id": "preset-uc4-phase-1",
-                "name": "Respiratory system cell set datasets",
+                "name": "HLCA cell sets composed of dendritic cells",
                 "originSource": "manual",
-                "originNodeIds": ["UBERON/0001004"],
+                "originNodeIds": [
+                    "CSD/4cb45d80-499a-48ae-a056-c71ac3552c94__respiratory_system",
+                    "CL/0000451",
+                ],
                 "previousPhaseId": None,
                 "originFilter": "all",
                 "settings": {
-                    "depth": 2,
-                    "edgeDirection": "ANY",
-                    "allowedCollections": ["CS", "CSD"],
-                    "edgeFilters": {
-                        "Label": [],
-                        "Source": [],
-                    },
-                    "setOperation": "Union",
+                    "depth": 9,
+                    "edgeDirection": "INBOUND",
+                    "allowedCollections": ["CS", "CL"],
+                    "edgeFilters": {"Label": [], "Source": []},
+                    "setOperation": "Intersection",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
-                    "returnCollections": ["CSD"],
-                    "collapseLeafNodes": "off",
                 },
-                "perNodeSettings": {},
+                # The intersection keeps the cell sets both origins reach:
+                # the ones in HLCA, and the ones composed of dendritic cells
+                # or any of their subtypes.
+                "perNodeSettings": {
+                    "CSD/4cb45d80-499a-48ae-a056-c71ac3552c94__respiratory_system": {
+                        "depth": 1,
+                        "edgeDirection": "OUTBOUND",
+                        "allowedCollections": ["CS"],
+                        "edgeFilters": {"Label": ["IS_ABOUT"], "Source": []},
+                    },
+                    "CL/0000451": {
+                        "depth": 9,
+                        "edgeDirection": "INBOUND",
+                        "allowedCollections": ["CL", "CS"],
+                        "edgeFilters": {
+                            "Label": ["SUB_CLASS_OF", "COMPOSED_PRIMARILY_OF"],
+                            "Source": [],
+                        },
+                    },
+                },
             },
             {
                 "id": "preset-uc4-phase-2",
-                "name": "Cell types and marker genes",
+                "name": "Cell types, marker gene combinations, marker genes",
                 "originSource": "previousPhase",
                 "originNodeIds": [],
                 "previousPhaseId": "preset-uc4-phase-1",
                 "originFilter": "all",
                 "settings": {
-                    "depth": 3,
+                    "depth": 2,
                     "edgeDirection": "ANY",
-                    "allowedCollections": ["CS", "BMC", "GS", "CL"],
+                    "allowedCollections": ["CL", "BMC", "GS"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_ABOUT",
-                            "PART_OF",
-                            "HAS_CHARACTERIZING_MARKER_SET",
                             "COMPOSED_PRIMARILY_OF",
-                            "EXPRESSES",
-                            "SELECTIVELY_EXPRESSES",
+                            "HAS_CHARACTERIZING_MARKER_SET",
+                            "PART_OF",
                         ],
                         "Source": [],
                     },
@@ -412,29 +378,16 @@ WORKFLOW_PRESETS = [
                 },
                 "perNodeSettings": {},
             },
-            {
-                "id": "preset-uc4-phase-3",
-                "name": "Marker gene panel",
-                "originSource": "filter",
-                "originNodeIds": [],
-                "previousPhaseId": "preset-uc4-phase-2",
-                "originFilter": "all",
-                "settings": {
-                    "returnCollections": ["GS"],
-                    "collapseLeafNodes": "off",
-                },
-                "perNodeSettings": {},
-            },
         ],
     },
     {
         "id": "dataset-comparison-uc5",
-        "name": "Compare datasets: HLCA vs CellRef (UC5)",
+        "name": "CellRef cell types not found in HLCA (UC5)",
         "description": (
-            "Cell types shared and unique between the HLCA (Sikkema et al.) "
-            "and CellRef (Guo et al.) lung datasets. Shared cell types sit "
-            "between the two dataset hubs; dataset-specific ones stay on "
-            "their own side."
+            "The cell types in the CellRef dataset (Guo et al.) that the HLCA "
+            "dataset (Sikkema et al.) does not detect. Both datasets are "
+            "shown side by side: shared cell types sit between the two "
+            "dataset hubs, and the ones only CellRef finds stay on its side."
         ),
         "category": "Use Cases",
         "layoutMode": "force",
@@ -472,7 +425,7 @@ WORKFLOW_PRESETS = [
     },
     {
         "id": "cystic-fibrosis-uc6",
-        "name": "Cystic fibrosis pathogenesis (UC6)",
+        "name": "Cystic fibrosis: genetic and cellular factors, treatments (UC6)",
         "description": (
             "Cystic fibrosis as a Big Dipper: its causal genes and "
             "treatments, then the cell types that express those genes and "
@@ -545,81 +498,19 @@ WORKFLOW_PRESETS = [
                 },
                 "perNodeSettings": {},
             },
-        ],
-    },
-    {
-        "id": "leber-congenital-amaurosis-uc7",
-        "name": "Leber congenital amaurosis (UC7)",
-        "description": (
-            "Leber congenital amaurosis as a Big Dipper: causal genes "
-            "(ABCA4, AIPL1, LRAT, KCNJ13), treating compounds, expressing "
-            "cell types, and anatomy. Anchored on the parent disease term "
-            "because the RPE65-specific subtype is not in the current data "
-            "release."
-        ),
-        "category": "Use Cases",
-        "layoutMode": "big-dipper",
-        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
-        # Labeling every one of them buries the shape, so start with
-        # edge labels off; the Labels panel can turn them back on.
-        "labelStates": {"link-label": False},
-        "phases": [
             {
-                "id": "preset-uc7-phase-1",
-                "name": "Disease genes and treatments",
-                "originSource": "manual",
-                "originNodeIds": ["MONDO/0018998"],
-                "previousPhaseId": None,
-                "originFilter": "all",
-                "settings": {
-                    "depth": 1,
-                    "edgeDirection": "ANY",
-                    "allowedCollections": ["GS", "CHEMBL"],
-                    "edgeFilters": {
-                        "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
-                            "IS_SUBSTANCE_THAT_TREATS",
-                        ],
-                        "Source": [],
-                    },
-                    "setOperation": "Union",
-                    "graphType": "phenotypes",
-                    "includeInterNodeEdges": True,
-                    "collapseLeafNodes": "off",
-                },
-                "perNodeSettings": {},
-            },
-            {
-                "id": "preset-uc7-phase-2",
-                "name": "Gene to cell types, protein, and drugs",
-                "originSource": "previousPhase",
+                "id": "preset-uc6-phase-3",
+                "name": "The dipper with its cell leg",
+                "originSource": "multiplePhases",
                 "originNodeIds": [],
-                "previousPhaseId": "preset-uc7-phase-1",
+                "previousPhaseId": None,
+                "previousPhaseIds": ["preset-uc6-phase-1", "preset-uc6-phase-2"],
+                "phaseCombineOperation": "Union",
                 "originFilter": "all",
+                # A traversal phase keeps only edges matching its own labels,
+                # so the cell-leg phase drops the disease, gene, protein and
+                # compound edges. The union restores them.
                 "settings": {
-                    "depth": 3,
-                    "edgeDirection": "ANY",
-                    "allowedCollections": [
-                        "CL",
-                        "UBERON",
-                        "NCBITaxon",
-                        "PR",
-                        "CHEMBL",
-                        "CS",
-                    ],
-                    "edgeFilters": {
-                        "Label": [
-                            "PART_OF",
-                            "PRESENT_IN_TAXON",
-                            "PRODUCES",
-                            "MOLECULARLY_INTERACTS_WITH",
-                            "EXPRESSES",
-                            "SELECTIVELY_EXPRESSES",
-                            "COMPOSED_PRIMARILY_OF",
-                        ],
-                        "Source": [],
-                    },
-                    "setOperation": "Union",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
                     "collapseLeafNodes": "off",
@@ -630,20 +521,16 @@ WORKFLOW_PRESETS = [
     },
     {
         "id": "alzheimers-disease-uc8",
-        "name": "Alzheimer's disease exploration (UC8)",
+        "name": "Alzheimer's disease genes and the compounds targeting them (UC8)",
         "description": (
-            "Alzheimer's disease: its causal genes and therapeutic "
-            "compounds, then the cell types that selectively express those "
-            "genes and where they sit anatomically."
+            "The genes strongly associated with Alzheimer's disease, the "
+            "proteins they produce, and the compounds that interact with "
+            "those proteins."
         ),
         "category": "Use Cases",
-        # NOT the big-dipper layout: this preset fans out to ~3,100 nodes
-        # (1,647 compounds, 1,052 diseases), and a single star holding 1,647
-        # nodes needs more room than the whole asterism. The dipper layout
-        # suits single-dipper results in the tens of nodes; this is a bulk
-        # scan, so it keeps the clustered layout it was built with.
+        # A gene -> protein -> compound fan-out (~130 nodes, ~80 of them
+        # compounds), not a dipper: there is no cell leg or closing edge.
         "layoutMode": "strict-cluster",
-        # Still worth suppressing edge labels at this density.
         "labelStates": {"link-label": False},
         "phases": [
             {
@@ -672,41 +559,24 @@ WORKFLOW_PRESETS = [
             },
             {
                 "id": "preset-uc8-phase-2",
-                "name": "Genes to cell types, drugs, and shared diseases",
+                "name": "Their proteins and the compounds targeting them",
                 "originSource": "previousPhase",
                 "originNodeIds": [],
                 "previousPhaseId": "preset-uc8-phase-1",
                 "originFilter": "all",
                 "settings": {
-                    "depth": 3,
+                    # GS -PRODUCES-> PR <-MOLECULARLY_INTERACTS_WITH- CHEMBL.
+                    "depth": 2,
                     "edgeDirection": "ANY",
-                    "allowedCollections": [
-                        "CL",
-                        "UBERON",
-                        "NCBITaxon",
-                        "PR",
-                        "CHEMBL",
-                        "MONDO",
-                        "CS",
-                    ],
+                    "allowedCollections": ["PR", "CHEMBL"],
                     "edgeFilters": {
-                        "Label": [
-                            "PART_OF",
-                            "PRESENT_IN_TAXON",
-                            "PRODUCES",
-                            "MOLECULARLY_INTERACTS_WITH",
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
-                            "IS_SUBSTANCE_THAT_TREATS",
-                            "EXPRESSES",
-                            "SELECTIVELY_EXPRESSES",
-                            "COMPOSED_PRIMARILY_OF",
-                        ],
+                        "Label": ["PRODUCES", "MOLECULARLY_INTERACTS_WITH"],
                         "Source": [],
                     },
                     "setOperation": "Union",
                     "graphType": "phenotypes",
                     "includeInterNodeEdges": True,
-                    "collapseLeafNodes": "all",
+                    "collapseLeafNodes": "off",
                 },
                 "perNodeSettings": {},
             },
@@ -796,6 +666,107 @@ WORKFLOW_PRESETS = [
         ],
     },
     {
+        "id": "leber-congenital-amaurosis-uc11",
+        "name": "RPE65-related Leber congenital amaurosis (UC11)",
+        "description": (
+            "Leber congenital amaurosis as a Big Dipper: causal genes "
+            "(ABCA4, AIPL1, LRAT, KCNJ13), treating compounds, expressing "
+            "cell types, and anatomy. Anchored on the parent disease term: "
+            "the current data release has no RPE65 gene, no edges on the "
+            "RPE65-related subtype (LCA2), and no cell sets for retinal "
+            "pigment epithelial cells."
+        ),
+        "category": "Use Cases",
+        "layoutMode": "big-dipper",
+        # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
+        # Labeling every one of them buries the shape, so start with
+        # edge labels off; the Labels panel can turn them back on.
+        "labelStates": {"link-label": False},
+        "phases": [
+            {
+                "id": "preset-uc11-phase-1",
+                "name": "Disease genes and treatments",
+                "originSource": "manual",
+                "originNodeIds": ["MONDO/0018998"],
+                "previousPhaseId": None,
+                "originFilter": "all",
+                "settings": {
+                    "depth": 1,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": ["GS", "CHEMBL"],
+                    "edgeFilters": {
+                        "Label": [
+                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "IS_SUBSTANCE_THAT_TREATS",
+                        ],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-uc11-phase-2",
+                "name": "Gene to cell types, protein, and drugs",
+                "originSource": "previousPhase",
+                "originNodeIds": [],
+                "previousPhaseId": "preset-uc11-phase-1",
+                "originFilter": "all",
+                "settings": {
+                    "depth": 3,
+                    "edgeDirection": "ANY",
+                    "allowedCollections": [
+                        "CL",
+                        "UBERON",
+                        "NCBITaxon",
+                        "PR",
+                        "CHEMBL",
+                        "CS",
+                    ],
+                    "edgeFilters": {
+                        "Label": [
+                            "PART_OF",
+                            "PRESENT_IN_TAXON",
+                            "PRODUCES",
+                            "MOLECULARLY_INTERACTS_WITH",
+                            "EXPRESSES",
+                            "SELECTIVELY_EXPRESSES",
+                            "COMPOSED_PRIMARILY_OF",
+                        ],
+                        "Source": [],
+                    },
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
+            {
+                "id": "preset-uc11-phase-3",
+                "name": "The dipper with its cell leg",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "previousPhaseIds": ["preset-uc11-phase-1", "preset-uc11-phase-2"],
+                "phaseCombineOperation": "Union",
+                "originFilter": "all",
+                # A traversal phase keeps only edges matching its own labels,
+                # so the cell-leg phase drops the disease, gene, protein and
+                # compound edges. The union restores them.
+                "settings": {
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": True,
+                    "collapseLeafNodes": "off",
+                },
+                "perNodeSettings": {},
+            },
+        ],
+    },
+    {
         "id": "datasets-for-cell-type",
         "name": "Datasets and cell sets for a cell type",
         "description": (
@@ -804,7 +775,7 @@ WORKFLOW_PRESETS = [
             "phase 1 for the cell type you care about; the rest of the "
             "workflow follows from it."
         ),
-        "category": "Use Cases",
+        "category": "Cell Type Discovery",
         "layoutMode": "force",
         "phases": [
             {
@@ -1503,7 +1474,7 @@ WORKFLOW_PRESETS = [
             "the disease collection by default — raise its origin count to "
             "scan more."
         ),
-        "category": "Disease Analysis",
+        "category": "Big Dipper",
         "layoutMode": "force",
         "phases": [
             {
@@ -1548,7 +1519,7 @@ WORKFLOW_PRESETS = [
             "Phase 1 samples the disease collection by default — raise its "
             "origin count to scan more."
         ),
-        "category": "Disease Analysis",
+        "category": "Big Dipper",
         "layoutMode": "force",
         "phases": [
             {
@@ -1594,7 +1565,7 @@ WORKFLOW_PRESETS = [
             "to those diseases. A closing edge means a complete dipper; its "
             "absence is a repurposing candidate."
         ),
-        "category": "Disease Analysis",
+        "category": "Big Dipper",
         "layoutMode": "big-dipper",
         # A dipper is edge-dense (the FLT1 explorer draws ~150 edges).
         # Labeling every one of them buries the shape, so start with
