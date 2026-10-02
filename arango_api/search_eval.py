@@ -1,4 +1,17 @@
-"""Pure search-relevance metrics and golden-set loading."""
+"""Search relevance metrics, scored against a golden query list.
+
+A golden query list is a small set of realistic searches, each paired with the
+node a user should find first ("T cell" -> CL/0000084). Running it before and
+after a ranking change shows, query by query, whether the change helped.
+
+Search here is known-item lookup: one right node, and its position is what
+matters. Three numbers summarise a run:
+- success@1: share of queries with the expected node first.
+- success@5: share with it in the top five, visible without scrolling.
+- MRR (mean reciprocal rank, the mean of 1/rank): unlike the two cutoffs, it
+  moves when a node climbs from rank 29 to 6, or slips from 2 to 4.
+"ranking" and "identifier" queries gate a change; "probe" queries are reported.
+"""
 
 import json
 
