@@ -33,6 +33,10 @@ class MetricsTestCase(SimpleTestCase):
     def test_mrr_treats_none_as_zero(self):
         self.assertAlmostEqual(ev.mrr(self.RANKS), (1 + 1 / 3 + 0 + 1 / 6) / 4)
 
+    def test_empty_ranks_score_zero(self):
+        self.assertEqual(ev.success_at([], 5), 0.0)
+        self.assertEqual(ev.mrr([]), 0.0)
+
 
 def _golden_file(entries):
     handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
@@ -67,6 +71,14 @@ class LoadGoldenTestCase(SimpleTestCase):
             with self.subTest(label), self.assertRaises(ValueError) as ctx:
                 self._load([_entry("ok"), entry])
             self.assertIn("entry 1", str(ctx.exception))
+
+    def test_rejects_non_list_top_level(self):
+        with self.assertRaisesRegex(ValueError, "list of entries"):
+            self._load({"query": "x"})
+
+    def test_rejects_non_dict_entry_naming_it(self):
+        with self.assertRaisesRegex(ValueError, "entry 0"):
+            self._load(["x"])
 
     def test_rejects_duplicate_query(self):
         with self.assertRaisesRegex(ValueError, "duplicate.*t cell"):

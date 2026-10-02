@@ -16,12 +16,16 @@ def rank_of(result_ids, expected_ids):
 
 
 def success_at(ranks, k):
-    """Fraction of queries whose expected id ranked within the top k."""
+    """Fraction of queries whose expected id ranked within the top k (0 if none)."""
+    if not ranks:
+        return 0.0
     return sum(1 for r in ranks if r is not None and r <= k) / len(ranks)
 
 
 def mrr(ranks):
-    """Mean reciprocal rank; a missing rank contributes zero."""
+    """Mean reciprocal rank; a missing rank contributes zero (0 if empty)."""
+    if not ranks:
+        return 0.0
     return sum(1 / r for r in ranks if r is not None) / len(ranks)
 
 
@@ -44,8 +48,12 @@ def load_golden(path):
     """Load and validate the golden query list; ValueError names a bad entry."""
     with open(path) as fh:
         entries = json.load(fh)
+    if not isinstance(entries, list):
+        raise ValueError("golden file must be a list of entries")
     seen = set()
     for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"golden entry {index}: must be an object: {entry!r}")
         query = entry.get("query")
         expected = entry.get("expected_ids")
         problem = None
