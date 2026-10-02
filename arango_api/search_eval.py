@@ -46,7 +46,7 @@ def score_slices(ranks_by_query, golden):
 
 def load_golden(path):
     """Load and validate the golden query list; ValueError names a bad entry."""
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         entries = json.load(fh)
     if not isinstance(entries, list):
         raise ValueError("golden file must be a list of entries")

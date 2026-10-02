@@ -105,4 +105,7 @@ class ScoreSlicesTestCase(SimpleTestCase):
             scores["identifier"],
             {"n": 1, "success_at_1": 0.0, "success_at_5": 1.0, "mrr": 0.5},
         )
-        self.assertEqual(scores["probe"]["n"], 1)
+        self.assertEqual(
+            scores["probe"],
+            {"n": 1, "success_at_1": 1.0, "success_at_5": 1.0, "mrr": 1.0},
+        )
