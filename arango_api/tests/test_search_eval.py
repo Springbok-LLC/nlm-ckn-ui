@@ -45,8 +45,8 @@ def _golden_file(entries):
     return Path(handle.name)
 
 
-def _entry(query="t cell", expected=("CL/1",), slice_="ranking"):
-    return {"query": query, "expected_ids": list(expected), "slice": slice_}
+def _entry(query="t cell", expected=("CL/1",), group="ranking"):
+    return {"query": query, "expected_ids": list(expected), "group": group}
 
 
 class LoadGoldenTestCase(SimpleTestCase):
@@ -56,14 +56,14 @@ class LoadGoldenTestCase(SimpleTestCase):
         return ev.load_golden(path)
 
     def test_valid_file_loads(self):
-        entries = [_entry("a"), _entry("b", slice_="probe")]
+        entries = [_entry("a"), _entry("b", group="known_gap")]
         self.assertEqual(self._load(entries), entries)
 
     def test_rejects_bad_entries_naming_them(self):
         bad = {
-            "missing query": {"expected_ids": ["CL/1"], "slice": "ranking"},
+            "missing query": {"expected_ids": ["CL/1"], "group": "ranking"},
             "empty query": _entry(query=""),
-            "unknown slice": _entry("q-slice", slice_="other"),
+            "unknown group": _entry("q-group", group="other"),
             "empty expected_ids": _entry("q-empty", expected=()),
             "non-string id": _entry("q-type", expected=(1,)),
         }
@@ -82,21 +82,21 @@ class LoadGoldenTestCase(SimpleTestCase):
 
     def test_rejects_duplicate_query(self):
         with self.assertRaisesRegex(ValueError, "duplicate.*t cell"):
-            self._load([_entry("t cell"), _entry("t cell", slice_="probe")])
+            self._load([_entry("t cell"), _entry("t cell", group="known_gap")])
 
 
 GOLDEN = [
     _entry("r1"),
     _entry("r2"),
-    _entry("i1", slice_="identifier"),
-    _entry("p1", slice_="probe"),
+    _entry("i1", group="identifier"),
+    _entry("p1", group="known_gap"),
 ]
 
 
-class ScoreSlicesTestCase(SimpleTestCase):
-    def test_slices_are_scored_separately(self):
+class ScoreGroupsTestCase(SimpleTestCase):
+    def test_groups_are_scored_separately(self):
         ranks = {"r1": 1, "r2": None, "i1": 2, "p1": 1}
-        scores = ev.score_slices(ranks, GOLDEN)
+        scores = ev.score_groups(ranks, GOLDEN)
         self.assertEqual(
             scores["ranking"],
             {"n": 2, "success_at_1": 0.5, "success_at_5": 0.5, "mrr": 0.5},
@@ -106,6 +106,6 @@ class ScoreSlicesTestCase(SimpleTestCase):
             {"n": 1, "success_at_1": 0.0, "success_at_5": 1.0, "mrr": 0.5},
         )
         self.assertEqual(
-            scores["probe"],
+            scores["known_gap"],
             {"n": 1, "success_at_1": 1.0, "success_at_5": 1.0, "mrr": 1.0},
         )

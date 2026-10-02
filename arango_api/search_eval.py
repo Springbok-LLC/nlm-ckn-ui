@@ -3,20 +3,23 @@
 A golden query list is a small set of realistic searches, each paired with the
 node a user should find first ("T cell" -> CL/0000084). Running it before and
 after a ranking change shows, query by query, whether the change helped.
-
-Search here is known-item lookup: one right node, and its position is what
-matters. Three numbers summarise a run:
+One node is right for each query, so its position is what matters. Per run:
 - success@1: share of queries with the expected node first.
 - success@5: share with it in the top five, visible without scrolling.
 - MRR (mean reciprocal rank, the mean of 1/rank): unlike the two cutoffs, it
   moves when a node climbs from rank 29 to 6, or slips from 2 to 4.
-"ranking" and "identifier" queries gate a change; "probe" queries are reported.
+
+Each query belongs to one group, and the numbers are reported per group:
+- ranking: everyday searches by name ("T cell", "kidney").
+- identifier: searches by ID ("CL:0000084").
+- known_gap: searches not expected to work yet, kept so progress is visible.
+A change is rejected only when a ranking or identifier query ranks lower.
 """
 
 import json
 
-GATING_SLICES = ("ranking", "identifier")
-SLICES = GATING_SLICES + ("probe",)
+REQUIRED_GROUPS = ("ranking", "identifier")
+GROUPS = REQUIRED_GROUPS + ("known_gap",)
 
 
 def rank_of(result_ids, expected_ids):
@@ -42,11 +45,11 @@ def mrr(ranks):
     return sum(1 / r for r in ranks if r is not None) / len(ranks)
 
 
-def score_slices(ranks_by_query, golden):
-    """Per-slice n, success@1, success@5 and MRR (empty slices are omitted)."""
+def score_groups(ranks_by_query, golden):
+    """Per-group n, success@1, success@5 and MRR (empty groups are omitted)."""
     scores = {}
-    for name in SLICES:
-        ranks = [ranks_by_query[g["query"]] for g in golden if g["slice"] == name]
+    for name in GROUPS:
+        ranks = [ranks_by_query[g["query"]] for g in golden if g["group"] == name]
         if ranks:
             scores[name] = {
                 "n": len(ranks),
@@ -76,8 +79,8 @@ def load_golden(path):
             problem = "expected_ids must be a non-empty list"
         elif not all(isinstance(i, str) for i in expected):
             problem = "expected_ids must all be strings"
-        elif entry.get("slice") not in SLICES:
-            problem = f"slice must be one of {SLICES}"
+        elif entry.get("group") not in GROUPS:
+            problem = f"group must be one of {GROUPS}"
         elif query in seen:
             problem = "duplicate query"
         if problem:
