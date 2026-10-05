@@ -109,3 +109,77 @@ class ScoreGroupsTestCase(SimpleTestCase):
             scores["known_gap"],
             {"n": 1, "success_at_1": 1.0, "success_at_5": 1.0, "mrr": 1.0},
         )
+
+
+class CompareToBaselineTestCase(SimpleTestCase):
+    BASELINE = {"r1": 1, "r2": 4, "i1": 7, "p1": 1}
+
+    def _compare(self, **changes):
+        current = {**self.BASELINE, **changes}
+        return ev.compare_to_baseline(current, self.BASELINE, GOLDEN)
+
+    def _regressed(self, result):
+        return [r["query"] for r in result["regressions"]]
+
+    def test_unchanged_is_clean(self):
+        result = self._compare()
+        self.assertEqual(result["regressions"], [])
+        self.assertEqual(result["improvements"], [])
+
+    def test_worsening_inside_top_five_regresses(self):
+        self.assertEqual(self._regressed(self._compare(r1=2)), ["r1"])
+
+    def test_falling_out_of_top_five_regresses(self):
+        self.assertEqual(self._regressed(self._compare(r2=None)), ["r2"])
+        self.assertEqual(self._regressed(self._compare(r2=9)), ["r2"])
+
+    def test_already_outside_top_five_cannot_regress(self):
+        self.assertEqual(self._regressed(self._compare(i1=None)), [])
+        self.assertEqual(self._regressed(self._compare(i1=12)), [])
+
+    def test_known_gap_never_regresses(self):
+        self.assertEqual(self._regressed(self._compare(p1=None)), [])
+
+    def test_better_rank_is_an_improvement(self):
+        result = self._compare(r2=2, i1=3)
+        self.assertEqual([i["query"] for i in result["improvements"]], ["r2", "i1"])
+        self.assertEqual(result["regressions"], [])
+
+
+class FormatReportTestCase(SimpleTestCase):
+    def test_report_lists_groups_and_regressions(self):
+        baseline = {"r1": 1, "r2": 4, "i1": 7, "p1": 1}
+        current = {**baseline, "r1": 3}
+        comparison = ev.compare_to_baseline(current, baseline, GOLDEN)
+        report = ev.format_report(ev.score_groups(current, GOLDEN), comparison)
+        for text in ("ranking", "identifier", "known_gap", "mrr", "REGRESSION", "r1"):
+            self.assertIn(text, report)
+
+    def test_report_without_comparison_has_no_regression_section(self):
+        report = ev.format_report(
+            ev.score_groups({"r1": 1, "r2": 1, "i1": 1, "p1": 1}, GOLDEN)
+        )
+        self.assertNotIn("REGRESSION", report)
+
+
+class AggregateToleranceTestCase(SimpleTestCase):
+    def _drops(self, current_hits):
+        # 100 ranking queries; the first `hits` rank 1, the rest are absent.
+        golden = [_entry(f"q{i}") for i in range(100)]
+        baseline = {f"q{i}": 1 if i < 50 else None for i in range(100)}
+        current = {f"q{i}": 1 if i < current_hits else None for i in range(100)}
+        result = ev.compare_to_baseline(current, baseline, golden)
+        return {(d["group"], d["metric"]) for d in result["aggregate_drops"]}
+
+    def test_drop_of_exactly_tolerance_is_allowed(self):
+        self.assertEqual(self._drops(47), set())
+
+    def test_drop_beyond_tolerance_is_reported(self):
+        self.assertEqual(
+            self._drops(46),
+            {
+                ("ranking", "success_at_1"),
+                ("ranking", "success_at_5"),
+                ("ranking", "mrr"),
+            },
+        )
