@@ -127,9 +127,7 @@ def search_by_term(search_term, search_fields, graph):
             )
 
             RETURN sortedDocs
-            """.format(
-        exact_match_conditions=exact_match_conditions
-    )
+            """.format(exact_match_conditions=exact_match_conditions)
     query = (
         query_beginning
         + levenshtein_string_0
