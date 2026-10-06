@@ -13,13 +13,15 @@ Each query belongs to one group, and the numbers are reported per group:
 - ranking: everyday searches by name ("T cell", "kidney").
 - identifier: searches by ID ("CL:0000084").
 - known_gap: searches not expected to work yet, kept so progress is visible.
-A change is rejected only when a ranking or identifier query ranks lower.
+Only ranking and identifier queries can cause a change to be rejected (see
+baselines below).
 
 A baseline is the rank each query got on the last accepted run. A new run is
 compared with it, and the change is rejected if a ranking or identifier query
 that was in the top five now ranks lower, or if a group's success@1, success@5
-or MRR falls by more than AGGREGATE_TOLERANCE (0.03, just under one query in
-the 31 ranking queries). known_gap queries never cause a rejection.
+or MRR falls by more than AGGREGATE_TOLERANCE. Group scores are compared only
+on queries present in both runs, so adding queries cannot hide a drop. A query
+missing from the baseline is reported as new.
 """
 
 import json
@@ -27,8 +29,9 @@ import json
 REQUIRED_GROUPS = ("ranking", "identifier")
 GROUPS = REQUIRED_GROUPS + ("known_gap",)
 
-# Largest fall allowed in a group's success@1, success@5 or MRR: just under one
-# query in the 31 ranking queries, so losing a single query is not flagged.
+# Largest fall allowed in a group's success@1, success@5 or MRR. With about 31
+# ranking queries one query is worth about 0.032, so losing even one query from
+# first place or the top five is flagged; smaller MRR moves are not.
 AGGREGATE_TOLERANCE = 0.03
 
 
@@ -70,39 +73,49 @@ def score_groups(ranks_by_query, golden):
     return scores
 
 
-def _worse(current, baseline):
-    """True when `current` is a lower position than `baseline` (no rank is the lowest)."""
-    if current == baseline:
+def _worse(rank, than):
+    """True when `rank` is a worse rank than `than`: a larger number, or not found."""
+    if rank == than:
         return False
-    return current is None or (baseline is not None and current > baseline)
+    return rank is None or (than is not None and rank > than)
 
 
 def compare_to_baseline(current_ranks, baseline_ranks, golden):
     """Compare this run's ranks with the baseline's, query by query and per group.
 
-    Returns a dict of three lists:
+    Returns a dict of four lists:
     - regressions: ranking or identifier queries that were in the top five in
       the baseline and now rank lower (or are no longer found).
     - aggregate_drops: group metrics (success@1, success@5, MRR) that fell by
       more than AGGREGATE_TOLERANCE.
     - improvements: queries of any group that now rank higher.
-    A query missing from the baseline has no earlier rank, so it cannot regress.
+    - new: queries missing from the baseline, which have no earlier rank to
+      compare with.
+    Group scores use only the queries present in both runs, so adding queries
+    cannot hide a drop.
     """
-    regressions, improvements = [], []
+    regressions, improvements, new = [], [], []
+    shared = []
     for g in golden:
         query = g["query"]
-        now, before = current_ranks[query], baseline_ranks.get(query)
+        now = current_ranks[query]
+        if query not in baseline_ranks:
+            new.append({"query": query, "current": now})
+            continue
+        shared.append(g)
+        before = baseline_ranks[query]
         change = {"query": query, "baseline": before, "current": now}
         if _worse(before, now):
             improvements.append(change)
         elif _worse(now, before) and g["group"] in REQUIRED_GROUPS:
             if before is not None and before <= 5:
                 regressions.append(change)
-    baseline = {g["query"]: baseline_ranks.get(g["query"]) for g in golden}
-    now_scores = score_groups(current_ranks, golden)
-    before_scores = score_groups(baseline, golden)
+    now_scores = score_groups(current_ranks, shared)
+    before_scores = score_groups(baseline_ranks, shared)
     aggregate_drops = []
-    for name in filter(now_scores.get, REQUIRED_GROUPS):
+    for name in REQUIRED_GROUPS:
+        if name not in now_scores:
+            continue
         for metric in ("success_at_1", "success_at_5", "mrr"):
             before, now = before_scores[name][metric], now_scores[name][metric]
             # Rounding keeps a drop of exactly the tolerance from being flagged
@@ -120,29 +133,8 @@ def compare_to_baseline(current_ranks, baseline_ranks, golden):
         "regressions": regressions,
         "aggregate_drops": aggregate_drops,
         "improvements": improvements,
+        "new": new,
     }
-
-
-def format_report(scores, comparison=None):
-    """Text table of the per-group scores, for people to read.
-
-    When a comparison is given, each regression and aggregate drop is listed
-    below the table.
-    """
-    lines = [f"{'group':<12}{'n':>4}{'s@1':>8}{'s@5':>8}{'mrr':>8}"]
-    for name, s in scores.items():
-        lines.append(
-            f"{name:<12}{s['n']:>4}{s['success_at_1']:>8.2f}"
-            f"{s['success_at_5']:>8.2f}{s['mrr']:>8.2f}"
-        )
-    for r in (comparison or {}).get("regressions", []):
-        lines.append(f"REGRESSION {r['query']!r}: {r['baseline']} -> {r['current']}")
-    for d in (comparison or {}).get("aggregate_drops", []):
-        lines.append(
-            f"REGRESSION {d['group']} {d['metric']}: "
-            f"{d['baseline']:.2f} -> {d['current']:.2f}"
-        )
-    return "\n".join(lines)
 
 
 def load_golden(path):

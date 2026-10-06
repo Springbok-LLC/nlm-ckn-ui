@@ -114,72 +114,114 @@ class ScoreGroupsTestCase(SimpleTestCase):
 class CompareToBaselineTestCase(SimpleTestCase):
     BASELINE = {"r1": 1, "r2": 4, "i1": 7, "p1": 1}
 
-    def _compare(self, **changes):
+    def _compare(self, baseline=None, **changes):
+        baseline = self.BASELINE if baseline is None else baseline
         current = {**self.BASELINE, **changes}
-        return ev.compare_to_baseline(current, self.BASELINE, GOLDEN)
-
-    def _regressed(self, result):
-        return [r["query"] for r in result["regressions"]]
+        return ev.compare_to_baseline(current, baseline, GOLDEN)
 
     def test_unchanged_is_clean(self):
         result = self._compare()
         self.assertEqual(result["regressions"], [])
         self.assertEqual(result["improvements"], [])
+        self.assertEqual(result["new"], [])
 
     def test_worsening_inside_top_five_regresses(self):
-        self.assertEqual(self._regressed(self._compare(r1=2)), ["r1"])
+        result = self._compare(r1=2)
+        self.assertEqual(
+            result["regressions"], [{"query": "r1", "baseline": 1, "current": 2}]
+        )
 
     def test_falling_out_of_top_five_regresses(self):
-        self.assertEqual(self._regressed(self._compare(r2=None)), ["r2"])
-        self.assertEqual(self._regressed(self._compare(r2=9)), ["r2"])
+        for current in (None, 9):
+            with self.subTest(current):
+                result = self._compare(r2=current)
+                self.assertEqual(
+                    result["regressions"],
+                    [{"query": "r2", "baseline": 4, "current": current}],
+                )
 
     def test_already_outside_top_five_cannot_regress(self):
-        self.assertEqual(self._regressed(self._compare(i1=None)), [])
-        self.assertEqual(self._regressed(self._compare(i1=12)), [])
+        for current in (None, 12):
+            with self.subTest(current):
+                self.assertEqual(self._compare(i1=current)["regressions"], [])
 
     def test_known_gap_never_regresses(self):
-        self.assertEqual(self._regressed(self._compare(p1=None)), [])
+        self.assertEqual(self._compare(p1=None)["regressions"], [])
 
     def test_better_rank_is_an_improvement(self):
         result = self._compare(r2=2, i1=3)
-        self.assertEqual([i["query"] for i in result["improvements"]], ["r2", "i1"])
+        self.assertEqual(
+            result["improvements"],
+            [
+                {"query": "r2", "baseline": 4, "current": 2},
+                {"query": "i1", "baseline": 7, "current": 3},
+            ],
+        )
+        self.assertEqual(result["regressions"], [])
+
+    def test_query_missing_from_baseline_is_new_not_an_improvement(self):
+        baseline = {k: v for k, v in self.BASELINE.items() if k != "p1"}
+        result = self._compare(baseline=baseline)
+        self.assertEqual(result["new"], [{"query": "p1", "current": 1}])
+        self.assertEqual(result["improvements"], [])
         self.assertEqual(result["regressions"], [])
 
 
-class FormatReportTestCase(SimpleTestCase):
-    def test_report_lists_groups_and_regressions(self):
-        baseline = {"r1": 1, "r2": 4, "i1": 7, "p1": 1}
-        current = {**baseline, "r1": 3}
-        comparison = ev.compare_to_baseline(current, baseline, GOLDEN)
-        report = ev.format_report(ev.score_groups(current, GOLDEN), comparison)
-        for text in ("ranking", "identifier", "known_gap", "mrr", "REGRESSION", "r1"):
-            self.assertIn(text, report)
-
-    def test_report_without_comparison_has_no_regression_section(self):
-        report = ev.format_report(
-            ev.score_groups({"r1": 1, "r2": 1, "i1": 1, "p1": 1}, GOLDEN)
-        )
-        self.assertNotIn("REGRESSION", report)
-
-
 class AggregateToleranceTestCase(SimpleTestCase):
-    def _drops(self, current_hits):
-        # 100 ranking queries; the first `hits` rank 1, the rest are absent.
+    def _drops(self, golden, baseline, current):
+        result = ev.compare_to_baseline(current, baseline, golden)
+        return result["aggregate_drops"]
+
+    def _hundred(self, current_hits):
+        # 100 ranking queries; the first 50 rank 1 in the baseline, the rest
+        # are absent. The first `current_hits` rank 1 in the current run.
         golden = [_entry(f"q{i}") for i in range(100)]
         baseline = {f"q{i}": 1 if i < 50 else None for i in range(100)}
         current = {f"q{i}": 1 if i < current_hits else None for i in range(100)}
-        result = ev.compare_to_baseline(current, baseline, golden)
-        return {(d["group"], d["metric"]) for d in result["aggregate_drops"]}
+        return self._drops(golden, baseline, current)
 
     def test_drop_of_exactly_tolerance_is_allowed(self):
-        self.assertEqual(self._drops(47), set())
+        self.assertEqual(self._hundred(47), [])
 
-    def test_drop_beyond_tolerance_is_reported(self):
+    def test_drop_beyond_tolerance_is_reported_with_values(self):
+        drops = self._hundred(46)
         self.assertEqual(
-            self._drops(46),
+            drops,
+            [
+                {"group": "ranking", "metric": metric, "baseline": 0.5, "current": 0.46}
+                for metric in ("success_at_1", "success_at_5", "mrr")
+            ],
+        )
+
+    def _thirty_one(self, before, now):
+        # 31 ranking queries, all first except q0, which moves from `before`
+        # to `now`.
+        golden = [_entry(f"q{i}") for i in range(31)]
+        baseline = {f"q{i}": 1 for i in range(31)}
+        baseline["q0"] = before
+        return self._drops(golden, baseline, {**baseline, "q0": now})
+
+    def test_losing_one_query_of_31_from_first_place_is_flagged(self):
+        drops = self._thirty_one(1, 2)
+        self.assertEqual(
+            [(d["metric"], d["baseline"]) for d in drops], [("success_at_1", 1.0)]
+        )
+        self.assertAlmostEqual(drops[0]["current"], 30 / 31)
+
+    def test_small_mrr_only_move_is_not_flagged(self):
+        self.assertEqual(self._thirty_one(3, 4), [])
+
+    def test_new_queries_cannot_hide_a_drop(self):
+        golden = [_entry("a"), _entry("b"), _entry("new")]
+        baseline = {"a": 1, "b": 1}
+        current = {"a": 1, "b": None, "new": 1}
+        drops = self._drops(golden, baseline, current)
+        self.assertIn(
             {
-                ("ranking", "success_at_1"),
-                ("ranking", "success_at_5"),
-                ("ranking", "mrr"),
+                "group": "ranking",
+                "metric": "success_at_1",
+                "baseline": 1.0,
+                "current": 0.5,
             },
+            drops,
         )
