@@ -17,14 +17,20 @@ rename dropped one preset from 104 nodes to 9 while still "passing".
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from arango_api.services import workflow_service
+from arango_api.db import db_ontologies
+from arango_api.services import version_service, workflow_service
 from arango_api.workflow_presets import WORKFLOW_PRESETS
 
 BASELINE_PATH = Path(__file__).resolve().parents[2] / "preset_baselines.json"
+
+# Baseline entry naming the dataset the counts came from, so drift can be told
+# apart from comparing against a different release (#193).
+PROVENANCE_KEY = "_provenance"
 
 # Fraction a preset's terminal node count may fall below baseline before it is
 # reported. Node counts move a little between dataset releases; a quarter of the
@@ -48,6 +54,25 @@ def _write_baseline(counts, path=None):
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
+
+
+def _dataset_stamp():
+    """Return the loaded dataset's etl_version and restored_at from ckn_meta.
+
+    Either is "unknown" when the restore did not stamp it or ArangoDB cannot be
+    read; the sweep reports that rather than failing on it.
+    """
+    try:
+        document = db_ontologies.collection(version_service.META_COLLECTION).get(
+            version_service.META_KEY
+        )
+    except Exception:  # noqa: BLE001 - provenance is informational
+        document = None
+    document = document or {}
+    return {
+        key: document.get(key) or version_service.UNKNOWN
+        for key in ("etl_version", "restored_at")
+    }
 
 
 class Command(BaseCommand):
@@ -86,6 +111,23 @@ class Command(BaseCommand):
         baseline = {}
         if BASELINE_PATH.exists():
             baseline = json.loads(BASELINE_PATH.read_text())
+        recorded = baseline.pop(PROVENANCE_KEY, None) or {}
+        stamp = _dataset_stamp()
+        recorded_version = recorded.get("etl_version", version_service.UNKNOWN)
+        generated = recorded.get("generated_at")
+        self.stdout.write(
+            f"Loaded dataset {stamp['etl_version']}; baseline from {recorded_version}"
+            + (f" (generated {generated})" if generated else "")
+        )
+        if recorded_version != stamp["etl_version"]:
+            # Warn, not fail: a developer on an older dump should be told the
+            # comparison crosses datasets, not blocked from sweeping.
+            self.stderr.write(
+                self.style.WARNING(
+                    "Baseline and loaded dataset differ; drops may reflect the "
+                    "dataset change rather than a regression."
+                )
+            )
 
         results = {}
         failures = []
@@ -151,9 +193,18 @@ class Command(BaseCommand):
                     f"{len(failures)} preset(s) need attention"
                 )
             # Merge rather than replace: --preset sweeps one id, and writing
-            # only that entry would drop every other preset's baseline.
+            # only that entry would drop every other preset's baseline. That
+            # merge is only sound within one dataset, or the file would record
+            # counts from two releases under one provenance.
+            if options["preset"] and recorded_version != stamp["etl_version"]:
+                raise CommandError(
+                    f"Baseline is from {recorded_version} but {stamp['etl_version']} "
+                    "is loaded; run --update-baseline without --preset"
+                )
             merged = {**baseline, **results}
-            _write_baseline(merged)
+            now = datetime.now(timezone.utc)
+            provenance = {**stamp, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
+            _write_baseline({PROVENANCE_KEY: provenance, **merged})
             self.stdout.write(
                 self.style.SUCCESS(
                     f"\nRecorded {len(results)} preset(s) in {BASELINE_PATH.name} "
