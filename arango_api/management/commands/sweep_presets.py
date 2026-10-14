@@ -119,7 +119,12 @@ class Command(BaseCommand):
             f"Loaded dataset {stamp['etl_version']}; baseline from {recorded_version}"
             + (f" (generated {generated})" if generated else "")
         )
-        if recorded_version != stamp["etl_version"]:
+        # One version string can name two different restores, so a dataset is
+        # the same only when the restore time matches too.
+        same_dataset = recorded_version == stamp["etl_version"] and recorded.get(
+            "restored_at"
+        ) == stamp["restored_at"]
+        if not same_dataset:
             # Warn, not fail: a developer on an older dump should be told the
             # comparison crosses datasets, not blocked from sweeping.
             self.stderr.write(
@@ -192,16 +197,17 @@ class Command(BaseCommand):
                     "Refusing to update the baseline while "
                     f"{len(failures)} preset(s) need attention"
                 )
-            # Merge rather than replace: --preset sweeps one id, and writing
-            # only that entry would drop every other preset's baseline. That
-            # merge is only sound within one dataset, or the file would record
-            # counts from two releases under one provenance.
-            if options["preset"] and recorded_version != stamp["etl_version"]:
+            # A targeted update merges: --preset sweeps one id, and writing only
+            # that entry would drop every other preset's baseline. The merge is
+            # only sound within one restore, or the file would record counts
+            # from two datasets under one provenance. A full update writes only
+            # what it swept, so a removed preset's old count is not restamped.
+            if options["preset"] and not same_dataset:
                 raise CommandError(
-                    f"Baseline is from {recorded_version} but {stamp['etl_version']} "
-                    "is loaded; run --update-baseline without --preset"
+                    "Baseline is from a different restore than the loaded dataset; "
+                    "run --update-baseline without --preset"
                 )
-            merged = {**baseline, **results}
+            merged = {**baseline, **results} if options["preset"] else results
             now = datetime.now(timezone.utc)
             provenance = {**stamp, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
             _write_baseline({PROVENANCE_KEY: provenance, **merged})

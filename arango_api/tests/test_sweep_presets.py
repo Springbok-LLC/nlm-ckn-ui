@@ -30,7 +30,7 @@ def _outcome(count, errors=None, nodes=None):
 
 
 STAMP = {"etl_version": "v1.8.0-rc.1", "restored_at": "2026-10-01T12:00:00Z"}
-PROVENANCE = {"_provenance": {"etl_version": "v1.8.0-rc.1"}}
+PROVENANCE = {"_provenance": dict(STAMP)}
 
 
 class SweepPresetsBaselineTests(TestCase):
@@ -98,6 +98,34 @@ class SweepPresetsBaselineTests(TestCase):
             )
 
         self.assertEqual(json.loads(self.baseline_path.read_text()), original)
+
+    def test_targeted_update_refuses_a_re_restore_of_the_same_version(self):
+        """One version string can name different data; restored_at tells."""
+        original = {
+            "_provenance": {**STAMP, "restored_at": "2026-09-01T00:00:00Z"},
+            "alpha": 100,
+        }
+        self.baseline_path.write_text(json.dumps(original))
+
+        with self.assertRaises(CommandError):
+            self._run(
+                ["alpha"],
+                {"alpha": _outcome(90)},
+                preset="alpha",
+                update_baseline=True,
+            )
+
+        self.assertEqual(json.loads(self.baseline_path.read_text()), original)
+
+    def test_full_update_drops_presets_that_no_longer_exist(self):
+        """A removed preset's old count must not be restamped as current."""
+        self.baseline_path.write_text(json.dumps({**PROVENANCE, "gone": 7, "alpha": 1}))
+
+        self._run(["alpha"], {"alpha": _outcome(90)}, update_baseline=True)
+
+        recorded = json.loads(self.baseline_path.read_text())
+        recorded.pop("_provenance")
+        self.assertEqual(recorded, {"alpha": 90})
 
     def test_sweep_warns_when_the_baseline_is_from_another_dataset(self):
         self.baseline_path.write_text(
