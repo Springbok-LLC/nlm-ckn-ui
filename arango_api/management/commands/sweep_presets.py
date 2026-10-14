@@ -94,6 +94,15 @@ class Command(BaseCommand):
             "--preset",
             help="Sweep only this preset id.",
         )
+        parser.add_argument(
+            "--allow-mixed",
+            action="store_true",
+            help=(
+                "With --preset --update-baseline, merge into a baseline from another "
+                "or unrecorded restore. The provenance is marked mixed until a full "
+                "--update-baseline replaces it."
+            ),
+        )
 
     def handle(self, *args, **options):
         tolerance = options["tolerance"]
@@ -118,12 +127,18 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Loaded dataset {stamp['etl_version']}; baseline from {recorded_version}"
             + (f" (generated {generated})" if generated else "")
+            + (" (mixed restores)" if recorded.get("mixed") else "")
         )
         # One version string can name two different restores, so a dataset is
-        # the same only when the restore time matches too.
-        same_dataset = recorded_version == stamp["etl_version"] and recorded.get(
-            "restored_at"
-        ) == stamp["restored_at"]
+        # the same only when the restore time matches too. An unrecorded value
+        # identifies nothing, and a mixed baseline matches no single restore.
+        known = version_service.UNKNOWN not in stamp.values()
+        same_dataset = (
+            known
+            and not recorded.get("mixed")
+            and recorded_version == stamp["etl_version"]
+            and recorded.get("restored_at") == stamp["restored_at"]
+        )
         if not same_dataset:
             # Warn, not fail: a developer on an older dump should be told the
             # comparison crosses datasets, not blocked from sweeping.
@@ -200,16 +215,20 @@ class Command(BaseCommand):
             # A targeted update merges: --preset sweeps one id, and writing only
             # that entry would drop every other preset's baseline. The merge is
             # only sound within one restore, or the file would record counts
-            # from two datasets under one provenance. A full update writes only
-            # what it swept, so a removed preset's old count is not restamped.
-            if options["preset"] and not same_dataset:
+            # from two datasets under one provenance, unless --allow-mixed says
+            # so and the provenance records it. A full update writes only what
+            # it swept, so a removed preset's old count is not restamped.
+            mixed = bool(options["preset"]) and not same_dataset
+            if mixed and not options["allow_mixed"]:
                 raise CommandError(
-                    "Baseline is from a different restore than the loaded dataset; "
-                    "run --update-baseline without --preset"
+                    "Baseline is not from the loaded restore; run --update-baseline "
+                    "without --preset, or pass --allow-mixed"
                 )
             merged = {**baseline, **results} if options["preset"] else results
             now = datetime.now(timezone.utc)
             provenance = {**stamp, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
+            if mixed:
+                provenance["mixed"] = True
             _write_baseline({PROVENANCE_KEY: provenance, **merged})
             self.stdout.write(
                 self.style.SUCCESS(

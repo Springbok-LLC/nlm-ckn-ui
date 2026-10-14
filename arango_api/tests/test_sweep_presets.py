@@ -127,6 +127,50 @@ class SweepPresetsBaselineTests(TestCase):
         recorded.pop("_provenance")
         self.assertEqual(recorded, {"alpha": 90})
 
+    def test_targeted_update_refuses_when_the_restore_is_unrecorded(self):
+        """Two unstamped restores both read "unknown"; that matches nothing."""
+        unknown = {"etl_version": "unknown", "restored_at": "unknown"}
+        original = {"_provenance": unknown, "alpha": 100}
+        self.baseline_path.write_text(json.dumps(original))
+
+        with (
+            mock.patch(f"{MODULE}._dataset_stamp", return_value=dict(unknown)),
+            self.assertRaises(CommandError),
+        ):
+            self._run(
+                ["alpha"],
+                {"alpha": _outcome(90)},
+                preset="alpha",
+                update_baseline=True,
+            )
+
+        self.assertEqual(json.loads(self.baseline_path.read_text()), original)
+
+    def test_allow_mixed_merges_and_marks_the_provenance(self):
+        """The bootstrap path for a baseline with no provenance."""
+        self.baseline_path.write_text(json.dumps({"alpha": 100, "beta": 200}))
+
+        self._run(
+            ["alpha", "beta"],
+            {"alpha": _outcome(90)},
+            preset="alpha",
+            update_baseline=True,
+            allow_mixed=True,
+        )
+
+        recorded = json.loads(self.baseline_path.read_text())
+        self.assertTrue(recorded.pop("_provenance")["mixed"])
+        self.assertEqual(recorded, {"alpha": 90, "beta": 200})
+
+    def test_full_update_clears_mixed(self):
+        mixed = {**PROVENANCE["_provenance"], "mixed": True}
+        self.baseline_path.write_text(json.dumps({"_provenance": mixed, "alpha": 1}))
+
+        self._run(["alpha"], {"alpha": _outcome(90)}, update_baseline=True)
+
+        provenance = json.loads(self.baseline_path.read_text())["_provenance"]
+        self.assertNotIn("mixed", provenance)
+
     def test_sweep_warns_when_the_baseline_is_from_another_dataset(self):
         self.baseline_path.write_text(
             json.dumps({"_provenance": {"etl_version": "v1.7.1-rc.1"}, "alpha": 100})
