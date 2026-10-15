@@ -54,7 +54,7 @@ class EvalSearchTests(TestCase):
 
     def _write_baseline(self, etl_version=STAMP["etl_version"]):
         ranks = dict.fromkeys(self.results, 1)
-        doc = {"_provenance": {"etl_version": etl_version}, "ranks": ranks}
+        doc = {"_provenance": {**STAMP, "etl_version": etl_version}, "ranks": ranks}
         self.baseline.write_text(json.dumps(doc))
 
     def test_errored_queries_are_reported_and_block_the_baseline(self):
@@ -76,8 +76,7 @@ class EvalSearchTests(TestCase):
 
     def test_regression_exits_non_zero(self):
         self._write_baseline()
-        self.results["T cell"] = [{"_id": f"CL/{i}"} for i in range(9)]
-        self.results["T cell"].append({"_id": "CL/0000084"})
+        self.results["T cell"][:0] = [{"_id": f"CL/{i}"} for i in range(9)]
         with self.assertRaises(SystemExit):
             self._run()
         self.assertIn("REGRESSION 'T cell': 1 -> 10", self.out.getvalue())

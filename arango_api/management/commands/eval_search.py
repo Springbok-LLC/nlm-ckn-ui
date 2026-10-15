@@ -81,10 +81,11 @@ class Command(BaseCommand):
             self.stdout.write(f"Recorded {len(ranks)} rank(s) in {BASELINE_PATH.name}")
             return
 
+        # One version can name two restores; an "unknown" value identifies none.
         recorded = (baseline or {}).get(sweep_presets.PROVENANCE_KEY, {})
         if baseline is None:
             self.stdout.write("No baseline exists; --update-baseline records one.")
-        elif recorded.get("etl_version") != stamp["etl_version"]:
+        elif not all(recorded.get(k) == v != "unknown" for k, v in stamp.items()):
             self.stderr.write(
                 f"WARNING: baseline is from {recorded.get('etl_version')}, loaded "
                 f"dataset is {stamp['etl_version']}; changes may reflect the dataset."
