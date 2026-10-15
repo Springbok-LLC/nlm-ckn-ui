@@ -141,6 +141,7 @@ def compare_to_baseline(current_ranks, baseline_ranks, golden):
 
 
 def _rank_text(rank):
+    """A rank as report text: the number, or "not found"."""
     return "not found" if rank is None else str(rank)
 
 
