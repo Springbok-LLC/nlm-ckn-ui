@@ -20,6 +20,14 @@ logger = logging.getLogger(__name__)
 # "cell") is wasted work and payload. Capping here keeps the query fast.
 SEARCH_RESULT_LIMIT = 50
 
+# Every document carries `_search`, an array of its own identifier forms
+# (CURIE, underscore and PURL), indexed only with the `norm-lower` analyzer.
+# It is matched whole by its own clause and boosted so a typed identifier puts
+# its node first. It is server-side only: never searched through the per-field
+# clauses below and never returned to the client.
+IDENTIFIER_FIELD = "_search"
+IDENTIFIER_BOOST = 1000.0
+
 # Label fields read by the frontend's getLabel() (utils/collections.js
 # individual_labels -> field_to_use). The search dropdown only needs _id, the
 # fields actually searched, and whichever of these label fields a matched doc
@@ -84,13 +92,18 @@ def search_by_term(search_term, search_fields, graph):
         SearchServiceError: If the query could not be executed.
     """
     db_connection, _ = get_db_and_graph(graph)
+    search_fields = [f for f in search_fields if f != IDENTIFIER_FIELD]
 
+    # norm-lower also strips accents, so the term is normalized with the same
+    # analyzer rather than LOWER(), after trimming a pasted identifier.
     query_beginning = """
             LET lower_search_term = LOWER(@search_term)
+            LET identifier_term = FIRST(TOKENS(TRIM(@search_term), "norm-lower"))
             LET sortedDocs = (
                 FOR doc IN indexed
                     SEARCH
-                    """
+                    BOOST(ANALYZER(doc.`{field}` == identifier_term, "norm-lower"), {boost}) OR
+                    """.format(field=IDENTIFIER_FIELD, boost=IDENTIFIER_BOOST)
 
     # Levenshtein match with no substitutions, boosted
     levenshtein_string = " ANALYZER("
@@ -114,9 +127,16 @@ def search_by_term(search_term, search_fields, graph):
         n_gram_string += f'ANALYZER(doc.`{field}` LIKE CONCAT("%", CONCAT(@search_term, "%")), "n-gram") OR '
     n_gram_string = n_gram_string[0:-3]
 
-    # Build exact match check for sorting
+    # Build exact match check for sorting. A node whose own identifier was
+    # typed counts as exact too, or a cell set storing that CURIE in a searched
+    # field (ontology_purl) would sort above the node it names; the boost then
+    # puts the node first among the exact matches.
     exact_match_conditions = " OR ".join(
-        f"LOWER(doc.`{field}`) == lower_search_term" for field in search_fields
+        [f"LOWER(doc.`{field}`) == lower_search_term" for field in search_fields]
+        + [
+            f"identifier_term IN (FOR s IN doc.`{IDENTIFIER_FIELD}` || [] "
+            "RETURN LOWER(s))"
+        ]
     )
 
     query_end = """
