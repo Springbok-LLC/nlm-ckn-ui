@@ -206,6 +206,11 @@ describe("Utils Module", () => {
       expect(filterBrowsableCollections(input)).toEqual(["CL", "GO"]);
     });
 
+    it("should remove the Phenotype (PATO) collection", () => {
+      const input = ["CL", "PATO", "UBERON"];
+      expect(filterBrowsableCollections(input)).toEqual(["CL", "UBERON"]);
+    });
+
     it("should leave the list unchanged when no non-browsable collections are present", () => {
       const input = ["CL", "GO", "UBERON"];
       expect(filterBrowsableCollections(input)).toEqual(["CL", "GO", "UBERON"]);

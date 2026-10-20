@@ -12,11 +12,16 @@ import { capitalCase } from "./strings";
 export const collectionConfigMap = new Map(collMaps.maps);
 
 /**
- * Collections that exist in the database but should not appear in the
- * browsable collections list. "Life cycle stage" (HsapDv) is sparsely
- * populated and not meant for browsing.
+ * Collections hidden from the Collections page list. Their nodes still appear
+ * in search, graphs and node pages, and /collections/<key> still opens; only
+ * the browsable list leaves them out. To hide another collection, add its key
+ * here with the reason.
+ * - HsapDv ("Life cycle stage"): sparsely populated, not meant for browsing.
+ * - PATO ("Phenotype"): only a handful of terms load into the phenotypes graph,
+ *   and "normal" (PATO:0000461), the one CKN filters on, is not among them
+ *   (NIH-NLM/nlm-ckn#354).
  */
-export const NON_BROWSABLE_COLLECTIONS = new Set(["HsapDv"]);
+export const NON_BROWSABLE_COLLECTIONS = new Set(["HsapDv", "PATO"]);
 
 /**
  * Apply a collection-config field transform to a raw value.
