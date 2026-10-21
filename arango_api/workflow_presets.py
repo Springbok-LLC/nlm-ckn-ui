@@ -224,7 +224,7 @@ _UC9_PHASES = [
             "allowedCollections": ["GS", "PR", "CHEMBL"],
             "edgeFilters": {
                 "Label": [
-                    "IS_GENETIC_BASIS_FOR_CONDITION",
+                    "DISEASE_HAS_FEATURE",
                     "PRODUCES",
                     "MOLECULARLY_INTERACTS_WITH",
                 ],
@@ -253,7 +253,7 @@ _UC10_PHASES = [
     _scan_phase(
         f"{_UC10}-phase-1",
         "Disease genes (sampled diseases)",
-        _hop(1, "INBOUND", "GS", "IS_GENETIC_BASIS_FOR_CONDITION"),
+        _hop(1, "INBOUND", "GS", "DISEASE_HAS_FEATURE"),
         originCollection="MONDO",
     ),
     _scan_phase(
@@ -577,7 +577,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "IS_SUBSTANCE_THAT_TREATS",
                         ],
                         "Source": [],
@@ -670,7 +670,7 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["GS"],
                     "edgeFilters": {
-                        "Label": ["IS_GENETIC_BASIS_FOR_CONDITION"],
+                        "Label": ["DISEASE_HAS_FEATURE"],
                         "Source": [],
                     },
                     "setOperation": "Union",
@@ -692,7 +692,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -796,7 +796,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                         ],
                         "Source": [],
                     },
@@ -890,7 +890,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "IS_SUBSTANCE_THAT_TREATS",
                         ],
                         "Source": [],
@@ -989,7 +989,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1615,7 +1615,7 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["MONDO", "GS"],
                     "edgeFilters": {
-                        "Label": ["SUB_CLASS_OF", "IS_GENETIC_BASIS_FOR_CONDITION"],
+                        "Label": ["SUB_CLASS_OF", "DISEASE_HAS_FEATURE"],
                         "Source": [],
                     },
                     "setOperation": "Union",
@@ -1680,7 +1680,7 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["GS"],
                     "edgeFilters": {
-                        "Label": ["IS_GENETIC_BASIS_FOR_CONDITION"],
+                        "Label": ["DISEASE_HAS_FEATURE"],
                         "Source": [],
                     },
                     "setOperation": "Union",
@@ -1774,7 +1774,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1819,7 +1819,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1940,7 +1940,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["MONDO", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "IS_GENETIC_BASIS_FOR_CONDITION",
+                            "DISEASE_HAS_FEATURE",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
