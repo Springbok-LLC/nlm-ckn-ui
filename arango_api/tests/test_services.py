@@ -1261,6 +1261,14 @@ class SearchByTermQueryTestCase(TestCase):
         for field in search_service.LABEL_FIELDS:
             self.assertIn(field, projection)
 
+    def test_query_projects_badge_fields(self):
+        # A search row shows the same badges as everywhere else, so the fields
+        # getBadges() reads must survive the projection (nlm-ckn#301).
+        _, bind_vars = self._run(["label"])
+        self.assertIn("is_reference_dataset", search_service.BADGE_FIELDS)
+        for field in search_service.BADGE_FIELDS:
+            self.assertIn(field, bind_vars["projection_fields"])
+
     def test_ranking_clauses_unchanged(self):
         query, _ = self._run(["label"])
         # Exact-match boost, BM25, Levenshtein and n-gram branches still present.
