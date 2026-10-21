@@ -102,11 +102,11 @@ def search_by_term(search_term, search_fields, graph):
             LET sortedDocs = (
                 FOR doc IN indexed
                     SEARCH
-                    BOOST(ANALYZER(doc.`{field}` == identifier_term, "norm-lower"), {boost}) OR
+                    BOOST(ANALYZER(doc.`{field}` == identifier_term, "norm-lower"), {boost})
                     """.format(field=IDENTIFIER_FIELD, boost=IDENTIFIER_BOOST)
 
     # Levenshtein match with no substitutions, boosted
-    levenshtein_string = " ANALYZER("
+    levenshtein_string = " OR ANALYZER("
     for field in search_fields:
         levenshtein_string += (
             f"BOOST(LEVENSHTEIN_MATCH(doc.`{field}`, lower_search_term, 0), 100.0) OR "
@@ -148,13 +148,13 @@ def search_by_term(search_term, search_fields, graph):
 
             RETURN sortedDocs
             """.format(exact_match_conditions=exact_match_conditions)
-    query = (
-        query_beginning
-        + levenshtein_string_0
-        + levenshtein_string_1
-        + n_gram_string
-        + query_end
+    # A request may name only `_search`; the identifier clause then stands alone.
+    per_field_clauses = (
+        levenshtein_string_0 + levenshtein_string_1 + n_gram_string
+        if search_fields
+        else ""
     )
+    query = query_beginning + per_field_clauses + query_end
 
     # Project only the fields the dropdown needs: _id (always), the searched
     # fields, and any label fields getLabel() may read. _id is merged in

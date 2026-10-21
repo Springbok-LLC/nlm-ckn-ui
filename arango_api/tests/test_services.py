@@ -1317,6 +1317,15 @@ class SearchByTermIdentifierTestCase(TestCase):
         # sets that store the same CURIE in ontology_purl.
         self.assertIn("identifier_term IN (FOR s IN doc.`_search`", query)
 
+    def test_identifier_only_request_builds_a_valid_search(self):
+        query, bind_vars = self._run(["_search"])
+        search = query[query.index("SEARCH") : query.index("LET is_exact_match")]
+        self.assertNotIn("LEVENSHTEIN_MATCH", search)
+        self.assertNotIn("n-gram", search)
+        self.assertNotRegex(search, r"\bOR\s*$")
+        self.assertIn("LET is_exact_match = (identifier_term IN", query)
+        self.assertNotIn("_search", bind_vars["projection_fields"])
+
     def test_client_supplied_search_field_gets_no_per_field_clause(self):
         query, bind_vars = self._run(["label", "_search"])
         self.assertNotIn("LEVENSHTEIN_MATCH(doc.`_search`", query)
