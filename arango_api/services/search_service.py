@@ -52,8 +52,9 @@ LABEL_FIELDS = [
 ]
 
 # Fields the frontend's getBadges() reads to mark a row, e.g. the "Reference"
-# badge on a reference cell set dataset (nlm-ckn#301).
-BADGE_FIELDS = ["is_reference_dataset"]
+# badge on a reference cell set dataset (nlm-ckn#301), whose tooltip names the
+# dataset's anatomical structure.
+BADGE_FIELDS = ["anatomical_structure", "is_reference_dataset"]
 
 # Failures meaning the database could not be reached, as opposed to a query
 # that ran and failed. Callers answer these with 503 and invite a retry.

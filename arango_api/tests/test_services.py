@@ -1266,6 +1266,8 @@ class SearchByTermQueryTestCase(TestCase):
         # getBadges() reads must survive the projection (nlm-ckn#301).
         _, bind_vars = self._run(["label"])
         self.assertIn("is_reference_dataset", search_service.BADGE_FIELDS)
+        # The tooltip names the structure even when it is not a searched field.
+        self.assertIn("anatomical_structure", search_service.BADGE_FIELDS)
         for field in search_service.BADGE_FIELDS:
             self.assertIn(field, bind_vars["projection_fields"])
 
