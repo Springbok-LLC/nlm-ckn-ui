@@ -421,7 +421,10 @@ jobs:
           echo "Backend Docker build: ${{ needs.backend-docker-build.result }}"
 
           # Check if any job failed - skipped jobs are OK due to path filtering
-          if [[ "${{ needs.check-fork-permissions.result }}" == "failure" ]] || \
+          # A failed detect-changes leaves every filter output unset, which
+          # skips the test jobs and would otherwise read as a pass.
+          if [[ "${{ needs.detect-changes.result }}" == "failure" ]] || \
+             [[ "${{ needs.check-fork-permissions.result }}" == "failure" ]] || \
              [[ "${{ needs.frontend-lint.result }}" == "failure" ]] || \
              [[ "${{ needs.frontend-unit-tests.result }}" == "failure" ]] || \
              [[ "${{ needs.frontend-e2e.result }}" == "failure" ]] || \
@@ -460,6 +463,10 @@ jobs:
       - name: Check the diff is one ETL_VERSION line
         id: check
         run: |
+          # Snapshot the bot's approvals before reading the head, so an approval
+          # a newer commit's run gives later is never among those withdrawn.
+          approvals=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED") | .id')
           # The files endpoint reads the PR's current head, so only trust it
           # when that head is still the commit this run was triggered for.
           head=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
@@ -474,20 +481,15 @@ jobs:
             fi
           fi
           echo "qualifies=$qualifies" >> "$GITHUB_OUTPUT"
-          [[ "$head" == "$SHA" ]] && current=true || current=false
-          echo "current=$current" >> "$GITHUB_OUTPUT"
 
-      # Only the run for the current head decides; a superseded run could
-      # otherwise dismiss the approval the newer commit's run just gave.
-      - name: Withdraw an earlier auto-approval
-        if: steps.check.outputs.qualifies != 'true' && steps.check.outputs.current == 'true'
-        run: |
-          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED") | .id' |
-          while read -r id; do
-            gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
-              -f event=DISMISS -f message="No longer a one-line ETL_VERSION bump."
-          done
+          # Only the run for the current head withdraws, and only the approvals
+          # snapshotted above.
+          if [[ "$head" == "$SHA" && "$qualifies" != true ]]; then
+            for id in $approvals; do
+              gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
+                -f event=DISMISS -f message="No longer a one-line ETL_VERSION bump."
+            done
+          fi
 
   auto-approve-etl-bump:
     needs: [etl-bump-check, ci-passed]
