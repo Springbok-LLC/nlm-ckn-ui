@@ -509,8 +509,15 @@ jobs:
             echo "Head moved to $head; the run for it decides."
             exit 0
           fi
-          gh api -X POST "repos/$REPO/pulls/$PR/reviews" -f commit_id="$SHA" \
-            -f event=APPROVE -f body="One-line ETL_VERSION bump and CI passed."
+          review=$(gh api -X POST "repos/$REPO/pulls/$PR/reviews" -f commit_id="$SHA" \
+            -f event=APPROVE -f body="One-line ETL_VERSION bump and CI passed." --jq .id)
+          # A push between the check above and the POST could otherwise leave
+          # an approval on a superseded commit; withdraw this one if so.
+          head=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+          if [[ "$head" != "$SHA" ]]; then
+            gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$review/dismissals" \
+              -f event=DISMISS -f message="Head moved to $head after this approval."
+          fi
 
   # ============================================================================
   # Deploy jobs - only run on push to main after all tests pass
