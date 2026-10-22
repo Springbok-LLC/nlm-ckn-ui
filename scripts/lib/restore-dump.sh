@@ -14,7 +14,8 @@
 #   PORT      host port of the running ArangoDB
 #   S3_URI    the dump's source URI; the stamped version is derived from it
 #
-# The password comes from the environment so it stays out of the process list.
+# The password comes from ARANGO_PASSWORD. The arangorestore and curl calls
+# below still pass it on their command lines, as load-dump-local.sh always has.
 # ARANGO_IMAGE selects the image that runs arangorestore (default arangodb:latest).
 # ==============================================================================
 
