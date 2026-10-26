@@ -1678,6 +1678,7 @@ WORKFLOW_PRESETS = [
                 "originSource": "collection",
                 "originNodeIds": [],
                 "originCollection": "MONDO",
+                "originLimit": _WHOLE_COLLECTION,
                 "previousPhaseId": None,
                 "previousPhaseIds": [],
                 "phaseCombineOperation": "Intersection",
@@ -1703,6 +1704,7 @@ WORKFLOW_PRESETS = [
                 "originSource": "collection",
                 "originNodeIds": [],
                 "originCollection": "MONDO",
+                "originLimit": _WHOLE_COLLECTION,
                 "previousPhaseId": None,
                 "previousPhaseIds": [],
                 "phaseCombineOperation": "Intersection",
@@ -1760,9 +1762,8 @@ WORKFLOW_PRESETS = [
             "candidates: genes whose protein is hit by a drug that does not "
             "already treat the gene's disease, leaving the dipper's closing "
             "side missing. Pick a gene from the results and run 'Big Dipper: "
-            "explore a candidate' to see its full dipper. Phase 1 samples "
-            "the disease collection by default — raise its origin count to "
-            "scan more."
+            "explore a candidate' to see its full dipper. Scans every "
+            "disease, so it takes longer than most presets."
         ),
         "category": "Big Dipper",
         "layoutMode": "force",
@@ -1772,6 +1773,7 @@ WORKFLOW_PRESETS = [
                 "name": "Discovery: genes on a broken dipper (all diseases)",
                 "originSource": "collection",
                 "originCollection": "MONDO",
+                "originLimit": _WHOLE_COLLECTION,
                 "originNodeIds": [],
                 "previousPhaseId": None,
                 "originFilter": "all",
@@ -1806,8 +1808,7 @@ WORKFLOW_PRESETS = [
             "The positive control for 'Broken Big Dipper: candidate genes'. "
             "Finds genes whose protein is hit by a drug that already treats "
             "the gene's disease, so the dipper's closing side is present. "
-            "Phase 1 samples the disease collection by default — raise its "
-            "origin count to scan more."
+            "Scans every disease, so it takes longer than most presets."
         ),
         "category": "Big Dipper",
         "layoutMode": "force",
@@ -1817,6 +1818,7 @@ WORKFLOW_PRESETS = [
                 "name": "Discovery: genes on a complete dipper (all diseases)",
                 "originSource": "collection",
                 "originCollection": "MONDO",
+                "originLimit": _WHOLE_COLLECTION,
                 "originNodeIds": [],
                 "previousPhaseId": None,
                 "originFilter": "all",
