@@ -35,6 +35,10 @@ def all_map_fields(path=None):
     )
 
 
+# The tiers the ETL's create_view links fields by; any other name is a typo.
+TIERS = frozenset({"label", "synonym", "identifier", "text"})
+
+
 class SearchTiers(NamedTuple):
     """Read-only view of the maps' search tiers."""
 
@@ -51,7 +55,8 @@ def load_search_tiers(path=None):
     Raises:
         OSError: the maps file cannot be read.
         ValueError: a tier is unknown, a field name is not a safe AQL
-            identifier, or one field name carries two different tiers.
+            identifier, one field name carries two different tiers, or one
+            collection lists a field twice with different tiers.
     """
     global _cache
     if path is None and _cache is not None:
@@ -59,6 +64,8 @@ def load_search_tiers(path=None):
     with open(path or maps_path()) as fh:
         data = json.load(fh)
     analyzers = {tier: tuple(names) for tier, names in data["search_tiers"].items()}
+    if unknown := set(analyzers) - TIERS:
+        raise ValueError(f"search_tiers defines unknown tiers {sorted(unknown)}")
     field_tiers, tier_by_name = {}, {}
     for collection, config in data["maps"]:
         for field in config.get("individual_fields", []):
@@ -74,6 +81,10 @@ def load_search_tiers(path=None):
                     f"{collection}.{name}: tier {tier!r} conflicts with "
                     f"{tier_by_name[name]!r} elsewhere"
                 )
+            # A field listed twice in one collection (PR label is) must keep
+            # one tier, or the later entry would silently replace it.
+            if field_tiers.get((collection, name), tier) != tier:
+                raise ValueError(f"{collection}.{name}: listed twice, tiers differ")
             field_tiers[(collection, name)] = tier
     tiers = SearchTiers(MappingProxyType(analyzers), MappingProxyType(field_tiers))
     if path is None:

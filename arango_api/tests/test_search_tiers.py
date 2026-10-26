@@ -88,6 +88,16 @@ class LoadSearchTiersTestCase(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, "unknown search tier"):
             self._load([("CL", "label", "headline")])
 
+    def test_unknown_tier_definition_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unknown tiers"):
+            self._load([("CL", "label", "headline")], tiers={"headline": ["identity"]})
+
+    def test_repeated_field_must_keep_its_tier(self):
+        tiers = self._load([("PR", "label", "label"), ("PR", "label", "label")])
+        self.assertEqual(tiers.field_tiers[("PR", "label")], "label")
+        with self.assertRaisesRegex(ValueError, "listed twice"):
+            self._load([("PR", "label", "label"), ("PR", "label", None)])
+
     def test_unsafe_field_name_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "not a safe AQL identifier"):
             self._load([("CL", "label`) OR true //", "label")])
