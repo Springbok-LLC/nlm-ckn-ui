@@ -71,10 +71,16 @@ def load_search_tiers(path=None):
         analyzers[tier] = tuple(names)
     if unknown := set(analyzers) - TIERS:
         raise ValueError(f"search_tiers defines unknown tiers {sorted(unknown)}")
+    if missing := TIERS - set(analyzers):
+        raise ValueError(f"search_tiers is missing tiers {sorted(missing)}")
     field_tiers, tier_by_name = {}, {}
     for collection, config in data["maps"]:
         for field in config.get("individual_fields", []):
-            name, tier = field["field_to_display"], field.get("search_tier")
+            name = field["field_to_display"]
+            # Every field states its tier, null included, as the ETL requires.
+            if "search_tier" not in field:
+                raise ValueError(f"{collection}.{name}: missing search_tier")
+            tier = field["search_tier"]
             if not is_safe_aql_identifier(name):
                 raise ValueError(f"{collection}.{name}: not a safe AQL identifier")
             if tier is not None and tier not in analyzers:

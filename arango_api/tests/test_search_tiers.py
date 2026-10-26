@@ -55,7 +55,8 @@ def _maps(fields, tiers=None):
             {"field_to_display": name, "search_tier": tier}
         )
     return {
-        "search_tiers": tiers or {"label": ["norm-lower"], "text": ["text_en"]},
+        "search_tiers": tiers
+        or {t: ["identity"] for t in ("label", "synonym", "identifier", "text")},
         "maps": [[c, {"individual_fields": f}] for c, f in by_coll.items()],
     }
 
@@ -91,6 +92,17 @@ class LoadSearchTiersTestCase(SimpleTestCase):
     def test_unknown_tier_definition_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "unknown tiers"):
             self._load([("CL", "label", "headline")], tiers={"headline": ["identity"]})
+
+    def test_every_tier_must_be_defined(self):
+        with self.assertRaisesRegex(ValueError, "missing tiers"):
+            self._load([("CL", "label", "label")], tiers={"label": ["identity"]})
+
+    def test_every_field_must_state_its_tier(self):
+        maps = _maps([("CL", "label", "label")])
+        del maps["maps"][0][1]["individual_fields"][0]["search_tier"]
+        self.path.write_text(json.dumps(maps))
+        with self.assertRaisesRegex(ValueError, "missing search_tier"):
+            load_search_tiers(self.path)
 
     def test_analyzers_must_be_a_list_of_names(self):
         with self.assertRaisesRegex(ValueError, "list of analyzer names"):
