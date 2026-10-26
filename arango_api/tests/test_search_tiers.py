@@ -92,6 +92,10 @@ class LoadSearchTiersTestCase(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, "unknown tiers"):
             self._load([("CL", "label", "headline")], tiers={"headline": ["identity"]})
 
+    def test_analyzers_must_be_a_list_of_names(self):
+        with self.assertRaisesRegex(ValueError, "list of analyzer names"):
+            self._load([("CL", "label", "label")], tiers={"label": "norm-lower"})
+
     def test_repeated_field_must_keep_its_tier(self):
         tiers = self._load([("PR", "label", "label"), ("PR", "label", "label")])
         self.assertEqual(tiers.field_tiers[("PR", "label")], "label")

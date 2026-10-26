@@ -63,7 +63,12 @@ def load_search_tiers(path=None):
         return _cache
     with open(path or maps_path()) as fh:
         data = json.load(fh)
-    analyzers = {tier: tuple(names) for tier, names in data["search_tiers"].items()}
+    analyzers = {}
+    for tier, names in data["search_tiers"].items():
+        # A bare string would become a tuple of its characters.
+        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+            raise ValueError(f"search_tiers.{tier} must be a list of analyzer names")
+        analyzers[tier] = tuple(names)
     if unknown := set(analyzers) - TIERS:
         raise ValueError(f"search_tiers defines unknown tiers {sorted(unknown)}")
     field_tiers, tier_by_name = {}, {}
