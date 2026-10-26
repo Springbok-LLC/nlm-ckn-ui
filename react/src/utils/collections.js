@@ -306,7 +306,7 @@ export const getSectionedFields = (item) => {
 
     const curated = sections.map(({ section, fields, description, info }) => {
       const resolved = fields
-        .map(({ key, label, variant, transform, value: fixed }) => {
+        .map(({ key, label, variant, transform, urlFrom, value: fixed }) => {
           placed.add(key);
           const configured = byKey.get(key);
           // A field may declare a fixed value the data does not carry.
@@ -316,7 +316,8 @@ export const getSectionedFields = (item) => {
             label,
             variant,
             value: transform ? transform(raw) : raw,
-            url: configured ? configured.url : null,
+            // A row may take its link from another configured key.
+            url: (urlFrom ? byKey.get(urlFrom) : configured)?.url ?? null,
           };
         })
         .filter((f) => isPresent(f.value));
