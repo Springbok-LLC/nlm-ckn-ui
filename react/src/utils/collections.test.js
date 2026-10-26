@@ -374,6 +374,14 @@ describe("outbound links from the shipped collection maps", () => {
     // The specification still drops the DOI row itself.
     expect(rows.map((f) => f.key)).not.toContain("publication_doi");
   });
+
+  it("leaves the citation unlinked when the DOI is empty", () => {
+    const pub = { _id: "PUB/x", Citation: "Smith (2021) eLife", publication_doi: "" };
+    const citation = getSectionedFields(pub)
+      .flatMap((s) => s.fields)
+      .find((f) => f.key === "Citation");
+    expect(citation.url).toBeNull();
+  });
 });
 
 describe("getLabel for multi-organ cell set datasets", () => {

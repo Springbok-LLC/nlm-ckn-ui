@@ -260,7 +260,8 @@ export const getDisplayFields = (item) => {
 
         if (config.field_url && config.field_to_use) {
           const urlValue = item[config.field_to_use];
-          if (urlValue !== null && urlValue !== undefined) {
+          // An empty value would yield a bare template such as "https://doi.org/".
+          if (urlValue !== null && urlValue !== undefined && urlValue !== "") {
             const replacement = applyFieldTransform(config, urlValue);
             fieldUrl = config.field_url.replace("<FIELD_TO_USE>", replacement);
           }
