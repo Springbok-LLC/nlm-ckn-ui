@@ -253,7 +253,9 @@ jobs:
           body="${COMMENT_MARKER}
           ### PR preview
 
-          **${PREVIEW_URL}** (basic auth)
+          **${PREVIEW_URL}**
+
+          Sign in (needs AWS access; the printed link can be shared): \`AWS_PROFILE=springbok ./scripts/ops/preview-login.sh ${PR_NUMBER}\`
 
           | | |
           |---|---|

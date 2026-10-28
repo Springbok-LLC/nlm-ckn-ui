@@ -1,6 +1,7 @@
 name: PR Preview
 
-# Ephemeral per-PR preview at https://pr-<n>.dev.nlm-ckn.org (basic auth).
+# Ephemeral per-PR preview at https://pr-<n>.dev.nlm-ckn.org (signed-cookie
+# sign-in via scripts/ops/preview-login.sh).
 #
 # A maintainer adds the `preview` label → deploy; every push while labelled →
 # redeploy. Teardown (label removed / PR closed) is preview-teardown.yml. The
