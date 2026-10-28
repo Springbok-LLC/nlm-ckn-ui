@@ -60,7 +60,10 @@ KEY=$(aws cloudfront-keyvaluestore get-key --region "$AWS_REGION" \
 
 # Must match verify() in nlm-ckn-iac preview-platform.yaml's PreviewRouterFunction.
 EXP=$(( $(date +%s) + HOURS * 3600 ))
-SIG=$(printf '%s' "pr-${PR}:${EXP}" | openssl dgst -sha256 -hmac "$KEY" -hex | awk '{print $NF}')
+# HMAC-SHA256 hex. The key goes in on stdin (printf is a builtin), not argv,
+# so it never shows up in ps.
+SIG=$(printf '%s' "$KEY" | perl -MDigest::SHA=hmac_sha256_hex \
+  -e 'local $/; my $key = <STDIN>; print hmac_sha256_hex($ARGV[0], $key)' "pr-${PR}:${EXP}")
 URL="https://pr-${PR}.${DOMAIN}/_preview/login?token=${EXP}.${SIG}"
 
 if [ "$PRINT_ONLY" = true ]; then

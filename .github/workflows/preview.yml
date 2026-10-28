@@ -28,20 +28,52 @@ on:
 
 # Shared with preview-teardown.yml: one preview operation per PR at a time,
 # never cancelled mid-flight (a cancelled stack update leaves a half-done stack).
+# A newer pending run replaces an older pending one, so runs that will skip get
+# their own group (the condition mirrors the `state` job's `if`) and cannot
+# displace a pending deploy or teardown.
 concurrency:
-  group: preview-pr-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    contains(github.event.pull_request.labels.*.name, 'preview') &&
+    (github.event.action != 'labeled' || github.event.label.name == 'preview'))
+    && format('preview-pr-{0}', github.event.pull_request.number)
+    || format('preview-noop-{0}', github.run_id) }}
   cancel-in-progress: false
 
 permissions: {}
 
 jobs:
-  build:
-    name: Build preview
+  state:
+    name: Check PR state
     # Same-repo PRs only. `labeled` builds only for the preview label itself.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(github.event.pull_request.labels.*.name, 'preview') &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      current: ${{ steps.check.outputs.current }}
+    steps:
+      # The run may have queued behind another; deploy only if the PR is still
+      # open, labelled and at this run's head (otherwise a newer run follows).
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq \
+            "(.state == \"open\" and .head.sha == \"${HEAD_SHA}\" and ([.labels[].name] | index(\"preview\") != null))")
+          echo "Current: ${current}"
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build preview
+    needs: state
+    if: needs.state.outputs.current == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
