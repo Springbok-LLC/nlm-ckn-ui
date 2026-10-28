@@ -1,5 +1,7 @@
 # Frontend
 react/
+# The backend loads its search tiers from this file at startup.
+!react/src/assets/nlm-ckn-collection-maps.json
 
 # Deployment/shell scripts
 archive/

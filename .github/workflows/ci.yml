@@ -52,6 +52,8 @@ jobs:
               - 'manage.py'
               - 'Dockerfile'
               - '.dockerignore'
+              # The backend loads its search tiers from the shared maps.
+              - 'react/src/assets/nlm-ckn-collection-maps.json'
               # The version endpoint reports pinned_etl_version from the
               # ETL_VERSION file baked into the image, so an ETL bump has to
               # rebuild the backend or dev keeps advertising the previous
@@ -325,7 +327,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       arangodb:
-        image: arangodb:latest
+        image: arangodb:3.12
         ports:
           - 8530:8529
         env:

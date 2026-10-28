@@ -51,7 +51,7 @@ else CONTAINER="arango-ckn-$PORT"; fi
 BUCKET="nlm-ckn-arangodb-data-952291113202"
 # Pinnable for reproducibility: golden dumps are produced against a specific
 # ArangoDB; override with ARANGO_IMAGE if a future major version breaks restore.
-IMAGE="${ARANGO_IMAGE:-arangodb:latest}"
+IMAGE="${ARANGO_IMAGE:-arangodb:3.12}"
 PW=$(grep -m1 -E '^ARANGO_DB_PASSWORD=' .env | cut -d= -f2-)
 [ -n "$PW" ] || { echo "ERROR: ARANGO_DB_PASSWORD not found in .env"; exit 1; }
 
