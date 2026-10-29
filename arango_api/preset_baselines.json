@@ -1,9 +1,9 @@
 {
   "_provenance": {
-    "etl_version": "v1.8.0-rc.2",
-    "generated_at": "2026-10-21T14:18:55Z",
+    "etl_version": "v1.8.0-rc.8",
+    "generated_at": "2026-10-29T18:49:40Z",
     "mixed": true,
-    "restored_at": "2026-10-17T11:55:16Z"
+    "restored_at": "2026-10-29T18:49:08Z"
   },
   "alzheimers-disease-uc8": 153,
   "broken-dipper-candidates": 246,
@@ -26,7 +26,7 @@
   "hlca-cell-type-markers-uc3": 295,
   "hlca-dendritic-markers-uc4": 19,
   "hlca-lung-cell-types": 118,
-  "leber-congenital-amaurosis-uc11": 102,
+  "leber-congenital-amaurosis-uc11": 7,
   "ph-drug-target-cell-types": 13,
   "ph-drug-targets": 66,
   "ph-drugs": 30,
