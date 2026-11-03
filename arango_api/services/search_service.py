@@ -88,15 +88,17 @@ def _normalize(text):
     return " ".join(text.split()).casefold()
 
 
-def match_reason(doc, search_term):
+def match_reason(doc, search_term, searched_fields):
     """Say why a search result matched: {"tier", "field", "value"}, or None.
 
     `tier` is the search tier of the matching field in the document's
     collection (label, synonym or identifier), `field` its name and `value`
     the stored text, original case, that matched (the element, for a list).
+    Only `searched_fields` count, not fields projected just for display.
     Matching ignores case and extra whitespace. A whole-value match beats a
     partial one, and a stronger tier beats a weaker one. None means no
-    label, synonym or identifier field matched, e.g. a match on a definition.
+    label, synonym or identifier field matched as typed: a match on a
+    definition, or a typo-tolerant match.
     """
     if doc.get("_search_match"):
         return {"tier": "identifier", "field": "_search", "value": doc["_search_match"]}
@@ -104,7 +106,7 @@ def match_reason(doc, search_term):
     collection = doc["_id"].split("/")[0]
     candidates = []
     for tier in MATCH_REASON_TIERS:
-        for field in sorted(doc):
+        for field in sorted(set(doc) & set(searched_fields)):
             if tier_of(collection, field) != tier:
                 continue
             values = doc[field] if isinstance(doc[field], list) else [doc[field]]
@@ -198,7 +200,8 @@ def search_by_term(search_term, search_fields, graph):
                     LIMIT @limit
                     RETURN MERGE({{"_id": doc._id}},
                         {{"_search_match": NTH(doc.`{field}`, POSITION(
-                            doc.`{field}`[* RETURN LOWER(CURRENT)], identifier_term, true))}},
+                            doc.`{field}`[* RETURN FIRST(TOKENS(CURRENT, "norm-lower"))],
+                            identifier_term, true))}},
                         KEEP(doc, @projection_fields))
             )
 
@@ -238,7 +241,7 @@ def search_by_term(search_term, search_fields, graph):
         raise SearchServiceError(unavailable=isinstance(e, UNAVAILABLE_ERRORS)) from e
 
     for row in results:
-        row["_match"] = match_reason(row, search_term)
+        row["_match"] = match_reason(row, search_term, search_fields)
         row.pop("_search_match", None)
     return results
 
