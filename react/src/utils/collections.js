@@ -3,7 +3,10 @@
  */
 import { fieldSections, omittedFields } from "config/fieldSections";
 import collMaps from "../assets/nlm-ckn-collection-maps.json";
+import { getAnatomicalStructureName, getCitation } from "./cellSetLabelLookups";
 import { capitalCase } from "./strings";
+
+export { setCellSetLabelLookups } from "./cellSetLabelLookups";
 
 /**
  * Module-level collection config map built from the JSON asset.
@@ -105,25 +108,6 @@ const decorateCellSetDatasetLabel = (item, label) => {
 };
 
 /**
- * Citations keyed by DOI and anatomical structure names keyed by UBERON CURIE,
- * loaded once at startup. Labels are built synchronously, so they read these
- * rather than fetching the documents a cell set references.
- */
-let cellSetLabelLookups = { publications: {}, anatomical_structures: {} };
-
-/**
- * Install the lookups cell set labels read. A missing or failed load leaves
- * them empty, and labels omit the parts they would have named.
- * @param {{publications?: Object, anatomical_structures?: Object}|null} lookups
- */
-export const setCellSetLabelLookups = (lookups) => {
-  cellSetLabelLookups = {
-    publications: lookups?.publications ?? {},
-    anatomical_structures: lookups?.anatomical_structures ?? {},
-  };
-};
-
-/**
  * Decorate a cell set label to mirror the cell set dataset label (#266):
  * `<term> in <Citation> - "<dataset>" for <anatomical structure>`. Each part
  * the document or lookups do not carry is left out.
@@ -137,8 +121,8 @@ const decorateCellSetLabel = (item, label) => {
     return label;
   }
 
-  const citation = cellSetLabelLookups.publications[item.publication];
-  const organ = cellSetLabelLookups.anatomical_structures[item.anatomical_structure];
+  const citation = getCitation(item.publication);
+  const organ = getAnatomicalStructureName(item.anatomical_structure);
 
   let decorated = label;
   if (citation) {
@@ -276,7 +260,8 @@ export const getDisplayFields = (item) => {
 
         if (config.field_url && config.field_to_use) {
           const urlValue = item[config.field_to_use];
-          if (urlValue !== null && urlValue !== undefined) {
+          // An empty value would yield a bare template such as "https://doi.org/".
+          if (urlValue !== null && urlValue !== undefined && urlValue !== "") {
             const replacement = applyFieldTransform(config, urlValue);
             fieldUrl = config.field_url.replace("<FIELD_TO_USE>", replacement);
           }
@@ -322,7 +307,7 @@ export const getSectionedFields = (item) => {
 
     const curated = sections.map(({ section, fields, description, info }) => {
       const resolved = fields
-        .map(({ key, label, variant, transform, value: fixed }) => {
+        .map(({ key, label, variant, transform, urlFrom, value: fixed }) => {
           placed.add(key);
           const configured = byKey.get(key);
           // A field may declare a fixed value the data does not carry.
@@ -332,7 +317,8 @@ export const getSectionedFields = (item) => {
             label,
             variant,
             value: transform ? transform(raw) : raw,
-            url: configured ? configured.url : null,
+            // A row may take its link from another configured key.
+            url: (urlFrom ? byKey.get(urlFrom) : configured)?.url ?? null,
           };
         })
         .filter((f) => isPresent(f.value));

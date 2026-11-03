@@ -1,3 +1,4 @@
+import { getAnatomicalStructureName, getCitation } from "utils/cellSetLabelLookups";
 import { humanizeSlug } from "utils/strings";
 
 /**
@@ -16,6 +17,7 @@ import { humanizeSlug } from "utils/strings";
  *   - label:   the display label shown in the card (authoritative).
  *   - value:   optional; a fixed value shown instead of the document's.
  *   - variant: optional; "description" renders as a lead paragraph, not a row.
+ *   - urlFrom: optional; another key whose collection-map URL the row links to.
  *
  * Values and URLs for keys that also appear in the collection map are resolved
  * through `getDisplayFields` (so URL templates stay in one place). Keys not in
@@ -69,7 +71,9 @@ export const fieldSections = {
       section: "Context",
       fields: [
         { key: "author_cell_term", label: "Author cell set annotation" },
-        { key: "publication", label: "Publication" },
+        // The document holds the DOI; show the citation, e.g. "Xu (2023) Cell",
+        // and keep the DOI link. An unknown DOI shows as itself.
+        { key: "publication", label: "Publication", transform: (doi) => getCitation(doi) ?? doi },
       ],
     },
     {
@@ -91,7 +95,12 @@ export const fieldSections = {
       section: "Post-filtering Cell Set Metadata",
       fields: [
         { key: "species", label: "Species" },
-        { key: "anatomical_structure", label: "Anatomical Structure Collection" },
+        {
+          key: "anatomical_structure",
+          label: "Anatomical Structure Collection",
+          // UBERON CURIE to name; the PURL link stays on the row.
+          transform: (curie) => getAnatomicalStructureName(curie) ?? curie,
+        },
         // Only ~28% of cell sets carry a Cell Ontology term; the rest omit the row.
         { key: "ontology_purl", label: "Cell Type" },
       ],
@@ -151,7 +160,7 @@ export const fieldSections = {
     {
       section: "Analysis Metadata",
       fields: [
-        { key: "cluster_annotation", label: "Cluster annotation level" },
+        { key: "cluster_annotation", label: "Annotation level" },
         { key: "embedding", label: "Embedding" },
       ],
     },
@@ -228,14 +237,13 @@ export const fieldSections = {
     },
   ],
   // Slots follow the Publication sheet attached to nlm-ckn#330. PMID is left
-  // out because no PUB document carries it. The citation stays plain text: the
-  // card shows only what the node holds, and the collection map puts no URL on
-  // Citation.
+  // out because no PUB document carries it. The sheet drops the DOI row, so the
+  // citation links to the DOI instead (nlm-ckn#364), as the cell set card does.
   PUB: [
     {
       section: "Overview",
       fields: [
-        { key: "Citation", label: "Publication" },
+        { key: "Citation", label: "Publication", urlFrom: "publication_doi" },
         { key: "author_list", label: "Authors" },
         { key: "year", label: "Year" },
         { key: "title", label: "Title" },

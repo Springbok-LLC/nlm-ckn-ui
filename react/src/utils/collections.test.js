@@ -47,6 +47,14 @@ describe("getSectionedFields", () => {
     ]);
   });
 
+  it("labels the cluster annotation as the annotation level", () => {
+    const analysis = getSectionedFields(csd()).find((s) => s.section === "Analysis Metadata");
+    expect(analysis.fields[0]).toMatchObject({
+      key: "cluster_annotation",
+      label: "Annotation level",
+    });
+  });
+
   it("carries the filtering criteria as static text", () => {
     const criteria = getSectionedFields(csd()).find((s) => s.section === "CKN Filtering Criteria");
     expect(criteria.fields).toEqual([]);
@@ -211,6 +219,34 @@ describe("getSectionedFields for cell sets", () => {
     ]);
   });
 
+  describe("names the publication and anatomical structure (nlm-ckn#358)", () => {
+    afterEach(() => setCellSetLabelLookups(null));
+
+    const row = (sectionName, key) => section(sectionName).fields.find((f) => f.key === key);
+
+    it("shows the citation and structure name, keeping their links", () => {
+      setCellSetLabelLookups({
+        publications: { "10.1038/s41586-020-2157-4": "Han (2020) Nature" },
+        anatomical_structures: { "UBERON:0001004": "respiratory system" },
+      });
+      expect(row("Context", "publication")).toMatchObject({
+        value: "Han (2020) Nature",
+        url: "https://doi.org/10.1038/s41586-020-2157-4",
+      });
+      expect(row("Post-filtering Cell Set Metadata", "anatomical_structure")).toMatchObject({
+        value: "respiratory system",
+        url: "http://purl.obolibrary.org/obo/UBERON_0001004",
+      });
+    });
+
+    it("falls back to the identifier when the lookups do not name it", () => {
+      expect(row("Context", "publication").value).toBe("10.1038/s41586-020-2157-4");
+      expect(row("Post-filtering Cell Set Metadata", "anatomical_structure").value).toBe(
+        "UBERON:0001004",
+      );
+    });
+  });
+
   it("reports the cell set statistics post-filtering, once each", () => {
     expect(section("Post-filtering Cell Set Statistics").fields.map((f) => f.label)).toEqual([
       "Cell count",
@@ -321,6 +357,30 @@ describe("outbound links from the shipped collection maps", () => {
 
     const doi = getDisplayFields(pub).find((field) => field.key === "publication_doi");
     expect(doi.url).toBe("https://doi.org/10.7554/elife.62522");
+  });
+
+  it("links the publication card's citation to its DOI (nlm-ckn#364)", () => {
+    const pub = {
+      _id: "PUB/10.7554-elife.62522",
+      Citation: "Smith (2021) eLife",
+      publication_doi: "10.7554/elife.62522",
+    };
+    const rows = getSectionedFields(pub).flatMap((s) => s.fields);
+    expect(rows.find((f) => f.key === "Citation")).toMatchObject({
+      label: "Publication",
+      value: "Smith (2021) eLife",
+      url: "https://doi.org/10.7554/elife.62522",
+    });
+    // The specification still drops the DOI row itself.
+    expect(rows.map((f) => f.key)).not.toContain("publication_doi");
+  });
+
+  it("leaves the citation unlinked when the DOI is empty", () => {
+    const pub = { _id: "PUB/x", Citation: "Smith (2021) eLife", publication_doi: "" };
+    const citation = getSectionedFields(pub)
+      .flatMap((s) => s.fields)
+      .find((f) => f.key === "Citation");
+    expect(citation.url).toBeNull();
   });
 });
 
