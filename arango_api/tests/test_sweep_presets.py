@@ -256,6 +256,24 @@ class SweepPresetsBaselineTests(TestCase):
         self.assertEqual(recorded.pop("_provenance")["skipped"], ["beta"])
         self.assertEqual(recorded, {"alpha": 90})
 
+    def test_targeted_update_keeps_recorded_skips(self):
+        """Only the preset that now has a count leaves the skip list."""
+        provenance = {**PROVENANCE["_provenance"], "skipped": ["beta", "gamma"]}
+        self.baseline_path.write_text(
+            json.dumps({"_provenance": provenance, "alpha": 100})
+        )
+        presets = ["alpha", "beta", "gamma"]
+        outcomes = {"alpha": _outcome(90), "beta": _outcome(20)}
+
+        self._run(presets, outcomes, preset="alpha", update_baseline=True)
+        recorded = json.loads(self.baseline_path.read_text())
+        self.assertEqual(recorded["_provenance"]["skipped"], ["beta", "gamma"])
+
+        self._run(presets, outcomes, preset="beta", update_baseline=True)
+        recorded = json.loads(self.baseline_path.read_text())
+        self.assertEqual(recorded.pop("_provenance")["skipped"], ["gamma"])
+        self.assertEqual(recorded, {"alpha": 90, "beta": 20})
+
 
 class SweepPresetsArgumentTests(TestCase):
     def test_unknown_skip_id_fails(self):

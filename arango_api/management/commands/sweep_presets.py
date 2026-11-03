@@ -253,6 +253,10 @@ class Command(BaseCommand):
             provenance = {**stamp, "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
             if mixed:
                 provenance["mixed"] = True
+            if options["preset"]:
+                # A targeted merge keeps the other presets' gaps on record;
+                # only the preset that now has a count leaves the list.
+                skips = [s for s in recorded.get("skipped", []) if s not in results]
             if skips:
                 provenance["skipped"] = skips
             _write_baseline({PROVENANCE_KEY: provenance, **merged})
