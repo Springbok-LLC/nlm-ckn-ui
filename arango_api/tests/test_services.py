@@ -1368,8 +1368,17 @@ class SearchByTermTierTestCase(TestCase):
 class MatchReasonTestCase(SimpleTestCase):
     """match_reason names the field and value a result matched on (#345, U9)."""
 
-    def _reason(self, doc, term):
-        return search_service.match_reason(doc, term)
+    def _reason(self, doc, term, searched=None):
+        searched = searched or [f for f in doc if f != "_id"]
+        return search_service.match_reason(doc, term, searched)
+
+    def test_only_searched_fields_are_a_reason(self):
+        # label is projected for display but was not searched here.
+        doc = {"_id": "CL/0000084", "label": "T cell", "hasExactSynonym": "T-cell"}
+        self.assertEqual(
+            self._reason(doc, "t", ["hasExactSynonym"]),
+            {"tier": "synonym", "field": "hasExactSynonym", "value": "T-cell"},
+        )
 
     def test_label_equal_ignores_case_and_extra_whitespace(self):
         doc = {"_id": "CL/0000084", "label": "T cell"}
@@ -1444,9 +1453,11 @@ class SearchByTermMatchTestCase(TestCase):
             query.index('"_search_match": NTH(doc.`_search`'),
             query.index("LIMIT @limit"),
         )
+        # Stored forms are normalized like the search clause, not by LOWER().
         self.assertIn(
-            "doc.`_search`[* RETURN LOWER(CURRENT)], identifier_term, true))",
-            query,
+            'doc.`_search`[* RETURN FIRST(TOKENS(CURRENT, "norm-lower"))], '
+            "identifier_term, true))",
+            " ".join(query.split()),
         )
 
     def test_rows_carry_match_and_drop_search_match(self):
