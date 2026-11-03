@@ -1387,6 +1387,13 @@ class MatchReasonTestCase(SimpleTestCase):
             {"tier": "label", "field": "label", "value": "T cell"},
         )
 
+    def test_accents_are_ignored_like_the_norm_lower_analyzer(self):
+        doc = {"_id": "CL/1", "label": "Café cell"}
+        self.assertEqual(
+            self._reason(doc, "cafe cell"),
+            {"tier": "label", "field": "label", "value": "Café cell"},
+        )
+
     def test_equal_synonym_beats_a_label_that_only_contains(self):
         doc = {
             "_id": "CL/0000084",
