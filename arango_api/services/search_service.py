@@ -3,6 +3,7 @@ Service for search operations.
 """
 
 import logging
+import unicodedata
 from itertools import chain
 
 import requests
@@ -85,7 +86,9 @@ MATCH_REASON_TIERS = ("label", "synonym", "identifier")
 
 
 def _normalize(text):
-    return " ".join(text.split()).casefold()
+    # Like the norm-lower analyzer: case and accents ignored ("Café" == "cafe").
+    decomposed = unicodedata.normalize("NFKD", " ".join(text.split()).casefold())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
 def match_reason(doc, search_term, searched_fields):
