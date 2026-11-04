@@ -17,7 +17,7 @@ MARKER = "<!-- preset-sweep -->"
 # only plain identifiers are accepted; anything else cannot break the table.
 LINE = re.compile(
     r"^(?P<status>ok|DROP|EMPTY|ERR|NULL|EXC|SKIP)\s+(?P<preset>[A-Za-z0-9_.-]+)"
-    r"(?:\s+\[(?P<trail>[0-9 >-]*)\])?(?:\s+baseline \d+)?\s*$"
+    r"(?:\s+\[(?P<trail>\d+(?: -> \d+)*)\])?(?:\s+baseline \d+)?\s*$"
 )
 # Worst first, so the row that needs attention is never below the fold.
 ORDER = {"EXC": 0, "ERR": 0, "NULL": 0, "EMPTY": 1, "DROP": 2, "SKIP": 3, "ok": 4}

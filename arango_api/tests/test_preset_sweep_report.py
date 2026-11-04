@@ -35,6 +35,9 @@ class ParseTests(TestCase):
             ],
         )
 
+    def test_ignores_a_row_whose_counts_are_malformed(self):
+        self.assertEqual(parse("ERR   fine-id  [1 > 2]"), [])
+
     def test_ignores_a_row_with_text_after_its_counts(self):
         self.assertEqual(parse("ok    fine-id  [2] | injected"), [])
 
