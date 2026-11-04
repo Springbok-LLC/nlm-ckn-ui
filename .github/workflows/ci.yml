@@ -12,15 +12,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Read-only by default: pull_request_target jobs run PR code. A job that needs
+# more declares it, and a job-level block replaces this one entirely.
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write  # Required for GitHub OIDC (deploy jobs)
+  contents: read
 
 jobs:
   # Detect which parts of the codebase changed to skip unnecessary tests
   detect-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read  # paths-filter lists PR files through the API
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
@@ -102,6 +105,8 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # pushes the Biome auto-fix commit
     defaults:
       run:
         working-directory: react
@@ -539,6 +544,9 @@ jobs:
         (github.event_name == 'push' && needs.detect-changes.outputs.frontend == 'true')
       )
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # GitHub OIDC for the AWS deploy role
     steps:
       - uses: actions/checkout@v4
 
@@ -571,6 +579,9 @@ jobs:
         (github.event_name == 'push' && needs.detect-changes.outputs.backend == 'true')
       )
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # GitHub OIDC for the AWS deploy role
     steps:
       - uses: actions/checkout@v4
 
