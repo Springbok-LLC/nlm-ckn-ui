@@ -35,6 +35,9 @@ class ParseTests(TestCase):
             ],
         )
 
+    def test_ignores_a_row_with_text_after_its_counts(self):
+        self.assertEqual(parse("ok    fine-id  [2] | injected"), [])
+
     def test_ignores_a_preset_id_that_could_break_the_table(self):
         self.assertEqual(
             parse("ok    evil|`x`  [1]\nok    fine-id  [2]"), [("ok", "fine-id", 2)]
@@ -91,6 +94,11 @@ class RenderTests(TestCase):
     def test_marks_a_passing_preset_with_no_baseline_as_new(self):
         body = render("ok    brand-new  [5]", {}, "v1", "v1")
         self.assertIn("| ✅ | `brand-new` |  | 5 | new |", body)
+
+    def test_says_so_when_the_sweep_reported_no_presets(self):
+        body = render("Traceback (most recent call last):\n", {}, "v1", "v1")
+        self.assertIn("reported no presets", body)
+        self.assertNotIn("need attention", body)
 
     def test_omits_the_pin_when_it_matches(self):
         body = render(SWEEP, BASELINES, "v1.8.0-rc.9", "v1.8.0-rc.9")

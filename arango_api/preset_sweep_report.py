@@ -16,8 +16,8 @@ MARKER = "<!-- preset-sweep -->"
 # Preset ids come from the PR's code and land in a comment the bot posts, so
 # only plain identifiers are accepted; anything else cannot break the table.
 LINE = re.compile(
-    r"^(?P<status>ok|DROP|EMPTY|ERR|NULL|EXC|SKIP)\s+(?P<preset>[A-Za-z0-9_.-]+)(?=\s|$)"
-    r"(?:\s+\[(?P<trail>[^\]]*)\])?"
+    r"^(?P<status>ok|DROP|EMPTY|ERR|NULL|EXC|SKIP)\s+(?P<preset>[A-Za-z0-9_.-]+)"
+    r"(?:\s+\[(?P<trail>[0-9 >-]*)\])?(?:\s+baseline \d+)?\s*$"
 )
 # Worst first, so the row that needs attention is never below the fold.
 ORDER = {"EXC": 0, "ERR": 0, "NULL": 0, "EMPTY": 1, "DROP": 2, "SKIP": 3, "ok": 4}
@@ -48,6 +48,12 @@ def render(sweep_output, baselines, etl_version, pinned_version):
     header = f"**Preset sweep — ETL `{etl_version}`**"
     if pinned_version and pinned_version != etl_version:
         header += f" (pin was `{pinned_version}`)"
+    if not rows:
+        # A sweep prints a row for every preset, so none means it stopped first.
+        return (
+            f"{MARKER}\n{header}\n\n⚠️ The sweep reported no presets: it stopped "
+            "before running them. See the workflow run's log.\n"
+        )
     lines = [
         MARKER,
         header,
