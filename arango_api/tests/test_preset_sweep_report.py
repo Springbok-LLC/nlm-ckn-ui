@@ -35,6 +35,13 @@ class ParseTests(TestCase):
             ],
         )
 
+    def test_reads_a_row_with_no_phase_counts(self):
+        # A preset whose first phase fails returns no phases, printed as [].
+        self.assertEqual(
+            parse("ERR   broken-one  []\nEMPTY quiet-one  []"),
+            [("ERR", "broken-one", None), ("EMPTY", "quiet-one", None)],
+        )
+
     def test_ignores_a_row_whose_counts_are_malformed(self):
         self.assertEqual(parse("ERR   fine-id  [1 > 2]"), [])
 
