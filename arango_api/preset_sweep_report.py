@@ -31,6 +31,9 @@ def parse(sweep_output):
         if not match:
             continue
         trail = match["trail"]
+        # Only a preset that failed or returned nothing prints no counts ([]).
+        if trail == "" and match["status"] not in ("ERR", "EMPTY"):
+            continue
         counts = [int(n) for n in trail.split(" -> ")] if trail else []
         rows.append((match["status"], match["preset"], counts[-1] if counts else None))
     return rows

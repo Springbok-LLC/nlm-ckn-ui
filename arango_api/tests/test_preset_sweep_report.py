@@ -42,6 +42,9 @@ class ParseTests(TestCase):
             [("ERR", "broken-one", None), ("EMPTY", "quiet-one", None)],
         )
 
+    def test_ignores_a_passing_row_with_no_counts(self):
+        self.assertEqual(parse("ok    fine-id  []\nDROP  other  []"), [])
+
     def test_ignores_a_row_whose_counts_are_malformed(self):
         self.assertEqual(parse("ERR   fine-id  [1 > 2]"), [])
 
