@@ -42,6 +42,10 @@ class ParseTests(TestCase):
             [("ERR", "broken-one", None), ("EMPTY", "quiet-one", None)],
         )
 
+    def test_ignores_a_row_without_the_trail_its_status_carries(self):
+        rows = "ok    a\nDROP  b\nNULL  c\nEXC   d  [1]\nSKIP  e  []\nEXC   f"
+        self.assertEqual(parse(rows), [("EXC", "f", None)])
+
     def test_ignores_a_passing_row_with_no_counts(self):
         self.assertEqual(parse("ok    fine-id  []\nDROP  other  []"), [])
 

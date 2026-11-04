@@ -19,6 +19,10 @@ LINE = re.compile(
     r"^(?P<status>ok|DROP|EMPTY|ERR|NULL|EXC|SKIP)\s+(?P<preset>[A-Za-z0-9_.-]+)"
     r"(?:\s+\[(?P<trail>(?:\d+(?: -> \d+)*)?)\])?(?:\s+baseline \d+)?\s*$"
 )
+# The count trail each status carries in sweep_presets output: none for EXC
+# and SKIP, possibly empty ([]) for ERR and EMPTY, at least one count otherwise.
+NO_TRAIL, MAYBE_EMPTY = {"EXC", "SKIP"}, {"ERR", "EMPTY"}
+
 # Worst first, so the row that needs attention is never below the fold.
 ORDER = {"EXC": 0, "ERR": 0, "NULL": 0, "EMPTY": 1, "DROP": 2, "SKIP": 3, "ok": 4}
 
@@ -30,9 +34,11 @@ def parse(sweep_output):
         match = LINE.match(line)
         if not match:
             continue
-        trail = match["trail"]
-        # Only a preset that failed or returned nothing prints no counts ([]).
-        if trail == "" and match["status"] not in ("ERR", "EMPTY"):
+        status, trail = match["status"], match["trail"]
+        if status in NO_TRAIL:
+            if trail is not None:
+                continue
+        elif trail is None or (trail == "" and status not in MAYBE_EMPTY):
             continue
         counts = [int(n) for n in trail.split(" -> ")] if trail else []
         rows.append((match["status"], match["preset"], counts[-1] if counts else None))
