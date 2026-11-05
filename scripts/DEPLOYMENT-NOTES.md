@@ -45,6 +45,8 @@ environment means adding a file. See [`env-config.sh`](./env-config.sh) for the
 loader and [`envs/int.conf`](./envs/int.conf) for the full key list.
 
 - **Values** are fixed names or `ssm:<parameter>`, read in the target account.
+  The exceptions are `CKN_ACCOUNT_ID`, `CKN_ROLE_NAME` and `CKN_REGION`, which
+  must be literal because they are needed before the role is assumed.
   Any key already set in your shell wins over the file
   (`CKN_ARANGO_INSTANCE_ID=i-... ./scripts/app/deploy-dataset.sh int`). Each
   script resolves only the keys it uses.
@@ -64,7 +66,7 @@ Grants the target account needs (set up in IaC, not by these scripts):
 
 | Who | Needs |
 |---|---|
-| `nlm_aws_devops` (target account) | read on both springbok buckets (bucket policy there + IAM here); write on the frontend bucket; `ssm:SendCommand`/`GetCommandInvocation` on the ArangoDB instance; read/write on the dataset-version parameter; CloudFront invalidation if configured |
+| `nlm_aws_devops` (target account) | read on both springbok buckets (bucket policy there + IAM here); write on the frontend bucket; `ssm:SendCommand`/`GetCommandInvocation` on the ArangoDB instance; `ssm:GetParameter` on every parameter the env file references with `ssm:` (e.g. the ArangoDB instance id); `ssm:GetParameter`/`PutParameter` on the dataset-version parameter; CloudFront invalidation if configured |
 | ArangoDB instance role (target account) | read on the springbok dataset bucket (it downloads the dump itself); its own root secret, and the read-only user's parameter and secret if configured |
 
 ## Workflow map

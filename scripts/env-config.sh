@@ -14,7 +14,9 @@
 #
 # VALUES
 #   Each key is either a fixed name or "ssm:<parameter name>". ssm: values are
-#   read in the TARGET account, after the role below has been assumed. A key
+#   read in the TARGET account, after the role below has been assumed — so the
+#   bootstrap keys CKN_ACCOUNT_ID, CKN_ROLE_NAME and CKN_REGION must be literal:
+#   they are needed to pick the role and region before any SSM read. A key
 #   already set in the caller's environment wins over the file, so a one-off
 #   run can be re-pointed without editing it:
 #     CKN_ARANGO_INSTANCE_ID=i-0abc... ./scripts/app/deploy-dataset.sh int
@@ -51,6 +53,7 @@ CKN_CONFIG_KEYS=(
   CKN_ARANGO_BUCKET CKN_STATIC_ASSETS_BUCKET
 )
 
+# True when <env> names a config-file environment (scripts/envs/<env>.conf).
 ckn_has_env_config() {
   [[ "$1" =~ ^[a-z0-9-]+$ ]] && [ -f "$CKN_ENV_CONFIG_DIR/$1.conf" ]
 }
@@ -66,6 +69,9 @@ ckn_env_config_names() {
   printf '%s' "${names[*]}"
 }
 
+# Read scripts/envs/<env>.conf (caller-set keys win), set AWS_REGION, and
+# assume the target account's role. ssm: values stay unresolved until a script
+# names them in ckn_require / ckn_resolve.
 ckn_load_env_config() {
   local env="$1" key value
   local -a overrides=()
@@ -81,6 +87,13 @@ ckn_load_env_config() {
 
   for value in ${overrides[@]+"${overrides[@]}"}; do
     printf -v "${value%%=*}" '%s' "${value#*=}"
+  done
+
+  # A file may omit optional keys; define them as empty so callers running
+  # under `set -u` can read them. Required keys are checked by ckn_require and
+  # the :? guards below, which treat empty the same as unset.
+  for key in "${CKN_CONFIG_KEYS[@]}"; do
+    printf -v "$key" '%s' "${!key:-}"
   done
 
   : "${CKN_ACCOUNT_ID:?CKN_ACCOUNT_ID is not set in scripts/envs/$env.conf}"
@@ -127,6 +140,8 @@ ckn_require() {
 # The caller's own credentials are saved so the role can be re-assumed from
 # them (re-assuming from the role's own session would be a second chain hop).
 
+# Assume the target role from the caller's saved credentials and export the
+# session into AWS_*; records its expiry in _CKN_ROLE_EXPIRES.
 _ckn_assume_once() {
   local out
   out=$(
@@ -151,6 +166,8 @@ print(c["AccessKeyId"], c["SecretAccessKey"], c["SessionToken"], int(exp.timesta
   export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 }
 
+# Switch to the target account's role, unless the caller is already in that
+# account. Saves the caller's credentials so ckn_refresh_role can re-assume.
 ckn_assume_role() {
   CKN_ENV_NAME="$1"
   _CKN_ROLE_ASSUMED=0
