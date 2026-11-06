@@ -87,7 +87,7 @@ jobs:
   check-fork-permissions:
     needs: detect-changes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target' && needs.detect-changes.outputs.backend == 'true'
+    if: github.event_name == 'pull_request_target' && (needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.presets == 'true')
     steps:
       - name: Get User Permission
         id: checkAccess
@@ -637,6 +637,7 @@ jobs:
         run: |
           mkdir dump && tar -xzf dump.tar.gz -C dump
           onto=$(find dump -maxdepth 3 -type d -name Cell-KN-Ontologies -print -quit)
+          [[ -n "$onto" ]] || { echo "No Cell-KN-Ontologies directory in the dump"; exit 1; }
           scripts/lib/restore-dump.sh "${onto%/Cell-KN-Ontologies}" 8530 \
             "s3://golden/runs/$VERSION/06-golden-dump.tar.gz"
 
@@ -702,6 +703,9 @@ jobs:
         run: |
           pin=$(tr -d '[:space:]' < ETL_VERSION)
           python3 arango_api/preset_sweep_report.py sweep.txt baselines.json "$VERSION" "$pin" > comment.md
+          if ! grep -Eq '^(All [0-9]+ presets returned data|[0-9]+ of [0-9]+ presets need attention)$' sweep.txt; then
+            printf '\n⚠️ The sweep did not finish, so this list may be incomplete. See the workflow run log.\n' >> comment.md
+          fi
           if [[ -z "$PR" ]]; then
             cat comment.md >> "$GITHUB_STEP_SUMMARY"
             exit 0
