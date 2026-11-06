@@ -654,8 +654,13 @@ jobs:
           # Full-collection presets run one long query each.
           ARANGO_REQUEST_TIMEOUT: '600'
         # A failing preset is the result being reported, not a job failure.
+        # Presets the baseline records as skipped (known data gaps) are
+        # skipped again, so they read as SKIP rather than as new failures.
         run: |
-          python manage.py sweep_presets > sweep.txt 2>&1 || true
+          skips=()
+          while IFS= read -r arg; do skips+=("$arg"); done < <(
+            jq -r '._provenance.skipped // [] | .[] | "--skip=" + .' arango_api/preset_baselines.json)
+          python manage.py sweep_presets "${skips[@]}" > sweep.txt 2>&1 || true
           cp arango_api/preset_baselines.json baselines.json
 
       - uses: actions/upload-artifact@v4
