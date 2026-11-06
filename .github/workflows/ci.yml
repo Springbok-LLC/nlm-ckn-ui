@@ -670,7 +670,7 @@ jobs:
 
   preset-sweep-comment:
     needs: [preset-dump, preset-sweep]
-    if: ${{ !cancelled() && needs.preset-dump.result == 'success' }}
+    if: ${{ !cancelled() && (needs.preset-dump.result == 'success' || needs.preset-dump.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -696,7 +696,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          VERSION: ${{ needs.preset-dump.outputs.etl_version }}
+          VERSION: ${{ needs.preset-dump.outputs.etl_version || 'unknown' }}
         run: |
           pin=$(tr -d '[:space:]' < ETL_VERSION)
           touch sweep.txt; [[ -s baselines.json ]] || echo '{}' > baselines.json
