@@ -213,8 +213,9 @@ jobs:
           PATCH: ${{ runner.temp }}/autofix/autofix.patch
         run: |
           git apply --index "$PATCH"
-          # Reject anything outside react/; --no-renames lists both sides of a rename.
-          if git status --porcelain --no-renames | grep -v '^.. react/'; then
+          # Reject anything outside react/; --no-renames lists both sides of a
+          # rename. A pathspec, not grep, so a quoted path (spaces) still counts.
+          if [[ -n "$(git diff --cached --name-only --no-renames -- . ':(exclude)react/')" ]]; then
             echo "Patch touches files outside react/"
             exit 1
           fi
