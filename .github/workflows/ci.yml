@@ -60,8 +60,7 @@ jobs:
               - 'ETL_VERSION'
               # The backend reads its search tiers from the collection maps.
               - 'react/src/assets/nlm-ckn-collection-maps.json'
-            # What the preset sweep's result depends on: the dataset pin, the
-            # presets and their baselines, and the sweep and restore code.
+            # The dataset pin, presets, baselines, and the sweep and restore code.
             presets:
               - 'ETL_VERSION'
               - 'arango_api/workflow_presets.py'
@@ -435,7 +434,7 @@ jobs:
           # A failed detect-changes leaves every filter output unset, which
           # skips the test jobs and would otherwise read as a pass.
           if [[ "${{ needs.detect-changes.result }}" == "failure" ]] || \
-             [[ "${{ needs.check-fork-permissions.result }}" == "failure" ]] || \
+             [[ "${{ needs.check-fork-permissions.result }}" == "failure" && "${{ needs.detect-changes.outputs.backend }}" == "true" ]] || \
              [[ "${{ needs.frontend-lint.result }}" == "failure" ]] || \
              [[ "${{ needs.frontend-unit-tests.result }}" == "failure" ]] || \
              [[ "${{ needs.frontend-e2e.result }}" == "failure" ]] || \
@@ -536,11 +535,9 @@ jobs:
   # Preset sweep - run every workflow preset against the dump a PR's
   # ETL_VERSION names and post one comment with the counts against
   # preset_baselines.json (#167). Never blocks: ci-passed does not need it.
-  #
-  # Three jobs so PR code never holds a credential: preset-dump has the AWS
-  # role but runs no PR code; preset-sweep runs the PR's code with neither AWS
-  # nor a write token; preset-sweep-comment has the write token and runs only
-  # main's renderer on the sweep's output.
+  # Three jobs keep credentials from PR code: preset-dump (AWS role, no PR
+  # code), preset-sweep (PR code, no credentials) and preset-sweep-comment
+  # (write token, the base branch's renderer only).
   # ============================================================================
 
   preset-dump:
@@ -654,9 +651,8 @@ jobs:
           GRAPH_NAME_PHENOTYPES: KN-Phenotypes-v2.0
           # Full-collection presets run one long query each.
           ARANGO_REQUEST_TIMEOUT: '600'
-        # A failing preset is the result being reported, not a job failure.
-        # Presets the baseline records as skipped (known data gaps) are
-        # skipped again, so they read as SKIP rather than as new failures.
+        # A failing preset is the report, not a job failure. The baseline's
+        # recorded known-gap skips are passed again, so they read as SKIP.
         run: |
           skips=()
           while IFS= read -r arg; do skips+=("$arg"); done < <(
@@ -674,7 +670,7 @@ jobs:
 
   preset-sweep-comment:
     needs: [preset-dump, preset-sweep]
-    if: always() && needs.preset-sweep.result == 'success'
+    if: ${{ !cancelled() && needs.preset-dump.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -691,6 +687,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: preset-sweep
 
@@ -702,8 +699,9 @@ jobs:
           VERSION: ${{ needs.preset-dump.outputs.etl_version }}
         run: |
           pin=$(tr -d '[:space:]' < ETL_VERSION)
+          touch sweep.txt; [[ -s baselines.json ]] || echo '{}' > baselines.json
           python3 arango_api/preset_sweep_report.py sweep.txt baselines.json "$VERSION" "$pin" > comment.md
-          if ! grep -Eq '^(All [0-9]+ presets returned data|[0-9]+ of [0-9]+ presets need attention)$' sweep.txt; then
+          if [[ -s sweep.txt ]] && ! grep -Eq '^(All [0-9]+ presets returned data|[0-9]+ of [0-9]+ presets need attention)$' sweep.txt; then
             printf '\n⚠️ The sweep did not finish, so this list may be incomplete. See the workflow run log.\n' >> comment.md
           fi
           if [[ -z "$PR" ]]; then
