@@ -60,8 +60,8 @@ jobs:
               - 'ETL_VERSION'
               # The backend reads its search tiers from the collection maps.
               - 'react/src/assets/nlm-ckn-collection-maps.json'
-            # The dataset pin, presets, baselines, and the sweep and restore code.
             presets:
+              - '.github/workflows/ci.yml'
               - 'ETL_VERSION'
               - 'arango_api/workflow_presets.py'
               - 'arango_api/preset_baselines.json'
