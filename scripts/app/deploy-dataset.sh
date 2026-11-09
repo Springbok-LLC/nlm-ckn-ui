@@ -262,10 +262,13 @@ echo "Last restored  : $LAST_RESTORED"
 # dataset is already current, so a plain re-run repairs an environment whose
 # user was lost to an earlier restore.
 #
-# get-parameters (plural) so a genuinely absent parameter comes back in
-# InvalidParameters rather than as a CLI error. An environment with no
-# read-only user is a valid configuration; a denied or throttled lookup is not,
-# and must not be mistaken for one.
+# An empty RO_USER_PARAM is the only way to say an environment has no
+# read-only user. A named parameter that is missing (reported in
+# InvalidParameters), denied, or throttled is an error: swapping without the
+# user would take the backend down.
+#
+# Callers invoke this in an `if !` context, where set -e does not apply, so
+# every step checks its own result.
 ensure_ro_user() {
   local container="$1"
   local ro_lookup ro_user ro_missing ro_password
@@ -278,19 +281,29 @@ ensure_ro_user() {
   ro_lookup=$(aws ssm get-parameters \
     --names "$RO_USER_PARAM" \
     --query '[Parameters[0].Value, InvalidParameters[0]]' \
-    --output text --region "$REGION")
+    --output text --region "$REGION") || {
+    echo "ERROR: could not look up SSM parameter $RO_USER_PARAM"
+    return 1
+  }
   ro_user=$(printf '%s' "$ro_lookup" | cut -f1)
   ro_missing=$(printf '%s' "$ro_lookup" | cut -f2)
 
-  if [ "$ro_user" = "None" ] && [ "$ro_missing" != "None" ]; then
-    echo "==> No read-only user configured for $ENVIRONMENT — backend connects as root"
-    return 0
+  if [ -n "$ro_missing" ] && [ "$ro_missing" != "None" ]; then
+    echo "ERROR: read-only user parameter $RO_USER_PARAM does not exist"
+    return 1
+  fi
+  if [ -z "$ro_user" ] || [ "$ro_user" = "None" ]; then
+    echo "ERROR: read-only user parameter $RO_USER_PARAM returned no value"
+    return 1
   fi
 
   echo "==> Ensuring read-only backend user '$ro_user' in $container"
   ro_password=$(aws secretsmanager get-secret-value \
     --secret-id "$RO_PASSWORD_SECRET" \
-    --query 'SecretString' --output text --region "$REGION")
+    --query 'SecretString' --output text --region "$REGION") || {
+    echo "ERROR: could not read secret $RO_PASSWORD_SECRET"
+    return 1
+  }
 
   # Values reach arangosh through the environment, never through the JS source:
   # a quote in a rotated password would otherwise break the script, and a
@@ -760,6 +773,26 @@ if err:
 PYEOF
 }
 
+# Printed whenever this script stops before it knows the restore's outcome, so
+# the operator can reconcile the instance and the published version by hand.
+print_reconcile_instructions() {
+  echo ""
+  echo "The restore may still be running on the instance, and the dataset-version"
+  echo "parameter has NOT been advanced to the target. To reconcile (using"
+  echo "credentials for the environment's account):"
+  echo ""
+  echo "  1. Check the restore status:"
+  echo "     aws ssm get-command-invocation --command-id $COMMAND_ID --instance-id $INSTANCE_ID --region $AWS_REGION --query Status --output text"
+  echo "     Wait while it is Pending/InProgress/Delayed. Do NOT re-run this script"
+  echo "     then: that would start a second restore on the same instance."
+  echo "  2. If it is Success, publish the version:"
+  echo "     aws ssm put-parameter --name $SSM_PARAMETER --value $DATASET_S3_KEY --overwrite --region $AWS_REGION"
+  echo "     (or re-run this script: it sees the version is already restored, skips"
+  echo "     the restore, repairs the read-only user, and publishes the version)."
+  echo "  3. If it failed, leave the parameter alone: blue is still serving the"
+  echo "     previous version. Inspect the output with get-command-invocation."
+}
+
 # Poll until the SSM command reaches a terminal state or we exceed SSM_TIMEOUT_SECONDS.
 POLL_INTERVAL=30
 ELAPSED=0
@@ -769,7 +802,18 @@ echo ""
 while [ "$ELAPSED" -lt "$SSM_TIMEOUT_SECONDS" ]; do
   # A config-file environment runs under an assumed role whose session is
   # capped at an hour; the restore can take 90 minutes. No-op otherwise.
-  ckn_refresh_role
+  # Refreshes start 10 minutes before expiry and a failed attempt keeps the
+  # current session, so a failure is retried on the next poll. Give up only
+  # once the session has expired and the restore can no longer be watched.
+  if ! ckn_refresh_role; then
+    if [ "$(date +%s)" -ge "${_CKN_ROLE_EXPIRES:-0}" ]; then
+      echo ""
+      echo -e "${RED}==> Role session expired and could not be refreshed — can no longer monitor the restore${NC}"
+      print_reconcile_instructions
+      exit 1
+    fi
+    echo -e "${YELLOW}  Warning: role refresh failed; retrying on the next poll (session valid until $(date -r "$_CKN_ROLE_EXPIRES" 2>/dev/null || date -d "@$_CKN_ROLE_EXPIRES"))${NC}"
+  fi
   STATUS=$(aws ssm get-command-invocation \
     --command-id "$COMMAND_ID" \
     --instance-id "$INSTANCE_ID" \
@@ -835,6 +879,5 @@ done
 
 echo ""
 echo -e "${RED}==> Timed out after ${SSM_TIMEOUT_SECONDS}s — SSM command may still be running${NC}"
-echo "Check manually:"
-echo "  aws ssm get-command-invocation --command-id $COMMAND_ID --instance-id $INSTANCE_ID --region $AWS_REGION"
+print_reconcile_instructions
 exit 1
