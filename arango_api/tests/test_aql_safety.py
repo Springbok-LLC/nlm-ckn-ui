@@ -43,6 +43,7 @@ class EscapeLikeTestCase(SimpleTestCase):
     """escape_like makes LIKE match a typed term literally."""
 
     def test_wildcards_and_backslash_are_escaped_once(self):
+        """%, _ and a backslash each get one escape; other text is unchanged."""
         for term, escaped in (
             ("50%", "50\\%"),
             ("a_b", "a\\_b"),

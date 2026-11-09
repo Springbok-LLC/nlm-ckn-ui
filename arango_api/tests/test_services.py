@@ -1388,6 +1388,7 @@ class SearchByTermRankingTestCase(TestCase):
         self.assertEqual(bind_vars["search_term"], "T cell")
 
     def test_clauses_follow_the_term_length(self):
+        """Prefix matching starts at 3 characters, fuzzy and substring at 4."""
         fields = ["label", "hasDbXref"]
         for term, prefix, fuzzy in (
             ("a", False, False),
@@ -1424,6 +1425,7 @@ class SearchByTermRankingTestCase(TestCase):
         self.assertNotIn("doc.`year`", search)
 
     def test_normalized_clauses_do_not_use_lower(self):
+        """norm-lower and wildcard-lower clauses use the analyzer-normalized term."""
         search, _ = self._search(["label", "hasDbXref"], "café")
         clauses = re.findall(
             r'ANALYZER\(((?:(?!ANALYZER\().)*?), "(?:norm|wildcard)-lower"\)', search
@@ -1434,6 +1436,7 @@ class SearchByTermRankingTestCase(TestCase):
             self.assertNotIn("LOWER(", clause)
 
     def test_no_boost_is_zero(self):
+        """Every *_BOOST constant is positive."""
         # ArangoDB scores a zero boost as if unboosted (arangodb#23375).
         for name in dir(search_service):
             if name.endswith("_BOOST"):
@@ -1543,6 +1546,7 @@ class SearchByTermMatchTestCase(TestCase):
         )
 
     def test_rows_carry_match_and_drop_search_match(self):
+        """Each row gets `_match`; the internal `_search_match` is removed."""
         db_connection = mock.Mock()
         db_connection.aql.execute.return_value = iter(
             [

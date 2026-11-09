@@ -165,6 +165,7 @@ def _fields_by_tier(fields):
 
 
 def _any(fields, template):
+    """One clause per field from `template` ({f} is the field), joined by OR."""
     return " OR ".join(template.format(f=f) for f in fields)
 
 
