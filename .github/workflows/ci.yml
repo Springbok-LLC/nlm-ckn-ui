@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request_target:
-    branches: [main]
+    branches: [main, ci-probe-base]
   push:
     branches: [main]
   workflow_dispatch:
