@@ -17,8 +17,15 @@
 # USAGE:
 #   AWS_PROFILE=springbok ./scripts/ops/preview-login.sh <pr> [--env dev] [--hours 12] [--print]
 #     --print: print the link instead of opening it
+#
+# REQUIRES: aws CLI, perl with Digest::SHA (core Perl; on Debian/Ubuntu it is
+# in the `perl` package, not the minimal `perl-base`)
 # ==============================================================================
 set -euo pipefail
+
+perl -MDigest::SHA -e1 2>/dev/null || {
+  echo "Error: perl with Digest::SHA is required (Debian/Ubuntu: apt install perl)" >&2
+  exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../common.sh"

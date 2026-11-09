@@ -1,14 +1,15 @@
 name: PR Preview Deploy
 
-# Reusable deploy half of the PR preview (see preview.yml for the overall
-# split). Runs as the preview CI role in the `preview` environment, which the
-# role's OIDC trust requires.
+# Deploy half of the PR preview (see preview.yml for the overall split). Runs
+# when a "PR Preview" build run completes, and, as a workflow_run workflow,
+# always from main's copy of this file: a PR cannot change what runs here.
+# Runs as the preview CI role in the `preview` environment (restricted to main),
+# which the role's OIDC trust requires.
 #
-# Treats the build artifacts as untrusted data: it loads and pushes the image
-# and syncs the frontend files, but checks out no code and executes nothing from
-# them. The PR number and head SHA come from the caller (the pull_request event
-# now; in step 2 the workflow_run caller must look them up from the GitHub API,
-# never from an artifact).
+# Treats the build run as untrusted: it loads and pushes the image and syncs
+# the frontend files from its artifacts, but checks out no code and executes
+# nothing from them. The head SHA is the build run's own (GitHub metadata) and
+# the PR number is looked up from the GitHub API, never read from an artifact.
 #
 # The CI role (nlm-ckn-dev-preview-ci) may only create change sets from the
 # published preview-pr.yaml under the preview service role, and may push only
@@ -20,51 +21,99 @@ name: PR Preview Deploy
 #   PREVIEW_SERVICE_ROLE_ARN  PreviewServiceRoleArn
 #   PREVIEW_BUCKET            PreviewBucketName
 #   PREVIEW_DISTRIBUTION_ID   PreviewDistributionId
-#
-# No concurrency group here: the caller holds preview-pr-<n>, and the same group
-# in a called workflow would deadlock against it.
 
 on:
-  workflow_call:
-    inputs:
-      pr-number:
-        type: string
-        required: true
-      head-sha:
-        type: string
-        required: true
-      build-run-id:
-        description: Run that uploaded the preview-backend-image and preview-frontend artifacts
-        type: string
-        required: true
+  workflow_run:
+    # Must match preview.yml's `name`.
+    workflows: [PR Preview]
+    types: [completed]
 
 permissions: {}
 
 env:
   AWS_REGION: us-east-1
-  PR_NUMBER: ${{ inputs.pr-number }}
-  HEAD_SHA: ${{ inputs.head-sha }}
-  BUILD_RUN_ID: ${{ inputs.build-run-id }}
-  STACK_NAME: nlm-ckn-preview-pr-${{ inputs.pr-number }}
   SSM_TEMPLATE_URL: /nlm-ckn/dev/preview/pr-template-url
   ECR_REPOSITORY: nlm-ckn-dev-preview-backend
   COMMENT_MARKER: '<!-- nlm-ckn-preview -->'
 
 jobs:
+  # Finds the PR the build was for. No environment and no AWS access, so runs
+  # with nothing to deploy (a skipped build, a fork, a PR no longer labelled)
+  # end here without taking the per-PR concurrency group.
+  resolve:
+    name: Resolve PR
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      actions: read
+    outputs:
+      deploy: ${{ steps.find.outputs.deploy }}
+      pr-number: ${{ steps.find.outputs.pr-number }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - id: find
+        run: |
+          set -euo pipefail
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::bad head-sha"; exit 1; }
+          # An open same-repo PR at exactly this head, still labelled.
+          prs=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" --jq \
+            "[.[] | select(.state == \"open\" and .head.sha == \"${HEAD_SHA}\"
+              and .head.repo.full_name == \"${GITHUB_REPOSITORY}\"
+              and ([.labels[].name] | index(\"preview\") != null)) | .number]")
+          echo "Labelled open PRs at ${HEAD_SHA::7}: ${prs}"
+          if [ "$(jq length <<<"$prs")" != 1 ]; then
+            echo "::notice::No single labelled open PR at ${HEAD_SHA::7}; nothing to deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The build job is skipped (and uploads nothing) when its state check
+          # found the PR stale, yet the run still succeeds.
+          has=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BUILD_RUN_ID}/artifacts" --jq \
+            '[.artifacts[] | select(.expired | not) | .name] | (index("preview-backend-image") != null and index("preview-frontend") != null)')
+          if [ "$has" != true ]; then
+            echo "::notice::Build run ${BUILD_RUN_ID} uploaded no preview artifacts; nothing to deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
+          echo "pr-number=$(jq '.[0]' <<<"$prs")" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy preview
+    needs: resolve
+    if: needs.resolve.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment: preview
+    # Shared with preview-teardown.yml: one preview operation per PR at a time,
+    # never cancelled mid-flight (a cancelled stack update leaves a half-done
+    # stack). A newer pending run replaces an older pending one; the recheck
+    # below and the expiry reconciliation make either order safe.
+    concurrency:
+      group: preview-pr-${{ needs.resolve.outputs.pr-number }}
+      cancel-in-progress: false
     permissions:
       id-token: write
       contents: read
       pull-requests: write
+      issues: read
       actions: read
     env:
       GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ needs.resolve.outputs.pr-number }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
+      STACK_NAME: nlm-ckn-preview-pr-${{ needs.resolve.outputs.pr-number }}
 
     steps:
       # Everything below interpolates these into resource names and commands.
+      # PR_NUMBER came from the API, but check it like the rest anyway.
       - name: Validate inputs
         run: |
           set -euo pipefail
@@ -72,30 +121,50 @@ jobs:
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::bad head-sha"; exit 1; }
           [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::bad build-run-id"; exit 1; }
 
-      # Same run (step 1): plain download. Another run (step 2's workflow_run
-      # caller): cross-run download, which needs the token and actions: read.
+      # Checked again once this job holds the concurrency group (it may have
+      # queued behind another run) and on every re-run of it: the label may
+      # have been removed, the PR closed (and torn down) or a newer commit
+      # pushed since resolve. Skip rather than fail, so nothing is redeployed
+      # and no failure comment is posted.
+      - name: Recheck PR state
+        id: pr
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq \
+            "(.state == \"open\" and .head.sha == \"${HEAD_SHA}\" and ([.labels[].name] | index(\"preview\") != null))")
+          echo "Current: ${current}"
+          if [ "$current" != true ]; then
+            echo "::notice::PR #${PR_NUMBER} is closed, unlabelled or past ${HEAD_SHA::7}; skipping deploy."
+          fi
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+
+      # Cross-run download from the build run: needs the token and actions: read.
       - name: Download build artifacts
+        if: steps.pr.outputs.current == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: preview-*
           path: artifacts
-          run-id: ${{ inputs.build-run-id != format('{0}', github.run_id) && inputs.build-run-id || '' }}
-          github-token: ${{ inputs.build-run-id != format('{0}', github.run_id) && github.token || '' }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
 
       - name: Configure AWS credentials via OIDC
+        if: steps.pr.outputs.current == 'true'
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: ${{ vars.PREVIEW_CI_ROLE_ARN }}
-          role-session-name: preview-pr-${{ inputs.pr-number }}
+          role-session-name: preview-pr-${{ needs.resolve.outputs.pr-number }}
           aws-region: us-east-1
 
       - name: Log in to Amazon ECR
+        if: steps.pr.outputs.current == 'true'
         id: ecr
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
 
       # Tags are immutable, so a tag already pushed (re-run, or a re-label with
       # no new commits) is reused rather than pushed again.
       - name: Push backend image
+        if: steps.pr.outputs.current == 'true'
         id: image
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
@@ -117,7 +186,13 @@ jobs:
       # live one (its existing ExpiresAt is passed back so pushes do not extend
       # it). A stack left in ROLLBACK_COMPLETE etc. cannot be updated and is
       # deleted first.
+      #
+      # Except: a preview label added (or the PR reopened) since the live
+      # stack's 3-day window began promises a fresh 3 days. That happens when
+      # the re-label's deploy replaced a teardown still queued behind a
+      # running deploy, so the stack was never deleted.
       - name: Inspect preview stack
+        if: steps.pr.outputs.current == 'true'
         id: stack
         run: |
           set -euo pipefail
@@ -152,6 +227,17 @@ jobs:
               expires=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
                 --query "Stacks[0].Parameters[?ParameterKey=='ExpiresAt'].ParameterValue | [0]" --output text)
             fi
+            # An unreadable expiry counts as a window starting at the epoch,
+            # so any label event refreshes it.
+            window_start=$(( $(date -u -d "$expires" +%s 2>/dev/null || echo 0) - 3 * 86400 ))
+            last_wanted=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/events" --jq \
+              '.[] | select((.event == "labeled" and .label.name == "preview") or .event == "reopened") | .created_at' \
+              | sort | tail -n1)
+            echo "Window start: $(date -u -d "@${window_start}" +%Y-%m-%dT%H:%M:%SZ); last label/reopen: ${last_wanted:-none}"
+            if [ -n "$last_wanted" ] && [ "$(date -u -d "$last_wanted" +%s)" -gt "$window_start" ]; then
+              echo "Re-labelled since this preview's window began; starting a fresh 3 days."
+              expires=$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)
+            fi
           fi
           echo "Change set type: ${type}; ExpiresAt: ${expires}"
           echo "type=${type}" >> "$GITHUB_OUTPUT"
@@ -161,6 +247,7 @@ jobs:
       # and the CI role may only create change sets whose TemplateURL is the
       # published preview-pr.yaml.
       - name: Deploy backend stack
+        if: steps.pr.outputs.current == 'true'
         env:
           SERVICE_ROLE_ARN: ${{ vars.PREVIEW_SERVICE_ROLE_ARN }}
           CHANGE_SET_TYPE: ${{ steps.stack.outputs.type }}
@@ -222,6 +309,7 @@ jobs:
           fi
 
       - name: Read preview URL
+        if: steps.pr.outputs.current == 'true'
         id: url
         run: |
           set -euo pipefail
@@ -232,6 +320,7 @@ jobs:
 
 
       - name: Upload frontend and invalidate
+        if: steps.pr.outputs.current == 'true'
         env:
           PREVIEW_BUCKET: ${{ vars.PREVIEW_BUCKET }}
           PREVIEW_DISTRIBUTION_ID: ${{ vars.PREVIEW_DISTRIBUTION_ID }}
@@ -244,6 +333,7 @@ jobs:
             --paths "/pr-${PR_NUMBER}/*" --query 'Invalidation.Id' --output text
 
       - name: Comment preview URL
+        if: steps.pr.outputs.current == 'true'
         env:
           PREVIEW_URL: ${{ steps.url.outputs.url }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}

@@ -9,36 +9,33 @@ name: PR Preview
 # creation), so there is no sweep job.
 #
 # Split so PR code never runs next to AWS credentials:
-#   build   — this workflow, no AWS access: builds the backend image and the
-#             frontend from the PR head and uploads them as artifacts.
-#   deploy  — preview-deploy.yml (reusable), in the `preview` environment:
+#   build   — this workflow (pull_request, the PR's own YAML), no AWS access:
+#             builds the backend image and the frontend from the PR head and
+#             uploads them as artifacts.
+#   deploy  — preview-deploy.yml, a workflow_run workflow, so it always runs
+#             main's YAML, in the `preview` environment (restricted to main):
 #             downloads those artifacts and pushes/deploys them. It checks out
 #             nothing and runs nothing from the artifacts.
+#   teardown — preview-teardown.yml (pull_request_target, main's YAML).
 #
-# STEP 1 (now): deploy is called from this pull_request workflow, so the deploy
-# YAML is still the PR's own copy and the `preview` environment still needs
-# required reviewers to be a real gate.
-# STEP 2: move the deploy call into a workflow_run workflow (runs main's YAML),
-# switch preview-teardown.yml to pull_request_target, restrict the `preview`
-# environment to the main branch and drop its required reviewers.
+# preview-deploy.yml triggers on this workflow's `name`; keep them in sync.
 
 on:
   pull_request:
     types: [labeled, synchronize, reopened]
 
-# Shared with preview-teardown.yml: one preview operation per PR at a time,
-# never cancelled mid-flight (a cancelled stack update leaves a half-done stack).
-# A newer pending run replaces an older pending one, so runs that will skip get
-# their own group (the condition mirrors the `state` job's `if`) and cannot
-# displace a pending deploy or teardown.
+# Builds touch no AWS state, so a newer build for the PR cancels an older one
+# (its cancelled run then deploys nothing). Runs that will skip (the condition
+# mirrors the `state` job's `if`) get their own group so they cannot cancel a
+# real build. Deploys and teardowns serialize on preview-pr-<n> instead.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
     contains(github.event.pull_request.labels.*.name, 'preview') &&
     (github.event.action != 'labeled' || github.event.label.name == 'preview'))
-    && format('preview-pr-{0}', github.event.pull_request.number)
+    && format('preview-build-pr-{0}', github.event.pull_request.number)
     || format('preview-noop-{0}', github.run_id) }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions: {}
 
@@ -56,8 +53,8 @@ jobs:
     outputs:
       current: ${{ steps.check.outputs.current }}
     steps:
-      # The run may have queued behind another; deploy only if the PR is still
-      # open, labelled and at this run's head (otherwise a newer run follows).
+      # Build only if the PR is still open, labelled and at this run's head
+      # (otherwise a newer run follows). preview-deploy.yml checks again.
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -130,17 +127,3 @@ jobs:
           path: react/build/
           retention-days: 1
           if-no-files-found: error
-
-  deploy:
-    name: Deploy preview
-    needs: build
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-      actions: read
-    uses: ./.github/workflows/preview-deploy.yml
-    with:
-      pr-number: ${{ github.event.pull_request.number }}
-      head-sha: ${{ github.event.pull_request.head.sha }}
-      build-run-id: ${{ github.run_id }}

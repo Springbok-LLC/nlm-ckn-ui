@@ -158,7 +158,8 @@ Signs a sign-in link for `https://pr-<pr>.dev.nlm-ckn.org` with the key in the
 preview KeyValueStore (so it needs AWS access) and opens it; the link sets an
 HttpOnly cookie for that one preview, valid `--hours` (max 168). The link can be
 shared with reviewers who have no AWS access. Rotating the key in `nlm-ckn-iac`
-signs everyone out.
+signs everyone out. Needs Perl's `Digest::SHA` (core Perl; on Debian/Ubuntu the
+full `perl` package, not just `perl-base`).
 
 > **ArangoDB monitoring + wedge detection** (the `…-monitoring` stack, the
 > read-only monitor user, and the correlation dashboard) now lives in

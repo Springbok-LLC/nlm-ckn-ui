@@ -1,16 +1,18 @@
 name: PR Preview Teardown
 
 # Deletes a PR's preview stack and frontend when the PR closes or loses the
-# `preview` label. Checks out no code. STEP 2 switches the trigger to
-# pull_request_target so this runs main's YAML (see preview.yml).
+# `preview` label. pull_request_target, so it runs main's YAML (a PR cannot
+# change it) and still runs when the PR has merge conflicts, which a
+# pull_request workflow does not. Safe because it checks out no code and runs
+# nothing from the PR.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [unlabeled, closed]
 
-# Same group as preview.yml, so a teardown waits for an in-flight deploy. Runs
-# that will skip (the condition mirrors the job's `if`) get their own group so
-# they cannot replace a pending deploy or teardown.
+# Same group as preview-deploy.yml's deploy job, so a teardown waits for an
+# in-flight deploy. Runs that will skip (the condition mirrors the job's `if`)
+# get their own group so they cannot replace a pending deploy or teardown.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
