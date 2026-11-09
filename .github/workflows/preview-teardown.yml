@@ -7,7 +7,7 @@ name: PR Preview Teardown
 # nothing from the PR.
 
 on:
-  pull_request_target:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] checks out and runs no PR code; only deletes the PR's preview
     types: [unlabeled, closed]
 
 # Same group as preview-deploy.yml's deploy job, so a teardown waits for an

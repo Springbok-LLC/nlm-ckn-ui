@@ -23,7 +23,7 @@ name: PR Preview Deploy
 #   PREVIEW_DISTRIBUTION_ID   PreviewDistributionId
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] checks out no code; artifacts are data only, PR found via API
     # Must match preview.yml's `name`.
     workflows: [PR Preview]
     types: [completed]
