@@ -23,6 +23,7 @@ const useSearch = (graphType) => {
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   // Track mount state for async safety
@@ -52,6 +53,7 @@ const useSearch = (graphType) => {
     (value) => {
       setQueryState(value);
       setHighlightedIndex(-1);
+      setError(false);
 
       if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
       cancelInFlight();
@@ -69,10 +71,19 @@ const useSearch = (graphType) => {
         const controller = new AbortController();
         abortRef.current = controller;
         const searchFields = Array.from(getAllSearchableFields());
-        const data = await searchDocuments(value, graphType, searchFields, controller.signal);
-        if (!mountedRef.current || seq !== requestSeqRef.current) return;
+        let data = [];
+        let failed = false;
+        try {
+          data = await searchDocuments(value, graphType, searchFields, controller.signal);
+        } catch {
+          failed = true;
+        }
+        if (!mountedRef.current || seq !== requestSeqRef.current || controller.signal.aborted) {
+          return;
+        }
         abortRef.current = null;
-        setResults(Array.isArray(data) ? data : []);
+        setResults(!failed && Array.isArray(data) ? data : []);
+        setError(failed);
         setIsOpen(true);
         setIsLoading(false);
       }, DEBOUNCE_MS);
@@ -87,6 +98,7 @@ const useSearch = (graphType) => {
     setResults([]);
     setIsOpen(false);
     setIsLoading(false);
+    setError(false);
     setHighlightedIndex(-1);
   }, [cancelInFlight]);
 
@@ -116,6 +128,7 @@ const useSearch = (graphType) => {
     isOpen,
     setIsOpen,
     isLoading,
+    error,
     highlightedIndex,
     setHighlightedIndex,
     containerRef,
