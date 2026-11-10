@@ -1,3 +1,4 @@
+import SearchAnnouncement from "components/SearchAnnouncement";
 import { DEFAULT_GRAPH_TYPE } from "constants/index";
 import { useSearch } from "hooks";
 import { useCallback, useMemo } from "react";
@@ -57,6 +58,7 @@ const NodeSearchInput = ({ onSelectNode, existingNodeIds = [] }) => {
           if (results.length > 0) setIsOpen(true);
         }}
       />
+      <SearchAnnouncement query={query} results={results} isLoading={isLoading} error={error} />
       {isOpen && (
         <div className="node-search-dropdown">
           {isLoading && <div className="node-search-status">Searching...</div>}

@@ -49,25 +49,28 @@ const renderBuilder = (overrides = {}) => {
   );
 };
 
+// The search input's live region is also a status; the banner is the one with text.
+const banner = () => screen.queryAllByRole("status").find((el) => el.textContent) ?? null;
+
 describe("WorkflowBuilder schema-drift banner", () => {
   it("shows a banner naming the missing labels", () => {
     renderBuilder({ unknownLabels: ["MEMBER_OF"], showPresetSelector: false });
-    expect(screen.getByRole("status")).toHaveTextContent("MEMBER_OF");
+    expect(banner()).toHaveTextContent("MEMBER_OF");
   });
 
   it("explains the likely cause", () => {
     renderBuilder({ unknownLabels: ["MEMBER_OF"], showPresetSelector: false });
-    expect(screen.getByRole("status")).toHaveTextContent(/schema change/i);
+    expect(banner()).toHaveTextContent(/schema change/i);
   });
 
   it("shows no banner for a clean workflow", () => {
     renderBuilder({ unknownLabels: [], showPresetSelector: false });
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(banner()).not.toBeInTheDocument();
   });
 
   it("dismisses on request", () => {
     renderBuilder({ unknownLabels: ["MEMBER_OF"], showPresetSelector: false });
     fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(banner()).not.toBeInTheDocument();
   });
 });

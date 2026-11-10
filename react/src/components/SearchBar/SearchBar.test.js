@@ -148,6 +148,23 @@ describe("SearchBar Component", () => {
       jest.advanceTimersByTime(250);
     });
 
-    expect(screen.getByText("Search failed. Try again.")).toBeInTheDocument();
+    expect(screen.getByText("Search failed. Try again.", { ignore: "output" })).toBeInTheDocument();
+  });
+
+  it("keeps a polite live region that announces the settled result count", async () => {
+    searchDocuments.mockResolvedValue([{ _id: "CL/1" }, { _id: "CL/2" }]);
+    renderWithContext(<SearchBar />);
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toBeEmptyDOMElement();
+
+    fireEvent.change(screen.getByPlaceholderText("Search NLM-CKN..."), {
+      target: { value: "test" },
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("2 results");
   });
 });

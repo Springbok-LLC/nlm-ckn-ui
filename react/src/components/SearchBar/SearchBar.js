@@ -1,3 +1,4 @@
+import SearchAnnouncement from "components/SearchAnnouncement";
 import SearchResultsTable from "components/SearchResultsTable";
 import { GraphContext } from "contexts";
 import { useSearch } from "hooks";
@@ -36,6 +37,7 @@ const SearchBarView = ({ placeholder, search }) => {
           />
           <SearchIcon />
         </div>
+        <SearchAnnouncement query={query} results={results} isLoading={isLoading} error={error} />
         <div className={`search-results-dropdown ${shouldDropdownBeVisible ? "show" : ""}`}>
           <SearchResultsTable searchResults={results} isLoading={isLoading} error={error} />
         </div>
