@@ -49,8 +49,10 @@ const renderBuilder = (overrides = {}) => {
   );
 };
 
-// The search input's live region is also a status; the banner is the one with text.
-const banner = () => screen.queryAllByRole("status").find((el) => el.textContent) ?? null;
+// The search input's live region is also a status; pick the banner by its own class.
+const banner = () =>
+  screen.queryAllByRole("status").find((el) => el.classList.contains("workflow-drift-banner")) ??
+  null;
 
 describe("WorkflowBuilder schema-drift banner", () => {
   it("shows a banner naming the missing labels", () => {
