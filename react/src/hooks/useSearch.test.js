@@ -49,6 +49,16 @@ describe("useSearch", () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it("opens the dropdown as soon as a search starts, so the loading state shows", () => {
+    searchDocuments.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useSearch("phenotypes"));
+
+    act(() => result.current.setQuery("lung"));
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isOpen).toBe(true);
+  });
+
   it("aborts the previous request when the term changes", async () => {
     searchDocuments.mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useSearch("phenotypes"));

@@ -65,6 +65,8 @@ const useSearch = (graphType) => {
         return;
       }
 
+      // Open now, not when the response lands, so "Searching..." is visible.
+      setIsOpen(true);
       setIsLoading(true);
       const seq = requestSeqRef.current;
       debounceTimeoutRef.current = setTimeout(async () => {
