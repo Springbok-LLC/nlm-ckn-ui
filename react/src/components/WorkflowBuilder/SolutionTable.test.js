@@ -149,6 +149,14 @@ describe("linked columns", () => {
     expect(screen.getByText("–")).toBeInTheDocument();
   });
 
+  it("expands a row to list its linked nodes", () => {
+    renderLinked([]);
+    expect(screen.queryByText("Linked nodes")).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByTitle(/Expand/)[0]);
+    expect(screen.getByText("Linked nodes")).toBeInTheDocument();
+    expect(screen.getByText(/Molecularly interacts with →/)).toBeInTheDocument();
+  });
+
   it("falls back to the id for a node missing from results and details", () => {
     renderLinked([{ path: [toGene.path[0]] }]);
     expect(screen.getByRole("link", { name: "PR/P1" })).toBeInTheDocument();
@@ -264,9 +272,11 @@ describe("own fields", () => {
   afterEach(() => {
     mockFields = null;
   });
+  // The first column holds each row's expand button.
   const headers = () =>
     screen
       .getAllByRole("columnheader")
+      .slice(1)
       .map((h) => h.textContent.replace(/[\u2195\u25b2\u25bc]/g, ""));
   const defaults = ["Label", "Field late", ...names.slice(0, 5).map((n) => `Field ${n}`)];
 
