@@ -14,6 +14,7 @@ import RangeSliderFilter from "components/RangeSliderFilter/RangeSliderFilter";
 import {
   COLLAPSE_OPTIONS,
   COLLECTION_ORIGIN_LIMIT_STEP,
+  COMBINE_OPERATION_OPTIONS,
   DEFAULT_COLLECTION_ORIGIN_LIMIT,
   DEPTH_OPTIONS,
   DIRECTION_OPTIONS,
@@ -190,8 +191,11 @@ const PhaseEditor = ({
     [],
   );
 
+  // Kept in step order: Difference subtracts by this order, and the sources list
+  // renders in it.
+  const stepIndex = (id) => allPhases.findIndex((p) => p.id === id);
   const handlePreviousPhaseIdToggle = makeArrayToggle(phase.previousPhaseIds || [], (ids) =>
-    onUpdate({ previousPhaseIds: ids }),
+    onUpdate({ previousPhaseIds: [...ids].sort((a, b) => stepIndex(a) - stepIndex(b)) }),
   );
 
   const handleCollectionToggle = makeArrayToggle(phase.settings.allowedCollections || [], (cols) =>
@@ -541,7 +545,7 @@ const PhaseEditor = ({
                 id={`combine-op-${phase.id}`}
                 label="Combine Operation"
                 value={phase.phaseCombineOperation || "Intersection"}
-                options={SET_OPERATION_OPTIONS}
+                options={COMBINE_OPERATION_OPTIONS}
                 onChange={handleCombineOperationChange}
               />
             </div>

@@ -40,12 +40,14 @@ const renderEditor = (extraProps = {}) => {
   const store = configureStore({ reducer: { graph: graphStub } });
   const onUpdateSettings = jest.fn();
   const onToggleSolution = jest.fn();
+  const onUpdate = jest.fn();
   render(
     <Provider store={store}>
       <PhaseEditor
         phase={makePhase(extraProps.phase)}
-        phaseIndex={0}
-        onUpdate={jest.fn()}
+        phaseIndex={extraProps.phaseIndex ?? 0}
+        allPhases={extraProps.allPhases}
+        onUpdate={onUpdate}
         onUpdateSettings={onUpdateSettings}
         onAddOriginNode={jest.fn()}
         onRemoveOriginNode={jest.fn()}
@@ -62,7 +64,7 @@ const renderEditor = (extraProps = {}) => {
       />
     </Provider>,
   );
-  return { onUpdateSettings, onToggleSolution };
+  return { onUpdateSettings, onToggleSolution, onUpdate };
 };
 
 describe("PhaseEditor edge filter include/exclude mode", () => {
@@ -192,5 +194,22 @@ describe("PhaseEditor solution checkbox", () => {
     expect(box).not.toBeChecked();
     fireEvent.click(box);
     expect(onToggleSolution).toHaveBeenCalledWith(true);
+  });
+});
+
+describe("PhaseEditor multiple-phase sources", () => {
+  it("keeps previousPhaseIds in step order whatever order they are ticked", () => {
+    const allPhases = ["phase-1", "phase-2", "phase-3", "phase-4"].map((id) => makePhase({ id }));
+    const { onUpdate } = renderEditor({
+      phaseIndex: 3,
+      allPhases,
+      phase: {
+        id: "phase-4",
+        originSource: "multiplePhases",
+        previousPhaseIds: ["phase-3"],
+      },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Phase 1/ }));
+    expect(onUpdate).toHaveBeenCalledWith({ previousPhaseIds: ["phase-1", "phase-3"] });
   });
 });

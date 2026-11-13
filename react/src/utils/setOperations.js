@@ -56,6 +56,18 @@ export function performSetOperation(graphs, operation, minOverlap) {
         finalNodes = allEntries.filter((e) => e.count === 1).map((e) => e.node);
         break;
       }
+      case "difference": {
+        // First graph's nodes that appear in no other graph
+        const firstIds = new Set(
+          (Array.isArray(safeGraphs[0]?.nodes) ? safeGraphs[0].nodes : [])
+            .map((n) => n && (n._id || n.id))
+            .filter(Boolean),
+        );
+        finalNodes = allEntries
+          .filter((e) => e.count === 1 && firstIds.has(e.node._id || e.node.id))
+          .map((e) => e.node);
+        break;
+      }
       default: {
         // Union - include all unique nodes
         finalNodes = allEntries.map((e) => e.node);

@@ -533,6 +533,16 @@ def _perform_set_operation(graphs, operation, min_overlap=None):
         final_nodes = [
             entry["node"] for entry in node_frequency.values() if entry["count"] == 1
         ]
+    elif op == "difference":
+        # First graph's nodes that appear in no other graph
+        first_ids = {
+            n.get("_id") or n.get("id") for n in safe_graphs[0].get("nodes") or []
+        }
+        final_nodes = [
+            entry["node"]
+            for node_id, entry in node_frequency.items()
+            if entry["count"] == 1 and node_id in first_ids
+        ]
     else:
         # Union
         final_nodes = [entry["node"] for entry in node_frequency.values()]
