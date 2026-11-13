@@ -2,7 +2,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import SolutionTable from "components/WorkflowBuilder/SolutionTable";
 import { downloadFile } from "utils";
 
-jest.mock("utils", () => ({ ...jest.requireActual("utils"), downloadFile: jest.fn() }));
+let mockFields = null;
+jest.mock("utils", () => {
+  const actual = jest.requireActual("utils");
+  return {
+    ...actual,
+    downloadFile: jest.fn(),
+    getCollectionFields: (c) => mockFields ?? actual.getCollectionFields(c),
+  };
+});
 
 const phaseResult = {
   nodes: [
@@ -125,5 +133,36 @@ describe("column identity", () => {
     expect(screen.getAllByRole("button", { name: /^Label/ })).toHaveLength(1);
     expect(spy.mock.calls.flat().join(" ")).not.toMatch(/same key/);
     spy.mockRestore();
+  });
+});
+
+describe("own fields", () => {
+  const names = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+  const row = Object.fromEntries(names.map((n) => [n, `v-${n}`]));
+  const fields = [...names, "empty"].map((n) => ({ fieldName: n, displayName: `Field ${n}` }));
+  const withFields = (extra) => {
+    mockFields = fields;
+    renderTable({
+      phaseResult: { nodes: [{ _id: "XX/1", ...row, empty: "" }], links: [] },
+      allPhaseResults: {},
+      solution: { phaseId: "p1", collection: "XX", linkedColumns: [], ...extra },
+    });
+  };
+  afterEach(() => {
+    mockFields = null;
+  });
+  const headers = () =>
+    screen
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent.replace(/[\u2195\u25b2\u25bc]/g, ""));
+
+  it("shows the label and six non-empty fields by default", () => {
+    withFields({});
+    expect(headers()).toEqual(["Label", ...names.slice(0, 6).map((n) => `Field ${n}`)]);
+  });
+
+  it("shows exactly the chosen fields", () => {
+    withFields({ fields: ["b", "a"] });
+    expect(headers()).toEqual(["Label", "Field b", "Field a"]);
   });
 });

@@ -19,6 +19,12 @@ const csvValue = (v) => (Array.isArray(v) ? v.join("; ") : v);
 
 const collectionOf = (node) => String(node._id).split("/")[0];
 
+// Own fields shown when the solution does not choose any.
+const DEFAULT_FIELD_COUNT = 6;
+
+const hasValue = (v) =>
+  v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && !v.length);
+
 const isScalar = (v) => ["string", "number", "boolean"].includes(typeof v);
 
 // The first own field equal to the label on every row names the Label column
@@ -29,6 +35,14 @@ const findLabelField = (fields, rows, collection) =>
         rows.every((r) => isScalar(r[f]) && String(r[f]) === getNodeLabel(r, collection)),
       )
     : undefined;
+
+const FieldCell = ({ value }) => {
+  return (
+    <td className="solution-cell" title={String(csvValue(value) ?? "")}>
+      {formatFieldValue(value)}
+    </td>
+  );
+};
 
 const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
   const [sort, setSort] = useState({ column: null, direction: null });
@@ -59,17 +73,27 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
     const label = findLabelField(fields, rows, collection);
     return { header: label?.displayName ?? "Label", ownFields: fields.filter((f) => f !== label) };
   }, [collection, rows]);
+  const filledFields = useMemo(
+    () => ownFields.filter(({ fieldName }) => rows.some((r) => hasValue(r[fieldName]))),
+    [ownFields, rows],
+  );
+  const shownFields = useMemo(() => {
+    if (!solution?.fields) return filledFields.slice(0, DEFAULT_FIELD_COUNT);
+    return solution.fields
+      .map((name) => ownFields.find((f) => f.fieldName === name))
+      .filter(Boolean);
+  }, [solution?.fields, filledFields, ownFields]);
 
   const columns = useMemo(() => {
     return [
       { key: "__label", label: header, accessor: (n) => getNodeLabel(n, collection) },
-      ...ownFields.map(({ fieldName, displayName }) => ({
+      ...shownFields.map(({ fieldName, displayName }) => ({
         key: fieldName,
         label: displayName,
         accessor: (n) => n[fieldName],
       })),
     ];
-  }, [collection, header, ownFields]);
+  }, [collection, header, shownFields]);
 
   // Ascending, then descending, then back to the order the traversal returned.
   const handleSort = useCallback((column) => {
@@ -133,7 +157,7 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
         </button>
       </div>
       <div className="results-table-wrapper">
-        <table className="results-table">
+        <table className="results-table solution-table">
           <thead>
             <tr>
               <SortableHeaders columns={columns} sort={sort} onSort={handleSort} />
@@ -143,7 +167,7 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
             {sorted.map((node) => (
               <tr key={node._id}>
                 {columns.map((c) => (
-                  <td key={c.key}>{formatFieldValue(c.accessor(node))}</td>
+                  <FieldCell key={c.key} value={c.accessor(node)} />
                 ))}
               </tr>
             ))}
