@@ -637,7 +637,8 @@ const initialState = {
   phases: [createEmptyPhase(0)],
 
   // The step whose result is the workflow's solution, or null:
-  // { phaseId, collection, linkedColumns: [{ path: [{ label, collection }] }] }
+  // { phaseId, collection, linkedColumns: [{ path: [{ label, collection }] }], fields }
+  // where fields lists the row fields to show, or null for the default.
   solution: null,
 
   // Execution results keyed by phase ID (source of truth for results)
@@ -733,6 +734,7 @@ const workflowBuilderSlice = createSlice({
             phaseId: workflow.solution.phaseId,
             collection: workflow.solution.collection ?? null,
             linkedColumns: workflow.solution.linkedColumns ?? [],
+            fields: workflow.solution.fields ?? null,
           }
         : null;
       state.phaseResults = {};
@@ -748,7 +750,7 @@ const workflowBuilderSlice = createSlice({
      */
     setSolutionPhase: (state, action) => {
       state.solution = action.payload
-        ? { phaseId: action.payload, collection: null, linkedColumns: [] }
+        ? { phaseId: action.payload, collection: null, linkedColumns: [], fields: null }
         : null;
     },
 

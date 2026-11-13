@@ -18,6 +18,7 @@ describe("workflow solution", () => {
       phaseId: "p2",
       collection: null,
       linkedColumns: [],
+      fields: null,
     });
     store.dispatch(setSolutionPhase(null));
     expect(solution(store)).toBeNull();
@@ -31,9 +32,22 @@ describe("workflow solution", () => {
       phaseId: "p1",
       collection: "CS",
       linkedColumns: [],
+      fields: null,
     });
     store.dispatch(loadWorkflow({ phases }));
     expect(solution(store)).toBeNull();
+  });
+
+  it("keeps every part of a loaded solution", () => {
+    const store = makeStore();
+    const loaded = {
+      phaseId: "p1",
+      collection: "CS",
+      linkedColumns: [{ path: [{ label: "COMPOSED_PRIMARILY_OF", collection: "CL" }] }],
+      fields: ["author_cell_term"],
+    };
+    store.dispatch(loadWorkflow({ phases, solution: loaded }));
+    expect(solution(store)).toEqual(loaded);
   });
 
   it("drops a loaded solution whose phase is not in the workflow", () => {
