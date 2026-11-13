@@ -1,5 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import SolutionTable from "components/WorkflowBuilder/SolutionTable";
+import { downloadFile } from "utils";
+
+jest.mock("utils", () => ({ ...jest.requireActual("utils"), downloadFile: jest.fn() }));
 
 const phaseResult = {
   nodes: [
@@ -71,6 +74,16 @@ describe("label column", () => {
     expect(header("Label")).toHaveLength(1);
     expect(screen.getByText("transferrin receptor")).toBeInTheDocument();
   });
+});
+
+it("exports every element of an array field to CSV", () => {
+  const terms = ["t1", "t2", "t3", "t4", "t5"];
+  const nodes = [{ _id: "CS/a", author_cell_term: terms }];
+  renderTable({ phaseResult: { nodes, links: [] } });
+  fireEvent.click(screen.getByRole("button", { name: /Download CSV/ }));
+  const [csv, filename] = downloadFile.mock.calls[0];
+  expect(filename).toBe("workflow-results.csv");
+  for (const t of terms) expect(csv).toContain(t);
 });
 
 describe("column identity", () => {
