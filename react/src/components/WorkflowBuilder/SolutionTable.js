@@ -79,11 +79,16 @@ const strengthNote = (n, showRoutes) => {
   return null;
 };
 
+// Nodes listed before the rest fold behind a "+N" button.
+const LINKED_SHOWN = 3;
+
 const LinkedCell = ({ nodes }) => {
-  const shown = nodes.slice(0, 3);
+  const [open, setOpen] = useState(false);
+  const shown = open ? nodes : nodes.slice(0, LINKED_SHOWN);
+  const hidden = nodes.length - shown.length;
   const showRoutes = nodes.some((n) => n.routes > 1);
   return (
-    <td title={nodes.map((n) => n.label).join(", ")}>
+    <td>
       {nodes.length === 0 && formatLinkedLabels([])}
       {shown.map((n, i) => {
         const note = strengthNote(n, showRoutes);
@@ -95,7 +100,21 @@ const LinkedCell = ({ nodes }) => {
           </span>
         );
       })}
-      {nodes.length > shown.length && ` +${nodes.length - shown.length}`}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="linked-more"
+          aria-label={`Show ${hidden} more`}
+          onClick={() => setOpen(true)}
+        >
+          +{hidden}
+        </button>
+      )}
+      {open && nodes.length > LINKED_SHOWN && (
+        <button type="button" className="linked-more" onClick={() => setOpen(false)}>
+          Show fewer
+        </button>
+      )}
     </td>
   );
 };
