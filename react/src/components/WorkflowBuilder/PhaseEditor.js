@@ -588,7 +588,7 @@ const PhaseEditor = ({
               checked={isSolution}
               onChange={(e) => onToggleSolution(e.target.checked)}
             />
-            Use as solution
+            Use as answer
           </label>
         </div>
 

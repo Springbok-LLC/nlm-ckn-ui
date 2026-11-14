@@ -188,7 +188,7 @@ describe("PhaseEditor result summary counts", () => {
 describe("PhaseEditor solution checkbox", () => {
   it("shows an unchecked box and reports a click", () => {
     const { onToggleSolution } = renderEditor();
-    const box = screen.getByLabelText("Use as solution");
+    const box = screen.getByLabelText("Use as answer");
     expect(box).not.toBeChecked();
     fireEvent.click(box);
     expect(onToggleSolution).toHaveBeenCalledWith(true);
