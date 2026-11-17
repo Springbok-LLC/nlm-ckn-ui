@@ -97,7 +97,7 @@ export function listLinkOptions(rowIds, adjacency, prefix = []) {
 export function neighborsByRelationship(nodeId, adjacency) {
   const groups = new Map();
   for (const { label, direction, neighborId } of adjacency.get(nodeId) || []) {
-    const key = `${direction}|${label}`;
+    const key = `${direction}|${typeof label}|${label}`; // a missing label is not "undefined"
     if (!groups.has(key)) groups.set(key, { label, direction, nodeIds: [] });
     const group = groups.get(key);
     if (!group.nodeIds.includes(neighborId)) group.nodeIds.push(neighborId);

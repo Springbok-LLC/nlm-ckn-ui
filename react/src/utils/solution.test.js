@@ -108,7 +108,7 @@ describe("neighborsByRelationship and buildNodeIndex", () => {
     expect(neighborsByRelationship("zzz", adj)).toEqual([]);
   });
 
-  it("sorts an edge without a label instead of throwing", () => {
+  it("keeps an edge without a label apart and sorts it without throwing", () => {
     const unlabeled = buildAdjacency(
       buildEdgePool({
         a: {
@@ -116,6 +116,7 @@ describe("neighborsByRelationship and buildNodeIndex", () => {
             edge("e9", "A/1", "B/1"),
             edge("e8", "A/1", "B/2", "X"),
             edge("e7", "B/3", "A/1"),
+            edge("e6", "A/1", "B/4", "undefined"),
           ],
         },
       }),
@@ -123,6 +124,7 @@ describe("neighborsByRelationship and buildNodeIndex", () => {
     expect(neighborsByRelationship("A/1", unlabeled).map((g) => g.label)).toEqual([
       undefined,
       undefined,
+      "undefined",
       "X",
     ]);
   });
