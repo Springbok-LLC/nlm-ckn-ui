@@ -86,8 +86,13 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
   };
 
   const handleDownloadCsv = () => {
+    // A repeated header (the fallback "Label" beside a field shown as "Label")
+    // takes its field name, so neither column overwrites the other.
+    const headers = columns.map((c, i) =>
+      columns.findIndex((d) => d.label === c.label) === i ? c.label : `${c.label} (${c.key})`,
+    );
     const data = rows.map((row) =>
-      Object.fromEntries(columns.map((c) => [c.label, csvValue(c.accessor(row))])),
+      Object.fromEntries(columns.map((c, i) => [headers[i], csvValue(c.accessor(row))])),
     );
     downloadFile(generateCsv(data), "workflow-results.csv");
   };

@@ -76,6 +76,19 @@ describe("label column", () => {
   });
 });
 
+it("keeps both columns when two share the header Label", () => {
+  const nodes = [
+    { _id: "CL/1", label: "lung cell", definition: "first" },
+    { _id: "CL/2", definition: "second" },
+  ];
+  renderTable({ phaseResult: { nodes, links: [] } });
+  fireEvent.click(screen.getByRole("button", { name: /Download CSV/ }));
+  const [csv] = downloadFile.mock.calls.at(-1);
+  const header = csv.split("\n")[0];
+  expect(header).toContain("Label (label)");
+  expect(header.match(/Label/g).length).toBeGreaterThanOrEqual(2);
+});
+
 it("exports every element of an array field to CSV", () => {
   const terms = ["t1", "t2", "t3", "t4", "t5"];
   const nodes = [{ _id: "CS/a", author_cell_term: terms }];
