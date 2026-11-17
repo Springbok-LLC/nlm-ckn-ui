@@ -29,7 +29,13 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
     () => pickRowCollection(nodes, solution?.collection),
     [nodes, solution?.collection],
   );
-  const collections = useMemo(() => [...new Set((nodes || []).map(collectionOf))].sort(), [nodes]);
+  const collections = useMemo(
+    () =>
+      [...new Set((nodes || []).map(collectionOf))].sort((a, b) =>
+        getCollectionDisplayName(a).localeCompare(getCollectionDisplayName(b)),
+      ),
+    [nodes],
+  );
   const rows = useMemo(
     () => (nodes || []).filter((n) => collectionOf(n) === collection),
     [nodes, collection],

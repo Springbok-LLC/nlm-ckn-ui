@@ -33,7 +33,10 @@ it("shows the dominant collection's rows and offers a collection selector", () =
   expect(screen.getAllByRole("row")).toHaveLength(3);
   expect(screen.getByRole("button", { name: /Author cell term/ })).toBeInTheDocument();
   const select = screen.getByRole("combobox");
-  expect([...select.options].map((o) => o.value)).toEqual(["CL", "CS"]);
+  expect([...select.options].map((o) => [o.value, o.text])).toEqual([
+    ["CS", "Cell set"],
+    ["CL", "Cell type"],
+  ]);
   fireEvent.change(select, { target: { value: "CL" } });
   expect(onChangeCollection).toHaveBeenCalledWith("CL");
 });
