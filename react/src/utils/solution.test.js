@@ -35,6 +35,10 @@ describe("buildEdgePool", () => {
       p: { links: [l, { ...l }, { _from: "A/1", Label: "X" }, { _to: "B/1" }] },
     });
     expect(pool).toEqual([{ id: undefined, from: "A/1", to: "B/1", label: "X" }]);
+    const unlabeled = { _from: "A/1", _to: "B/1" };
+    expect(
+      buildEdgePool({ p: { links: [unlabeled, { ...unlabeled, Label: "undefined" }] } }),
+    ).toHaveLength(2);
   });
 });
 

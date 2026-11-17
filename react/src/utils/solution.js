@@ -9,7 +9,7 @@ export function buildEdgePool(phaseResults) {
   for (const result of Object.values(phaseResults || {})) {
     for (const link of result?.links || []) {
       if (!link?._from || !link?._to) continue;
-      const key = link._id || `${link._from}|${link.Label}|${link._to}`;
+      const key = link._id || `${link._from}|${typeof link.Label}|${link.Label}|${link._to}`;
       if (seen.has(key)) continue;
       seen.add(key);
       pool.push({ id: link._id, from: link._from, to: link._to, label: link.Label });
