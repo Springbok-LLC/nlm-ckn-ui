@@ -75,6 +75,13 @@ describe("resolvePath", () => {
 });
 
 describe("listLinkOptions", () => {
+  it("lists an unlabeled hop that resolvePath can follow", () => {
+    const a = buildAdjacency(buildEdgePool({ p: { links: [{ _from: "A/1", _to: "B/1" }] } }));
+    const [option] = listLinkOptions(["A/1"], a);
+    expect(option).toEqual({ label: undefined, collection: "B", count: 1 });
+    expect(resolvePath("A/1", [option], a)).toEqual(["B/1"]);
+  });
+
   it("lists first hops and next hops after a prefix", () => {
     expect(listLinkOptions(["CHEMBL/1"], adj)).toEqual([
       { label: "MOLECULARLY_INTERACTS_WITH", collection: "PR", count: 1 },

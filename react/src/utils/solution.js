@@ -73,22 +73,19 @@ export function resolvePath(rowId, path, adjacency) {
 export function listLinkOptions(rowIds, adjacency, prefix = []) {
   const counts = new Map();
   for (const rowId of rowIds) {
-    const options = new Set();
+    const options = new Map(); // keyed by label type too, so a missing label stays undefined
     for (const id of walk(rowId, prefix, adjacency)) {
-      for (const e of adjacency.get(id) || []) {
-        if (e.neighborId !== rowId) {
-          options.add(JSON.stringify([e.label, collectionOf(e.neighborId)]));
-        }
+      for (const { label, neighborId } of adjacency.get(id) || []) {
+        if (neighborId === rowId) continue;
+        const collection = collectionOf(neighborId);
+        options.set(`${typeof label}|${label}|${collection}`, { label, collection });
       }
     }
-    for (const key of options) counts.set(key, (counts.get(key) || 0) + 1);
+    for (const [key, option] of options) {
+      counts.set(key, { ...option, count: (counts.get(key)?.count || 0) + 1 });
+    }
   }
-  return [...counts]
-    .map(([key, count]) => {
-      const [label, collection] = JSON.parse(key);
-      return { label, collection, count };
-    })
-    .sort((a, b) => b.count - a.count);
+  return [...counts.values()].sort((a, b) => b.count - a.count);
 }
 
 /**
