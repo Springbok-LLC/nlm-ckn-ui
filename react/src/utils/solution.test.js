@@ -87,6 +87,12 @@ describe("listLinkOptions", () => {
     expect(opts[0]).toEqual({ label: "R2", collection: "C", count: 2 });
     expect(opts[1].count).toBe(1);
   });
+
+  it("lists next hops after a prefix that returns to the row", () => {
+    const prefix = ["B", "A"].map((collection) => ({ label: "R", collection }));
+    const opts = listLinkOptions(["A/1"], adjOf([edge("1", "A/1", "B/1", "R")]), prefix);
+    expect(opts).toEqual([{ label: "R", collection: "B", count: 1 }]);
+  });
 });
 
 describe("buildNodeIndex", () => {

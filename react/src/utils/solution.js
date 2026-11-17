@@ -18,9 +18,7 @@ export function buildEdgePool(phaseResults) {
   return pool;
 }
 
-/**
- * Builds a node-id keyed adjacency map, recording both directions of each edge.
- */
+/** Builds a node-id keyed adjacency map, recording both directions of each edge. */
 export function buildAdjacency(edgePool) {
   const adjacency = new Map();
   const add = (id, entry) => {
@@ -34,9 +32,7 @@ export function buildAdjacency(edgePool) {
   return adjacency;
 }
 
-/**
- * Indexes nodes from every phase and the node-detail cache by id.
- */
+/** Indexes nodes from every phase and the node-detail cache by id. */
 export function buildNodeIndex(phaseResults, nodeDetails) {
   const index = new Map();
   for (const node of Object.values(nodeDetails || {})) {
@@ -62,12 +58,15 @@ const hop = (ids, step, adjacency) => {
   return next;
 };
 
+/** Node ids at the end of `path` from a row, keeping the row if the path returns to it. */
+const walk = (rowId, path, adjacency) =>
+  path.reduce((ids, step) => hop(ids, step, adjacency), new Set([rowId]));
+
 /** Distinct node ids reached by following `path` from a row, excluding the row itself. */
 export function resolvePath(rowId, path, adjacency) {
-  let frontier = new Set([rowId]);
-  for (const step of path) frontier = hop(frontier, step, adjacency);
-  frontier.delete(rowId);
-  return [...frontier];
+  const reached = walk(rowId, path, adjacency);
+  reached.delete(rowId);
+  return [...reached];
 }
 
 /** Hops available after `prefix`, with how many rows can take each, most common first. */
@@ -75,7 +74,7 @@ export function listLinkOptions(rowIds, adjacency, prefix = []) {
   const counts = new Map();
   for (const rowId of rowIds) {
     const options = new Set();
-    for (const id of prefix.length ? resolvePath(rowId, prefix, adjacency) : [rowId]) {
+    for (const id of walk(rowId, prefix, adjacency)) {
       for (const e of adjacency.get(id) || []) {
         if (e.neighborId !== rowId) {
           options.add(JSON.stringify([e.label, collectionOf(e.neighborId)]));
