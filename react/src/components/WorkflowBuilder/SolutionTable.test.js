@@ -54,6 +54,7 @@ it("says so when the chosen collection has no rows", () => {
   renderTable({ phaseResult: { nodes: [], links: [] } });
   expect(screen.getByText("The answer step returned no rows")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^Label/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Download CSV/ })).toBeDisabled();
 });
 
 describe("label column", () => {

@@ -123,7 +123,12 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
             </select>
           )}
         </div>
-        <button type="button" className="download-csv-btn" onClick={handleDownloadCsv}>
+        <button
+          type="button"
+          className="download-csv-btn"
+          onClick={handleDownloadCsv}
+          disabled={rows.length === 0}
+        >
           Download CSV
         </button>
       </div>
