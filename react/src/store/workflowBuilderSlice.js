@@ -540,8 +540,11 @@ export const executePhase = createAsyncThunk(
       phase.settings.returnCollections || [],
     );
 
-    // Check for empty results and provide a helpful message
-    if (!finalResult.nodes || finalResult.nodes.length === 0) {
+    // Empty results get a helpful error, unless a Difference subtracts this step.
+    const subtracted = phases.some(
+      (p) => p.phaseCombineOperation === "Difference" && p.previousPhaseIds?.includes(phase.id),
+    );
+    if (!finalResult.nodes?.length && !subtracted) {
       const op = phase.settings.setOperation || "Union";
       if (op === "Connected Paths") {
         throw new Error(

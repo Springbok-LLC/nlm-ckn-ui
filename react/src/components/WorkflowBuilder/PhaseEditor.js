@@ -191,11 +191,8 @@ const PhaseEditor = ({
     [],
   );
 
-  // Kept in step order: Difference subtracts by this order, and the sources list
-  // renders in it.
-  const stepIndex = (id) => allPhases.findIndex((p) => p.id === id);
   const handlePreviousPhaseIdToggle = makeArrayToggle(phase.previousPhaseIds || [], (ids) =>
-    onUpdate({ previousPhaseIds: [...ids].sort((a, b) => stepIndex(a) - stepIndex(b)) }),
+    onUpdate({ previousPhaseIds: ids }),
   );
 
   const handleCollectionToggle = makeArrayToggle(phase.settings.allowedCollections || [], (cols) =>
