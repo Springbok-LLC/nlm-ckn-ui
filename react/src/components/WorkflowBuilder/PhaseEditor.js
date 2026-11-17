@@ -306,7 +306,12 @@ const PhaseEditor = ({
       ? previousPhaseResult && previousPhaseResult.nodes?.length > 0
       : isCombinePhase
         ? (phase.previousPhaseIds || []).length >= 2 &&
-          (phase.previousPhaseIds || []).every((id) => allPhaseResults[id]?.nodes?.length > 0)
+          (phase.previousPhaseIds || []).every((id) =>
+            // A completed empty step is a valid operand of Difference.
+            phase.phaseCombineOperation === "Difference"
+              ? !!allPhaseResults[id]?.nodes
+              : allPhaseResults[id]?.nodes?.length > 0,
+          )
         : phase.originSource === "collection"
           ? !!phase.originCollection
           : phase.originSource === "previousPhase"

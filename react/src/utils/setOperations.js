@@ -58,14 +58,17 @@ export function performSetOperation(graphs, operation, minOverlap) {
       }
       case "difference": {
         // First graph's nodes that appear in no other graph
-        const firstIds = new Set(
-          (Array.isArray(safeGraphs[0]?.nodes) ? safeGraphs[0].nodes : [])
-            .map((n) => n && (n._id || n.id))
-            .filter(Boolean),
-        );
-        finalNodes = allEntries
-          .filter((e) => e.count === 1 && firstIds.has(e.node._id || e.node.id))
-          .map((e) => e.node);
+        const idsOf = (graphs) =>
+          new Set(
+            graphs
+              .flatMap((g) => (Array.isArray(g?.nodes) ? g.nodes : []))
+              .map((n) => n?._id || n?.id),
+          );
+        const firstIds = idsOf(safeGraphs.slice(0, 1));
+        const otherIds = idsOf(safeGraphs.slice(1));
+        finalNodes = [...nodeFrequencyMap]
+          .filter(([id]) => firstIds.has(id) && !otherIds.has(id))
+          .map(([, e]) => e.node);
         break;
       }
       default: {

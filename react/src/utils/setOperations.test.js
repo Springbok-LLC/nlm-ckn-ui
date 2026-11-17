@@ -20,6 +20,11 @@ describe("performSetOperation Difference", () => {
     expect(result.links.map((l) => l._id)).toEqual(["e/1-3"]);
   });
 
+  it("keeps a node the first graph repeats", () => {
+    const result = performSetOperation([{ nodes: [node(1), node(1)], links: [] }, B], "Difference");
+    expect(result.nodes.map((n) => n._id)).toEqual(["CL/1"]);
+  });
+
   it("returns a single graph unchanged", () => {
     expect(performSetOperation([A], "Difference")).toBe(A);
   });

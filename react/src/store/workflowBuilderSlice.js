@@ -259,7 +259,11 @@ export const executePhase = createAsyncThunk(
 
     // Handle "multiplePhases" combine origin — no API call, pure set operation
     if (phase.originSource === "multiplePhases") {
-      const sourcePhaseIds = phase.previousPhaseIds || [];
+      // Step order, however stored: Difference subtracts later steps from the earliest.
+      const stepIndex = (id) => phases.findIndex((p) => p.id === id);
+      const sourcePhaseIds = [...(phase.previousPhaseIds || [])].sort(
+        (a, b) => stepIndex(a) - stepIndex(b),
+      );
       if (sourcePhaseIds.length < 2) {
         throw new Error("Combine phase requires at least 2 source phases.");
       }

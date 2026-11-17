@@ -29,6 +29,7 @@ from arango_api.services import (
 )
 from arango_api.services.workflow_service import (
     _drop_null_nodes,
+    _execute_combine_phase,
     _find_post_merge_inter_node_edges,
     _perform_set_operation,
 )
@@ -1157,6 +1158,32 @@ class DifferenceSetOperationTestCase(SimpleTestCase):
     def test_single_graph_returned_unchanged(self):
         a, _, _ = self._graphs()
         self.assertIs(_perform_set_operation([a], "Difference"), a)
+
+    def test_keeps_a_node_the_first_graph_repeats(self):
+        a = {"nodes": [self._node(1), self._node(1)], "links": []}
+        result = _perform_set_operation([a, {"nodes": [], "links": []}], "Difference")
+        self.assertEqual([n["_id"] for n in result["nodes"]], ["CL/1"])
+
+    def _combine(self, stored_order, results):
+        phases = [{"id": "a"}, {"id": "b"}]
+        phase = {
+            "previousPhaseIds": stored_order,
+            "phaseCombineOperation": "Difference",
+        }
+        settings = {"includeInterNodeEdges": False}
+        result, used = _execute_combine_phase(phase, phases, results, {}, settings)
+        return [n["_id"] for n in result["nodes"]], used
+
+    def test_combine_subtracts_in_step_order(self):
+        a, b, _ = self._graphs()
+        ids, used = self._combine(["b", "a"], {"a": a, "b": b})
+        self.assertEqual(ids, ["CL/1", "CL/3"])
+        self.assertEqual(used, ["a", "b"])
+
+    def test_combine_accepts_a_completed_empty_step(self):
+        a, _, _ = self._graphs()
+        ids, _ = self._combine(["a", "b"], {"a": a, "b": {"nodes": [], "links": []}})
+        self.assertEqual(ids, ["CL/1", "CL/2", "CL/3"])
 
 
 class DropNullNodesTestCase(TestCase):
