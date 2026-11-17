@@ -230,7 +230,7 @@ _UC9_PHASES = [
             "allowedCollections": ["GS", "PR", "CHEMBL"],
             "edgeFilters": {
                 "Label": [
-                    "DISEASE_HAS_FEATURE",
+                    "ASSOCIATED_WITH",
                     "PRODUCES",
                     "MOLECULARLY_INTERACTS_WITH",
                 ],
@@ -260,7 +260,7 @@ _UC10_PHASES = [
     _scan_phase(
         f"{_UC10}-phase-1",
         "Disease genes (all diseases)",
-        _hop(1, "INBOUND", "GS", "DISEASE_HAS_FEATURE"),
+        _hop(1, "INBOUND", "GS", "ASSOCIATED_WITH"),
         originCollection="MONDO",
         originLimit=_WHOLE_COLLECTION,
     ),
@@ -585,7 +585,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "IS_SUBSTANCE_THAT_TREATS",
                         ],
                         "Source": [],
@@ -678,7 +678,7 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["GS"],
                     "edgeFilters": {
-                        "Label": ["DISEASE_HAS_FEATURE"],
+                        "Label": ["ASSOCIATED_WITH"],
                         "Source": [],
                     },
                     "setOperation": "Union",
@@ -700,7 +700,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -804,7 +804,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                         ],
                         "Source": [],
                     },
@@ -917,7 +917,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1009,7 +1009,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1635,7 +1635,7 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["MONDO", "GS"],
                     "edgeFilters": {
-                        "Label": ["SUB_CLASS_OF", "DISEASE_HAS_FEATURE"],
+                        "Label": ["SUB_CLASS_OF", "ASSOCIATED_WITH"],
                         "Source": [],
                     },
                     "setOperation": "Union",
@@ -1701,7 +1701,7 @@ WORKFLOW_PRESETS = [
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["GS"],
                     "edgeFilters": {
-                        "Label": ["DISEASE_HAS_FEATURE"],
+                        "Label": ["ASSOCIATED_WITH"],
                         "Source": [],
                     },
                     "setOperation": "Union",
@@ -1796,7 +1796,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1841,7 +1841,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["GS", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
@@ -1962,7 +1962,7 @@ WORKFLOW_PRESETS = [
                     "allowedCollections": ["MONDO", "PR", "CHEMBL"],
                     "edgeFilters": {
                         "Label": [
-                            "DISEASE_HAS_FEATURE",
+                            "ASSOCIATED_WITH",
                             "PRODUCES",
                             "MOLECULARLY_INTERACTS_WITH",
                         ],
