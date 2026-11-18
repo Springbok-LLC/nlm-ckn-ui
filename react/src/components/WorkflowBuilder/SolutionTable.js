@@ -14,7 +14,7 @@ import {
 import { pickRowCollection } from "utils/solution";
 import { formatFieldValue, SortableHeaders, sortRows } from "./ResultsTable";
 
-// The CSV keeps every array element; the on-screen cell truncates.
+// The CSV joins array elements with semicolons.
 const csvValue = (v) => (Array.isArray(v) ? v.join("; ") : v);
 
 const collectionOf = (node) => String(node._id).split("/")[0];
@@ -36,10 +36,15 @@ const findLabelField = (fields, rows, collection) =>
       )
     : undefined;
 
+// Every array element is shown, and the cell wraps rather than truncating.
+const cellText = (v) =>
+  Array.isArray(v) ? v.map(formatFieldValue).join(", ") : formatFieldValue(v);
+
 const FieldCell = ({ value }) => {
+  const text = cellText(value);
   return (
-    <td className="solution-cell" title={String(csvValue(value) ?? "")}>
-      {formatFieldValue(value)}
+    <td className="solution-cell" title={hasValue(value) ? text : undefined}>
+      {text}
     </td>
   );
 };
@@ -77,9 +82,10 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
     () => ownFields.filter(({ fieldName }) => rows.some((r) => hasValue(r[fieldName]))),
     [ownFields, rows],
   );
+  // A hand-edited link can carry any value; only a list chooses fields.
   const shownFields = useMemo(() => {
-    if (!solution?.fields) return filledFields.slice(0, DEFAULT_FIELD_COUNT);
-    return solution.fields
+    if (!Array.isArray(solution?.fields)) return filledFields.slice(0, DEFAULT_FIELD_COUNT);
+    return [...new Set(solution.fields)]
       .map((name) => ownFields.find((f) => f.fieldName === name))
       .filter(Boolean);
   }, [solution?.fields, filledFields, ownFields]);

@@ -139,11 +139,21 @@ describe("column identity", () => {
 describe("own fields", () => {
   const names = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
   const row = Object.fromEntries(names.map((n) => [n, `v-${n}`]));
-  const fields = [...names, "empty"].map((n) => ({ fieldName: n, displayName: `Field ${n}` }));
-  const withFields = (extra) => {
+  // "empty" has no value on any row; "late" has one only on the second row.
+  const fields = ["empty", "late", ...names].map((n) => ({
+    fieldName: n,
+    displayName: `Field ${n}`,
+  }));
+  const withFields = (extra, nodes) => {
     mockFields = fields;
     renderTable({
-      phaseResult: { nodes: [{ _id: "XX/1", ...row, empty: "" }], links: [] },
+      phaseResult: {
+        nodes: nodes ?? [
+          { _id: "XX/1", ...row, empty: "" },
+          { _id: "XX/2", late: "v-late" },
+        ],
+        links: [],
+      },
       allPhaseResults: {},
       solution: { phaseId: "p1", collection: "XX", linkedColumns: [], ...extra },
     });
@@ -155,14 +165,26 @@ describe("own fields", () => {
     screen
       .getAllByRole("columnheader")
       .map((h) => h.textContent.replace(/[\u2195\u25b2\u25bc]/g, ""));
+  const defaults = ["Label", "Field late", ...names.slice(0, 5).map((n) => `Field ${n}`)];
 
-  it("shows the label and six non-empty fields by default", () => {
+  it("shows the label and the first six fields with a value on any row", () => {
     withFields({});
-    expect(headers()).toEqual(["Label", ...names.slice(0, 6).map((n) => `Field ${n}`)]);
+    expect(headers()).toEqual(defaults);
   });
 
-  it("shows exactly the chosen fields", () => {
-    withFields({ fields: ["b", "a"] });
+  it("shows exactly the chosen fields, once each", () => {
+    withFields({ fields: ["b", "a", "b"] });
     expect(headers()).toEqual(["Label", "Field b", "Field a"]);
+  });
+
+  it("falls back to the default fields when fields is not a list", () => {
+    withFields({ fields: "b" });
+    expect(headers()).toEqual(defaults);
+  });
+
+  it("shows every array element and an object's contents in the title", () => {
+    withFields({ fields: ["a", "b"] }, [{ _id: "XX/1", a: ["w", "x", "y", "z"], b: { count: 3 } }]);
+    expect(screen.getByText("w, x, y, z")).toBeInTheDocument();
+    expect(screen.getByText('{"count":3}')).toHaveAttribute("title", '{"count":3}');
   });
 });
