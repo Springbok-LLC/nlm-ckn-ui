@@ -177,14 +177,18 @@ describe("own fields", () => {
     expect(headers()).toEqual(["Label", "Field b", "Field a"]);
   });
 
-  it("falls back to the default fields when fields is not a list", () => {
-    withFields({ fields: "b" });
+  it.each([
+    ["not a list", "b"],
+    ["empty", []],
+  ])("falls back to the default fields when fields is %s", (_, fields) => {
+    withFields({ fields });
     expect(headers()).toEqual(defaults);
   });
 
-  it("shows every array element and an object's contents in the title", () => {
-    withFields({ fields: ["a", "b"] }, [{ _id: "XX/1", a: ["w", "x", "y", "z"], b: { count: 3 } }]);
-    expect(screen.getByText("w, x, y, z")).toBeInTheDocument();
+  it("shows every array element, nested too, and an object's contents in the title", () => {
+    const wxyz = ["w", "x", "y", "z"];
+    withFields({ fields: ["a", "b", "c"] }, [{ _id: "XX/1", a: wxyz, b: { count: 3 }, c: [wxyz] }]);
+    expect(screen.getAllByText("w, x, y, z")).toHaveLength(2);
     expect(screen.getByText('{"count":3}')).toHaveAttribute("title", '{"count":3}');
   });
 });

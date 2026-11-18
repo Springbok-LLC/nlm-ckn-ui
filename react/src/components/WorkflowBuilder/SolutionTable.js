@@ -37,8 +37,7 @@ const findLabelField = (fields, rows, collection) =>
     : undefined;
 
 // Every array element is shown, and the cell wraps rather than truncating.
-const cellText = (v) =>
-  Array.isArray(v) ? v.map(formatFieldValue).join(", ") : formatFieldValue(v);
+const cellText = (v) => (Array.isArray(v) ? v.map(cellText).join(", ") : formatFieldValue(v));
 
 const FieldCell = ({ value }) => {
   const text = cellText(value);
@@ -82,9 +81,10 @@ const SolutionTable = ({ phaseResult, solution, onChangeCollection }) => {
     () => ownFields.filter(({ fieldName }) => rows.some((r) => hasValue(r[fieldName]))),
     [ownFields, rows],
   );
-  // A hand-edited link can carry any value; only a list chooses fields.
+  // A hand-edited link can carry any value; only a non-empty list chooses fields.
   const shownFields = useMemo(() => {
-    if (!Array.isArray(solution?.fields)) return filledFields.slice(0, DEFAULT_FIELD_COUNT);
+    if (!Array.isArray(solution?.fields) || !solution.fields.length)
+      return filledFields.slice(0, DEFAULT_FIELD_COUNT);
     return [...new Set(solution.fields)]
       .map((name) => ownFields.find((f) => f.fieldName === name))
       .filter(Boolean);
