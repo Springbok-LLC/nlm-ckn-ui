@@ -551,7 +551,8 @@ WORKFLOW_PRESETS = [
             },
             # Context for the graph: each cell type's SUB_CLASS_OF line up to
             # "dendritic cell". Its ancestors meet the parent's descendants
-            # exactly on that line, so the climb stops at the parent.
+            # exactly on that line, so the climb stops at the parent. Depth 9
+            # matches step 1, so every admitted cell type's line is complete.
             {
                 "id": "preset-uc4-ancestors",
                 "name": "Parent cell types of the dendritic cell types",
@@ -560,7 +561,7 @@ WORKFLOW_PRESETS = [
                 "previousPhaseId": "preset-uc4-phase-2",
                 "originFilter": "all",
                 "settings": {
-                    "depth": 3,
+                    "depth": 9,
                     "edgeDirection": "OUTBOUND",
                     "allowedCollections": ["CL"],
                     "edgeFilters": {"Label": ["SUB_CLASS_OF"], "Source": []},
@@ -578,7 +579,7 @@ WORKFLOW_PRESETS = [
                 "previousPhaseId": None,
                 "originFilter": "all",
                 "settings": {
-                    "depth": 3,
+                    "depth": 9,
                     "edgeDirection": "INBOUND",
                     "allowedCollections": ["CL"],
                     "edgeFilters": {"Label": ["SUB_CLASS_OF"], "Source": []},
