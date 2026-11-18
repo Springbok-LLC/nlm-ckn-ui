@@ -139,7 +139,8 @@ describe("column identity", () => {
 describe("own fields", () => {
   const names = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
   const row = Object.fromEntries(names.map((n) => [n, `v-${n}`]));
-  // "empty" has no value on any row; "late" has one only on the second row.
+  // "empty" has no value on any row, not even inside its array; "late" has one
+  // only on the second row.
   const fields = ["empty", "late", ...names].map((n) => ({
     fieldName: n,
     displayName: `Field ${n}`,
@@ -149,7 +150,7 @@ describe("own fields", () => {
     renderTable({
       phaseResult: {
         nodes: nodes ?? [
-          { _id: "XX/1", ...row, empty: "" },
+          { _id: "XX/1", ...row, empty: [[], [""]] },
           { _id: "XX/2", late: "v-late" },
         ],
         links: [],

@@ -22,8 +22,9 @@ const collectionOf = (node) => String(node._id).split("/")[0];
 // Own fields shown when the solution does not choose any.
 const DEFAULT_FIELD_COUNT = 6;
 
+// An array counts only if some element, at any depth, has a value.
 const hasValue = (v) =>
-  v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && !v.length);
+  Array.isArray(v) ? v.some(hasValue) : v !== null && v !== undefined && v !== "";
 
 const isScalar = (v) => ["string", "number", "boolean"].includes(typeof v);
 
