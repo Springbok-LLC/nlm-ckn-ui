@@ -10,8 +10,12 @@ let mockGraphMounts = 0;
 jest.mock("components/WorkflowBuilder", () => ({ onGraphReady }) => {
   const dispatch = require("react-redux").useDispatch();
   const graph = { nodes: [{ _id: "CS/1" }], links: [] };
+  const { executePhase, setActiveGraph } = require("store/workflowBuilderSlice");
   const run = () => {
-    dispatch(require("store/workflowBuilderSlice").setActiveGraph({ phaseId: "p1", graph }));
+    for (const phaseId of ["p1", "p2"]) {
+      dispatch(executePhase.fulfilled({ phaseId, result: { id: `${phaseId} rows` } }, "", {}));
+    }
+    dispatch(setActiveGraph({ phaseId: "p1", graph }));
     onGraphReady(graph);
   };
   return (
@@ -27,13 +31,15 @@ jest.mock("components/GraphWorkspace", () => () => {
   return <div>graph</div>;
 });
 jest.mock("components/WorkflowBuilder/ResultsTable", () => () => <div>step table</div>);
-jest.mock("components/WorkflowBuilder/SolutionTable", () => () => <div>answer table</div>);
+jest.mock("components/WorkflowBuilder/SolutionTable", () => ({ phaseResult }) => (
+  <div>answer table: {phaseResult?.id}</div>
+));
 
 const phases = [{ id: "p1" }, { id: "p2" }];
 
-const renderPage = ({ marked = false } = {}) => {
+const renderPage = ({ marked = null } = {}) => {
   const store = configureStore({ reducer: { workflowBuilder: workflowBuilderReducer } });
-  if (marked) store.dispatch(loadWorkflow({ phases, solution: { phaseId: "p1" } }));
+  if (marked) store.dispatch(loadWorkflow({ phases, solution: { phaseId: marked } }));
   render(
     <Provider store={store}>
       <MemoryRouter>
@@ -66,13 +72,18 @@ describe("WorkflowBuilderPage results", () => {
   });
 
   it("opens on Results when a step is marked, and mounts the graph only in context", () => {
-    renderPage({ marked: true });
+    renderPage({ marked: "p1" });
     expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("answer table")).toBeInTheDocument();
+    expect(screen.getByText("answer table: p1 rows")).toBeInTheDocument();
     expect(switchGroup()).toBeNull();
     expect(mockGraphMounts).toBe(0);
     click("tab", "Results in context");
     expect(mockGraphMounts).toBe(1);
+  });
+
+  it("shows the marked step's rows, not the selected step's", () => {
+    renderPage({ marked: "p2" });
+    expect(screen.getByText("answer table: p2 rows")).toBeInTheDocument();
   });
 
   it("opens on Results for a later workflow that has an answer", () => {
@@ -90,7 +101,7 @@ describe("WorkflowBuilderPage results", () => {
   });
 
   it("falls back to the context view when the answer is unmarked, and stays there", () => {
-    const store = renderPage({ marked: true });
+    const store = renderPage({ marked: "p1" });
     act(() => store.dispatch(setSolutionPhase(null)));
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(switchGroup()).toBeInTheDocument();
@@ -100,7 +111,7 @@ describe("WorkflowBuilderPage results", () => {
   });
 
   it("keeps the view choice and the graph mount across tabs", () => {
-    renderPage({ marked: true });
+    renderPage({ marked: "p1" });
     click("tab", "Results in context");
     click("button", "Table");
     click("tab", "Results");
