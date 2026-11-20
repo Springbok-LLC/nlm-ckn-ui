@@ -86,6 +86,27 @@ describe("WorkflowBuilderPage results", () => {
     expect(screen.getByText("answer table: p2 rows")).toBeInTheDocument();
   });
 
+  it("links each tab to its panel and moves between tabs with the arrow keys", () => {
+    renderPage({ marked: "p1" });
+    const results = screen.getByRole("tab", { name: "Results" });
+    const panel = screen.getByRole("tabpanel", { name: "Results" });
+    expect(results).toHaveAttribute("aria-controls", panel.id);
+    expect(results).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(results, { key: "ArrowRight" });
+    const context = screen.getByRole("tab", { name: "Results in context" });
+    expect(context).toHaveAttribute("aria-selected", "true");
+    expect(context).toHaveFocus();
+    expect(results).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("tabpanel", { name: "Results in context" })).toBeInTheDocument();
+    fireEvent.keyDown(context, { key: "ArrowRight" });
+    expect(results).toHaveFocus();
+  });
+
+  it("drops the panel role when no step is marked", () => {
+    renderPage();
+    expect(screen.queryByRole("tabpanel")).toBeNull();
+  });
+
   it("opens on Results for a later workflow that has an answer", () => {
     const store = renderPage();
     act(() => store.dispatch(loadWorkflow({ phases, solution: { phaseId: "p1" } })));
