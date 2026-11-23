@@ -40,3 +40,20 @@ it("lists a chosen column the rows no longer offer so it can be removed", () => 
   fireEvent.click(screen.getByLabelText("Gone → Cell type (0)"));
   expect(onChange).toHaveBeenCalledWith([]);
 });
+
+it('keeps a missing label apart from the string "undefined"', () => {
+  render(
+    <LinkedColumnsMenu
+      options={[
+        { label: undefined, collection: "PR", count: 1 },
+        { label: "undefined", collection: "PR", count: 1 },
+      ]}
+      chosen={[{ path: [{ label: undefined, collection: "PR" }] }]}
+      onChange={() => {}}
+      loadNextHop={() => []}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+  const checked = screen.getAllByRole("checkbox").filter((box) => box.checked);
+  expect(checked).toHaveLength(1);
+});

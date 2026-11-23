@@ -7,7 +7,8 @@ import { useState } from "react";
 import { getCollectionDisplayName } from "utils";
 import { humanizeEdgeLabel } from "utils/solution";
 
-const stepKey = (s) => `${s.label}|${s.collection}`;
+// typeof keeps a missing label apart from the string "undefined".
+const stepKey = (s) => `${typeof s.label}|${s.label}|${s.collection}`;
 const pathKey = (path) => path.map(stepKey).join(">");
 const optionText = (o) =>
   `${humanizeEdgeLabel(o.label)} → ${getCollectionDisplayName(o.collection)} (${o.count})`;
