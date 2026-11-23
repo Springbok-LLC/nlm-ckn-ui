@@ -91,12 +91,17 @@ describe("WorkflowBuilderPage results", () => {
     const results = screen.getByRole("tab", { name: "Results" });
     const panel = screen.getByRole("tabpanel", { name: "Results" });
     expect(results).toHaveAttribute("aria-controls", panel.id);
+    expect(panel).toHaveAttribute("tabindex", "0");
     expect(results).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(results, { key: "ArrowRight" });
     const context = screen.getByRole("tab", { name: "Results in context" });
     expect(context).toHaveAttribute("aria-selected", "true");
     expect(context).toHaveFocus();
     expect(results).toHaveAttribute("tabindex", "-1");
+    // Each tab's panel stays in the document while the other tab is selected.
+    for (const tab of [results, context]) {
+      expect(document.getElementById(tab.getAttribute("aria-controls"))).not.toBeNull();
+    }
     expect(screen.getByRole("tabpanel", { name: "Results in context" })).toBeInTheDocument();
     fireEvent.keyDown(context, { key: "ArrowRight" });
     expect(results).toHaveFocus();

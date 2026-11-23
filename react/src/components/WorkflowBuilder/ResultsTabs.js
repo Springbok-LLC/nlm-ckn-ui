@@ -9,9 +9,11 @@ const TABS = [
   ["context", "Results in context"],
 ];
 
-// Props that make an element the panel for a tab.
+// Props that make an element the panel for a tab. tabIndex lets Tab reach a
+// panel whose content has nothing focusable, such as a step that has not run.
 export const resultsPanelProps = (value) => ({
   role: "tabpanel",
+  tabIndex: 0,
   id: `results-panel-${value}`,
   "aria-labelledby": `results-tab-${value}`,
 });

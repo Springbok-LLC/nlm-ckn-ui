@@ -153,13 +153,20 @@ const WorkflowBuilderPage = () => {
             <>
               {solution && <ResultsTabs tab={inContext ? "context" : "data"} onChange={setTab} />}
 
-              {!inContext && (
-                <div className="results-view-content" {...resultsPanelProps("data")}>
-                  <SolutionTable
-                    phaseResult={phaseResults[solution.phaseId]}
-                    solution={solution}
-                    onChangeCollection={(c) => dispatch(setSolutionCollection(c))}
-                  />
+              {/* Kept mounted while a step is marked so the Results tab's aria-controls has a target */}
+              {solution && (
+                <div
+                  className="results-view-content"
+                  style={inContext ? { display: "none" } : undefined}
+                  {...resultsPanelProps("data")}
+                >
+                  {!inContext && (
+                    <SolutionTable
+                      phaseResult={phaseResults[solution.phaseId]}
+                      solution={solution}
+                      onChangeCollection={(c) => dispatch(setSolutionCollection(c))}
+                    />
+                  )}
                 </div>
               )}
 
