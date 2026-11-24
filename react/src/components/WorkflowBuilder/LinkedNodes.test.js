@@ -50,3 +50,23 @@ describe("LinkedNodes", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+it('keeps a missing label and the string "undefined" as separate groups', () => {
+  const results = {
+    a: { nodes: [], links: [edge("e1", "GS/A", "PR/1"), edge("e2", "GS/A", "PR/2", "undefined")] },
+  };
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+  render(
+    <MemoryRouter>
+      <LinkedNodes
+        nodeId="GS/A"
+        adjacency={buildAdjacency(buildEdgePool(results))}
+        nodeIndex={buildNodeIndex(results, {})}
+      />
+    </MemoryRouter>,
+  );
+  const duplicateKey = spy.mock.calls.some((args) => String(args[0]).includes("same key"));
+  spy.mockRestore();
+  expect(duplicateKey).toBe(false);
+  expect(screen.getAllByRole("link")).toHaveLength(2);
+});

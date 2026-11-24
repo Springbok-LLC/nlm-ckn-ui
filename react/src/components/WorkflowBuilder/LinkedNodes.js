@@ -19,7 +19,7 @@ const LinkedNodes = ({ nodeId, adjacency, nodeIndex }) => {
     <div className="expanded-linked">
       <h4>Linked nodes</h4>
       {groups.map(({ label, direction, nodeIds }) => (
-        <div key={`${direction}|${label}`} className="expanded-field">
+        <div key={`${direction}|${typeof label}|${label}`} className="expanded-field">
           <span className="field-label">
             {humanizeEdgeLabel(label)} {direction === "out" ? "→" : "←"}{" "}
           </span>
