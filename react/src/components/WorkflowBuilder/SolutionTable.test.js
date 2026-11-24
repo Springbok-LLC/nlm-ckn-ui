@@ -309,4 +309,18 @@ describe("own fields", () => {
     fireEvent.click(screen.getByLabelText("Field j"));
     expect(onChangeFields).toHaveBeenCalledWith(["a", "j"]);
   });
+
+  it("offers a chosen field with no values so it can be unticked", () => {
+    const onChangeFields = jest.fn();
+    mockFields = fields;
+    renderTable({
+      phaseResult: { nodes: [{ _id: "XX/1", ...row }], links: [] },
+      allPhaseResults: {},
+      solution: { phaseId: "p1", collection: "XX", linkedColumns: [], fields: ["a", "empty"] },
+      onChangeFields,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(screen.getByLabelText("Field empty"));
+    expect(onChangeFields).toHaveBeenCalledWith(["a"]);
+  });
 });

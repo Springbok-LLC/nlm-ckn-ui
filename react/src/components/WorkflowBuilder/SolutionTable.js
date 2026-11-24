@@ -164,6 +164,11 @@ const SolutionTable = ({
       .map((name) => ownFields.find((f) => f.fieldName === name))
       .filter(Boolean);
   }, [solution?.fields, filledFields, ownFields]);
+  // The menu offers filled fields, plus any shown field left empty so it can be unticked.
+  const menuFields = useMemo(
+    () => ownFields.filter((f) => filledFields.includes(f) || shownFields.includes(f)),
+    [ownFields, filledFields, shownFields],
+  );
 
   const columns = useMemo(() => {
     return [
@@ -229,7 +234,7 @@ const SolutionTable = ({
             options={linkOptions}
             chosen={linkedColumns}
             onChange={onChangeLinkedColumns}
-            fields={filledFields}
+            fields={menuFields}
             shownFields={shownFields.map((f) => f.fieldName)}
             onChangeFields={onChangeFields}
             loadNextHop={(prefix) => listLinkOptions(rowIds, adjacency, prefix)}
