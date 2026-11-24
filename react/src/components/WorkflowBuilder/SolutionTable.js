@@ -113,10 +113,11 @@ const SolutionTable = ({
 
   const linkedNodes = useCallback(
     (row, path) =>
-      resolvePath(row._id, path, adjacency).map((id) => {
-        const node = nodeIndex.get(id);
-        return { id, label: node ? getNodeLabel(node, collectionOf({ _id: id })) : id };
-      }),
+      // The full id is getNodeLabel's fallback for a missing node or label.
+      resolvePath(row._id, path, adjacency).map((id) => ({
+        id,
+        label: getNodeLabel(nodeIndex.get(id), id),
+      })),
     [adjacency, nodeIndex],
   );
   const { header, ownFields } = useMemo(() => {

@@ -153,6 +153,11 @@ describe("linked columns", () => {
     renderLinked([{ path: [toGene.path[0]] }]);
     expect(screen.getByRole("link", { name: "PR/P1" })).toBeInTheDocument();
   });
+
+  it("falls back to the id for a node that has no label fields", () => {
+    renderLinked([{ path: [toGene.path[0]] }], { nodeDetails: { "PR/P1": { _id: "PR/P1" } } });
+    expect(screen.getByRole("link", { name: "PR/P1" })).toBeInTheDocument();
+  });
 });
 
 describe("column identity", () => {
