@@ -292,7 +292,13 @@ const SolutionTable = ({
                           type="button"
                           className="expand-btn"
                           onClick={() => toggleExpanded(node._id)}
-                          title={isExpanded ? "Collapse" : "Expand to see linked nodes"}
+                          aria-label={
+                            isExpanded ? "Collapse linked nodes" : "Expand to see linked nodes"
+                          }
+                          aria-expanded={isExpanded}
+                          title={
+                            isExpanded ? "Collapse linked nodes" : "Expand to see linked nodes"
+                          }
                         >
                           {isExpanded ? "−" : "+"}
                         </button>

@@ -152,7 +152,11 @@ describe("linked columns", () => {
   it("expands a row to list its linked nodes", () => {
     renderLinked([]);
     expect(screen.queryByText("Linked nodes")).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByTitle(/Expand/)[0]);
+    const toggle = screen.getAllByRole("button", { name: "Expand to see linked nodes" })[0];
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAccessibleName("Collapse linked nodes");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Linked nodes")).toBeInTheDocument();
     expect(screen.getByText(/Molecularly interacts with →/)).toBeInTheDocument();
   });
