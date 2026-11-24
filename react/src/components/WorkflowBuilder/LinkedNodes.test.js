@@ -40,6 +40,11 @@ describe("LinkedNodes", () => {
     expect(screen.getByRole("link", { name: "CHEMBL/1" })).toBeInTheDocument();
   });
 
+  it("falls back to the id for an indexed neighbor with no label fields", () => {
+    renderFor("PR/P1");
+    expect(screen.getByRole("link", { name: "GS/CFTR" })).toBeInTheDocument();
+  });
+
   it("renders nothing when the node has no neighbors", () => {
     const { container } = renderFor("GS/NONE");
     expect(container).toBeEmptyDOMElement();

@@ -24,17 +24,13 @@ const LinkedNodes = ({ nodeId, adjacency, nodeIndex }) => {
             {humanizeEdgeLabel(label)} {direction === "out" ? "→" : "←"}{" "}
           </span>
           <span className="field-value">
-            {nodeIds.map((id, i) => {
-              const node = nodeIndex?.get(id);
-              return (
-                <span key={id}>
-                  {i > 0 && ", "}
-                  <Link to={`/collections/${id}`}>
-                    {node ? getNodeLabel(node, id.split("/")[0]) : id}
-                  </Link>
-                </span>
-              );
-            })}
+            {nodeIds.map((id, i) => (
+              <span key={id}>
+                {i > 0 && ", "}
+                {/* The full id is getNodeLabel's fallback for a missing node or label. */}
+                <Link to={`/collections/${id}`}>{getNodeLabel(nodeIndex?.get(id), id)}</Link>
+              </span>
+            ))}
           </span>
         </div>
       ))}
