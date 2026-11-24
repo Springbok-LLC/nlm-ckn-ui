@@ -201,6 +201,15 @@ describe("column identity", () => {
     spy.mockRestore();
   });
 
+  it("keeps the linked marker on a second linked column to the same collection", () => {
+    const viaGene = { path: [{ label: "PRODUCES", collection: "PR" }] };
+    renderChembl({
+      solution: { phaseId: "p1", collection: "CHEMBL", linkedColumns: [column, viaGene] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Download CSV/ }));
+    expect(downloadFile.mock.calls.at(-1)[0]).toContain("(linked) (2)");
+  });
+
   it("keeps an own field and a same-named linked column apart in the CSV", () => {
     renderChembl();
     fireEvent.click(screen.getByRole("button", { name: /Download CSV/ }));

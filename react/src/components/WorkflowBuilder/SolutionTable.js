@@ -53,13 +53,15 @@ const cellText = (v) => (Array.isArray(v) ? v.map(cellText).join(", ") : formatF
 
 // Header text must be unique in the CSV, or a repeated header overwrites its twin.
 // A repeated own header (the fallback "Label" beside a field shown as "Label")
-// takes its field name, and a linked column is marked (linked).
+// takes its field name, a linked column is marked (linked), and a header
+// still repeated is numbered after that.
 const uniqueHeaders = (columns) => {
   const used = new Set();
   return columns.map((c) => {
     let header = c.linked ? `${c.label} (linked)` : c.label;
     if (used.has(header) && !c.linked) header = `${c.label} (${c.key})`;
-    for (let n = 2; used.has(header); n++) header = `${c.label} (${n})`;
+    const base = header;
+    for (let n = 2; used.has(header); n++) header = `${base} (${n})`;
     used.add(header);
     return header;
   });
