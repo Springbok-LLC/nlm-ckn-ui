@@ -197,9 +197,12 @@ describe("linked columns", () => {
     expect(screen.queryByRole("link", { name: "PR/P5" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
     expect(screen.getByRole("link", { name: "PR/P5" })).toBeInTheDocument();
+    // Focus moves to the first revealed link, then back to +N on folding.
+    expect(screen.getByRole("link", { name: "PR/P4" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
     expect(screen.queryByRole("link", { name: "PR/P5" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show 2 more" })).toHaveTextContent("+2");
+    expect(screen.getByRole("button", { name: "Show 2 more" })).toHaveFocus();
   });
 
   it("falls back to the id for a node missing from results and details", () => {

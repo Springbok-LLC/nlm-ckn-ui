@@ -3,7 +3,7 @@
  * at a time, with that collection's own fields as columns.
  */
 
-import { Fragment, memo, useCallback, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   downloadFile,
@@ -84,6 +84,20 @@ const LINKED_SHOWN = 3;
 
 const LinkedCell = ({ nodes }) => {
   const [open, setOpen] = useState(false);
+  // The toggle button is replaced on each click, so focus moves with it: to the
+  // first revealed link on opening, back to +N on folding.
+  const firstRevealed = useRef(null);
+  const moreButton = useRef(null);
+  const toggled = useRef(false);
+  useEffect(() => {
+    if (!toggled.current) return;
+    toggled.current = false;
+    (open ? firstRevealed : moreButton).current?.focus();
+  }, [open]);
+  const toggle = (next) => {
+    toggled.current = true;
+    setOpen(next);
+  };
   const shown = open ? nodes : nodes.slice(0, LINKED_SHOWN);
   const hidden = nodes.length - shown.length;
   const showRoutes = nodes.some((n) => n.routes > 1);
@@ -95,7 +109,9 @@ const LinkedCell = ({ nodes }) => {
         return (
           <span key={n.id}>
             {i > 0 && ", "}
-            <Link to={`/collections/${n.id}`}>{n.label}</Link>
+            <Link to={`/collections/${n.id}`} ref={i === LINKED_SHOWN ? firstRevealed : undefined}>
+              {n.label}
+            </Link>
             {note && <span title={note.title}> ({note.text})</span>}
           </span>
         );
@@ -105,13 +121,14 @@ const LinkedCell = ({ nodes }) => {
           type="button"
           className="linked-more"
           aria-label={`Show ${hidden} more`}
-          onClick={() => setOpen(true)}
+          ref={moreButton}
+          onClick={() => toggle(true)}
         >
           +{hidden}
         </button>
       )}
       {open && nodes.length > LINKED_SHOWN && (
-        <button type="button" className="linked-more" onClick={() => setOpen(false)}>
+        <button type="button" className="linked-more" onClick={() => toggle(false)}>
           Show fewer
         </button>
       )}
