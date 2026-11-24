@@ -9,6 +9,8 @@ This module is consumed by WorkflowPresetsView to serve presets over the API,
 making them discoverable by non-browser clients (MCP tools, agents, etc.).
 """
 
+from arango_api.search_tiers import collection_field_names
+
 PRESET_SECTIONS = [
     {"id": "graph-results", "label": "Graph Result Examples"},
     {"id": "big-dipper", "label": "Big Dipper"},
@@ -188,6 +190,68 @@ def _hop(depth, direction, collection, *labels):
     }
 
 
+# Edge paths for solution columns. Named for what they reach, since several
+# share a label and differ only in the collection they end on.
+_TO_CELL_TYPE = {"label": "COMPOSED_PRIMARILY_OF", "collection": "CL"}
+_FROM_CELL_SET = {"label": "COMPOSED_PRIMARILY_OF", "collection": "CS"}
+# A compound reaches a gene only through its protein; a gene reaches a compound
+# the same way in reverse.
+_TO_PROTEIN = {"label": "MOLECULARLY_INTERACTS_WITH", "collection": "PR"}
+_PROTEIN_TO_GENE = {"label": "PRODUCES", "collection": "GS"}
+_GENE_TO_PROTEIN = {"label": "PRODUCES", "collection": "PR"}
+_PROTEIN_TO_COMPOUND = {"label": "MOLECULARLY_INTERACTS_WITH", "collection": "CHEMBL"}
+_TO_EXPRESSING_CELL_SET = {"label": "SELECTIVELY_EXPRESSES", "collection": "CS"}
+_CELL_SET_TO_ORGAN = {"label": "DERIVES_FROM", "collection": "UBERON"}
+_GENE_TO_DISEASE = {"label": "ASSOCIATED_WITH", "collection": "MONDO"}
+_TO_MARKERS = [
+    {"label": "HAS_CHARACTERIZING_MARKER_SET", "collection": "BMC"},
+    {"label": "PART_OF", "collection": "GS"},
+]
+
+
+def _solution(phase_id, collection, *columns, fields=None):
+    """The table the Solution tab shows: *collection* nodes of one phase.
+
+    Each column is an edge path (one or two hops) whose end nodes are listed
+    beside each row. *fields* names the own fields to show, in order; without
+    it the table shows the first few that have values.
+    """
+    solution = {
+        "phaseId": phase_id,
+        "collection": collection,
+        "linkedColumns": [{"path": path} for path in columns],
+    }
+    if fields is not None:
+        solution["fields"] = list(fields)
+    return solution
+
+
+def _uc5_cell_types(phase_id, name, dataset):
+    """The cell types one dataset detects, through its cell sets."""
+    return {
+        "id": phase_id,
+        "name": name,
+        "originSource": "manual",
+        "originNodeIds": [dataset],
+        "previousPhaseId": None,
+        "originFilter": "all",
+        "settings": {
+            "depth": 2,
+            "edgeDirection": "ANY",
+            "allowedCollections": ["CS", "CL"],
+            "edgeFilters": {
+                "Label": ["IS_ABOUT", "COMPOSED_PRIMARILY_OF"],
+                "Source": [],
+            },
+            "returnCollections": ["CL"],
+            "setOperation": "Union",
+            "graphType": "phenotypes",
+            "includeInterNodeEdges": False,
+        },
+        "perNodeSettings": {},
+    }
+
+
 def _intersect(phase_id, name, sources):
     return _scan_phase(
         phase_id,
@@ -262,6 +326,52 @@ def _dipper_union(phase_id, sources):
     )
 
 
+# Context for the answer genes of phase *src*, so the Data tab can list each
+# gene's organs and diseases: the cell sets selectively expressing the genes,
+# the organs those cell sets derive from, and the genes' diseases. Each phase
+# returns both ends of its edges, since a phase keeps only edges between nodes
+# it returns.
+def _gene_context(prefix, src, first):
+    cs, organs, diseases = (f"{prefix}-phase-{n}" for n in range(first, first + 3))
+    return [
+        _scan_phase(
+            cs,
+            "Cell sets selectively expressing the answer genes",
+            {
+                **_hop(1, "INBOUND", "CS", "SELECTIVELY_EXPRESSES"),
+                "returnCollections": ["GS", "CS"],
+            },
+            prev=src,
+        ),
+        _scan_phase(
+            organs,
+            "Organs those cell sets derive from",
+            {
+                **_hop(1, "OUTBOUND", "UBERON", "DERIVES_FROM"),
+                "returnCollections": ["CS", "UBERON"],
+            },
+            prev=cs,
+            originFilter="nonOriginNodes",
+        ),
+        _scan_phase(
+            diseases,
+            "Diseases of the answer genes",
+            {
+                **_hop(1, "OUTBOUND", "MONDO", "ASSOCIATED_WITH"),
+                "returnCollections": ["GS", "MONDO"],
+            },
+            prev=src,
+        ),
+    ]
+
+
+# Each answer gene's organs (through its cell sets) and diseases.
+_GENE_CONTEXT_COLUMNS = (
+    [_TO_EXPRESSING_CELL_SET, _CELL_SET_TO_ORGAN],
+    [_GENE_TO_DISEASE],
+)
+
+
 _UC9 = "preset-uc9-genes"
 _UC9_PHASES = [
     _scan_phase(
@@ -292,6 +402,7 @@ _UC9_PHASES = [
         "Dipper genes a cell set selectively expresses",
         [f"{_UC9}-phase-1", f"{_UC9}-phase-3"],
     ),
+    *_gene_context(_UC9, f"{_UC9}-phase-4", 5),
 ]
 
 # No closing edge, so no path query: disease genes, intersected with the genes
@@ -325,6 +436,7 @@ _UC10_PHASES = [
         "Disease genes with a compound, selectively expressed in a cell set",
         [f"{_UC10}-phase-1", f"{_UC10}-phase-3", f"{_UC10}-phase-5"],
     ),
+    *_gene_context(_UC10, f"{_UC10}-phase-6", 7),
 ]
 
 
@@ -341,6 +453,7 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution("preset-uc1-phase-1", "CSD", fields=collection_field_names("CSD")),
         "phases": [
             {
                 "id": "preset-uc1-phase-1",
@@ -379,6 +492,12 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution(
+            "preset-hlca-lung-phase-1",
+            "CS",
+            [_TO_CELL_TYPE],
+            fields=["author_cell_term", "ontology_purl"],
+        ),
         "phases": [
             {
                 "id": "preset-hlca-lung-phase-1",
@@ -419,6 +538,13 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution(
+            "preset-uc3-phase-1",
+            "CS",
+            [_TO_CELL_TYPE],
+            _TO_MARKERS,
+            fields=collection_field_names("CS"),
+        ),
         "phases": [
             {
                 "id": "preset-uc3-phase-1",
@@ -482,6 +608,7 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution("preset-uc4-phase-1", "CS", [_TO_CELL_TYPE], _TO_MARKERS),
         "phases": [
             {
                 "id": "preset-uc4-phase-1",
@@ -635,7 +762,35 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution("preset-uc5-difference", "CL", [_FROM_CELL_SET]),
         "phases": [
+            _uc5_cell_types(
+                "preset-uc5-cellref",
+                "CellRef cell types",
+                "CSD/8b459307-bce0-45f9-9e45-a0a3673058a2__respiratory_system",
+            ),
+            _uc5_cell_types(
+                "preset-uc5-hlca",
+                "HLCA cell types",
+                "CSD/4cb45d80-499a-48ae-a056-c71ac3552c94__respiratory_system",
+            ),
+            {
+                "id": "preset-uc5-difference",
+                "name": "Cell types in CellRef but not in HLCA",
+                "originSource": "multiplePhases",
+                "originNodeIds": [],
+                "previousPhaseId": None,
+                "previousPhaseIds": ["preset-uc5-cellref", "preset-uc5-hlca"],
+                "phaseCombineOperation": "Difference",
+                "originFilter": "all",
+                "settings": {
+                    "returnCollections": ["CL"],
+                    "setOperation": "Union",
+                    "graphType": "phenotypes",
+                    "includeInterNodeEdges": False,
+                },
+                "perNodeSettings": {},
+            },
             {
                 "id": "preset-uc5-phase-1",
                 "name": "Show both datasets with their cell sets and cell types",
@@ -680,6 +835,7 @@ WORKFLOW_PRESETS = [
         # Labeling every one of them buries the shape, so start with
         # edge labels off; the Labels panel can turn them back on.
         "labelStates": {"link-label": False},
+        "solution": _solution("preset-uc6-phase-1", "CHEMBL", [_TO_PROTEIN], [_TO_PROTEIN, _PROTEIN_TO_GENE]),
         "phases": [
             {
                 "id": "preset-uc6-phase-1",
@@ -727,6 +883,7 @@ WORKFLOW_PRESETS = [
         "category": "Use Cases",
         "layoutMode": "big-dipper",
         "labelStates": {"link-label": False},
+        "solution": _solution("preset-uc7-hcp-phase-2", "CHEMBL", [_TO_PROTEIN], [_TO_PROTEIN, _PROTEIN_TO_GENE]),
         "phases": [
             {
                 "id": "preset-uc7-hcp-phase-2",
@@ -780,6 +937,7 @@ WORKFLOW_PRESETS = [
         # compounds), not a dipper: there is no cell leg or closing edge.
         "layoutMode": "strict-cluster",
         "labelStates": {"link-label": False},
+        "solution": _solution("preset-uc8-phase-1", "GS", [_GENE_TO_PROTEIN, _PROTEIN_TO_COMPOUND]),
         "phases": [
             {
                 "id": "preset-uc8-phase-1",
@@ -860,6 +1018,12 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution(
+            "preset-uc9-genes-phase-4",
+            "GS",
+            *_GENE_CONTEXT_COLUMNS,
+            fields=["gene_symbol", "label", "refseq_summary"],
+        ),
         "phases": _UC9_PHASES,
     },
     {
@@ -872,6 +1036,12 @@ WORKFLOW_PRESETS = [
         ),
         "category": "Use Cases",
         "layoutMode": "force",
+        "solution": _solution(
+            "preset-uc10-genes-phase-6",
+            "GS",
+            *_GENE_CONTEXT_COLUMNS,
+            fields=["gene_symbol", "label", "refseq_summary"],
+        ),
         "phases": _UC10_PHASES,
     },
     {
@@ -887,6 +1057,7 @@ WORKFLOW_PRESETS = [
         # Labeling every one of them buries the shape, so start with
         # edge labels off; the Labels panel can turn them back on.
         "labelStates": {"link-label": False},
+        "solution": _solution("preset-uc11-phase-1", "CHEMBL", [_TO_PROTEIN], [_TO_PROTEIN, _PROTEIN_TO_GENE]),
         "phases": [
             {
                 "id": "preset-uc11-phase-1",
@@ -939,6 +1110,7 @@ WORKFLOW_PRESETS = [
         "category": "Use Cases",
         "layoutMode": "big-dipper",
         "labelStates": {"link-label": False},
+        "solution": _solution("preset-uc12-phase-1", "CHEMBL", [_TO_PROTEIN], [_TO_PROTEIN, _PROTEIN_TO_GENE]),
         "phases": [
             {
                 "id": "preset-uc12-phase-1",

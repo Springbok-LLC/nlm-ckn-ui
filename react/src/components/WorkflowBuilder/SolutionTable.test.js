@@ -149,6 +149,62 @@ describe("linked columns", () => {
     expect(screen.getByText("–")).toBeInTheDocument();
   });
 
+  it("expands a row to list its linked nodes", () => {
+    renderLinked([]);
+    expect(screen.queryByText("Linked nodes")).not.toBeInTheDocument();
+    const toggle = screen.getAllByRole("button", { name: "Expand to see linked nodes" })[0];
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAccessibleName("Collapse linked nodes");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Linked nodes")).toBeInTheDocument();
+    expect(screen.getByText(/Molecularly interacts with →/)).toBeInTheDocument();
+  });
+
+  it("lists the strongest linked nodes first, with their score or route count", () => {
+    const scored = (id, to, Score) => ({ ...edge(id, "CHEMBL/1", to, "TREATS"), Score });
+    const viaPr = (id, from) => edge(id, from, "PR/P3", "MOLECULARLY_INTERACTS_WITH");
+    const result = {
+      nodes: [{ _id: "CHEMBL/1", label: "drug" }],
+      links: [
+        scored("s1", "MONDO/weak", "0.5"),
+        scored("s2", "MONDO/strong", "0.9"),
+        edge("s3", "CHEMBL/1", "MONDO/unscored", "TREATS"),
+        ...links,
+        viaPr("s4", "CHEMBL/1"),
+        edge("s5", "GS/OTHER", "PR/P3", "PRODUCES"),
+        edge("s6", "GS/CFTR", "PR/P3", "PRODUCES"),
+      ],
+    };
+    renderLinked([{ path: [{ label: "TREATS", collection: "MONDO" }] }, toGene], {
+      phaseResult: result,
+      allPhaseResults: { p1: result },
+    });
+    const [diseases, genes] = screen.getAllByRole("row")[1].querySelectorAll("td + td + td");
+    expect(diseases).toHaveTextContent("MONDO/strong (0.90), MONDO/weak (0.50), MONDO/unscored");
+    expect(genes).toHaveTextContent("GS/CFTR (2), GS/OTHER (1)");
+  });
+
+  it("opens and folds the nodes past the first three", () => {
+    const pr = [1, 2, 3, 4, 5].map((n) =>
+      edge(`m${n}`, "CHEMBL/1", `PR/P${n}`, "MOLECULARLY_INTERACTS_WITH"),
+    );
+    const result = { nodes: [{ _id: "CHEMBL/1", label: "drug" }], links: pr };
+    renderLinked([{ path: [toGene.path[0]] }], {
+      phaseResult: result,
+      allPhaseResults: { p1: result },
+    });
+    expect(screen.queryByRole("link", { name: "PR/P5" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    expect(screen.getByRole("link", { name: "PR/P5" })).toBeInTheDocument();
+    // Focus moves to the first revealed link, then back to +N on folding.
+    expect(screen.getByRole("link", { name: "PR/P4" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(screen.queryByRole("link", { name: "PR/P5" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show 2 more" })).toHaveTextContent("+2");
+    expect(screen.getByRole("button", { name: "Show 2 more" })).toHaveFocus();
+  });
+
   it("falls back to the id for a node missing from results and details", () => {
     renderLinked([{ path: [toGene.path[0]] }]);
     expect(screen.getByRole("link", { name: "PR/P1" })).toBeInTheDocument();
@@ -157,6 +213,14 @@ describe("linked columns", () => {
   it("falls back to the id for a node that has no label fields", () => {
     renderLinked([{ path: [toGene.path[0]] }], { nodeDetails: { "PR/P1": { _id: "PR/P1" } } });
     expect(screen.getByRole("link", { name: "PR/P1" })).toBeInTheDocument();
+  });
+
+  it("passes the ticked path to onChangeLinkedColumns", () => {
+    const onChangeLinkedColumns = jest.fn();
+    renderLinked([], { onChangeLinkedColumns });
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(screen.getByLabelText("Molecularly interacts with → Protein (1)"));
+    expect(onChangeLinkedColumns).toHaveBeenCalledWith([{ path: [toGene.path[0]] }]);
   });
 
   it("exports linked values to CSV, joined with semicolons", () => {
@@ -256,9 +320,11 @@ describe("own fields", () => {
   afterEach(() => {
     mockFields = null;
   });
+  // The first column holds each row's expand button.
   const headers = () =>
     screen
       .getAllByRole("columnheader")
+      .slice(1)
       .map((h) => h.textContent.replace(/[\u2195\u25b2\u25bc]/g, ""));
   const defaults = ["Label", "Field late", ...names.slice(0, 5).map((n) => `Field ${n}`)];
 
@@ -285,5 +351,34 @@ describe("own fields", () => {
     withFields({ fields: ["a", "b", "c"] }, [{ _id: "XX/1", a: wxyz, b: { count: 3 }, c: [wxyz] }]);
     expect(screen.getAllByText("w, x, y, z")).toHaveLength(2);
     expect(screen.getByText('{"count":3}')).toHaveAttribute("title", '{"count":3}');
+  });
+
+  it("appends a ticked field through onChangeFields", () => {
+    const onChangeFields = jest.fn();
+    mockFields = fields;
+    renderTable({
+      phaseResult: { nodes: [{ _id: "XX/1", ...row }], links: [] },
+      allPhaseResults: {},
+      solution: { phaseId: "p1", collection: "XX", linkedColumns: [], fields: ["a"] },
+      onChangeFields,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    expect(screen.queryByLabelText("Field empty")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Field j"));
+    expect(onChangeFields).toHaveBeenCalledWith(["a", "j"]);
+  });
+
+  it("offers a chosen field with no values so it can be unticked", () => {
+    const onChangeFields = jest.fn();
+    mockFields = fields;
+    renderTable({
+      phaseResult: { nodes: [{ _id: "XX/1", ...row }], links: [] },
+      allPhaseResults: {},
+      solution: { phaseId: "p1", collection: "XX", linkedColumns: [], fields: ["a", "empty"] },
+      onChangeFields,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(screen.getByLabelText("Field empty"));
+    expect(onChangeFields).toHaveBeenCalledWith(["a"]);
   });
 });

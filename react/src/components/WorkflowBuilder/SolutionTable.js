@@ -3,7 +3,7 @@
  * at a time, with that collection's own fields as columns.
  */
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   downloadFile,
@@ -16,11 +16,15 @@ import {
   buildAdjacency,
   buildEdgePool,
   buildNodeIndex,
+  byStrength,
   formatLinkedLabels,
   humanizeEdgeLabel,
+  listLinkOptions,
   pickRowCollection,
-  resolvePath,
+  rankLinked,
 } from "utils/solution";
+import LinkedColumnsMenu from "./LinkedColumnsMenu";
+import LinkedNodes from "./LinkedNodes";
 import { formatFieldValue, SortableHeaders, sortRows } from "./ResultsTable";
 
 // The CSV joins array elements with semicolons.
@@ -67,18 +71,67 @@ const uniqueHeaders = (columns) => {
   });
 };
 
+// A score when the last hop has one; otherwise the route count, shown only when
+// some node in the cell is reached more than one way.
+const strengthNote = (n, showRoutes) => {
+  if (n.score !== null) return { text: n.score.toFixed(2), title: "Score" };
+  if (showRoutes) return { text: String(n.routes), title: `Reached by ${n.routes} paths` };
+  return null;
+};
+
+// Nodes listed before the rest fold behind a "+N" button.
+const LINKED_SHOWN = 3;
+
 const LinkedCell = ({ nodes }) => {
-  const shown = nodes.slice(0, 3);
+  const [open, setOpen] = useState(false);
+  // The toggle button is replaced on each click, so focus moves with it: to the
+  // first revealed link on opening, back to +N on folding.
+  const firstRevealed = useRef(null);
+  const moreButton = useRef(null);
+  const toggled = useRef(false);
+  useEffect(() => {
+    if (!toggled.current) return;
+    toggled.current = false;
+    (open ? firstRevealed : moreButton).current?.focus();
+  }, [open]);
+  const toggle = (next) => {
+    toggled.current = true;
+    setOpen(next);
+  };
+  const shown = open ? nodes : nodes.slice(0, LINKED_SHOWN);
+  const hidden = nodes.length - shown.length;
+  const showRoutes = nodes.some((n) => n.routes > 1);
   return (
-    <td title={nodes.map((n) => n.label).join(", ")}>
+    <td>
       {nodes.length === 0 && formatLinkedLabels([])}
-      {shown.map((n, i) => (
-        <span key={n.id}>
-          {i > 0 && ", "}
-          <Link to={`/collections/${n.id}`}>{n.label}</Link>
-        </span>
-      ))}
-      {nodes.length > shown.length && ` +${nodes.length - shown.length}`}
+      {shown.map((n, i) => {
+        const note = strengthNote(n, showRoutes);
+        return (
+          <span key={n.id}>
+            {i > 0 && ", "}
+            <Link to={`/collections/${n.id}`} ref={i === LINKED_SHOWN ? firstRevealed : undefined}>
+              {n.label}
+            </Link>
+            {note && <span title={note.title}> ({note.text})</span>}
+          </span>
+        );
+      })}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="linked-more"
+          aria-label={`Show ${hidden} more`}
+          ref={moreButton}
+          onClick={() => toggle(true)}
+        >
+          +{hidden}
+        </button>
+      )}
+      {open && nodes.length > LINKED_SHOWN && (
+        <button type="button" className="linked-more" onClick={() => toggle(false)}>
+          Show fewer
+        </button>
+      )}
     </td>
   );
 };
@@ -98,8 +151,11 @@ const SolutionTable = ({
   nodeDetails,
   solution,
   onChangeCollection,
+  onChangeLinkedColumns,
+  onChangeFields,
 }) => {
   const [sort, setSort] = useState({ column: null, direction: null });
+  const [expanded, setExpanded] = useState(new Set());
   const nodes = phaseResult?.nodes;
 
   const collection = useMemo(
@@ -125,15 +181,16 @@ const SolutionTable = ({
     () => buildNodeIndex(allPhaseResults, nodeDetails),
     [allPhaseResults, nodeDetails],
   );
+  const rowIds = useMemo(() => rows.map((r) => r._id), [rows]);
+  const linkOptions = useMemo(() => listLinkOptions(rowIds, adjacency), [rowIds, adjacency]);
   const linkedColumns = solution?.linkedColumns || [];
 
   const linkedNodes = useCallback(
     (row, path) =>
       // The full id is getNodeLabel's fallback for a missing node or label.
-      resolvePath(row._id, path, adjacency).map((id) => ({
-        id,
-        label: getNodeLabel(nodeIndex.get(id), id),
-      })),
+      rankLinked(row._id, path, adjacency)
+        .map((linked) => ({ ...linked, label: getNodeLabel(nodeIndex.get(linked.id), linked.id) }))
+        .sort(byStrength),
     [adjacency, nodeIndex],
   );
   const { header, ownFields } = useMemo(() => {
@@ -158,6 +215,11 @@ const SolutionTable = ({
       .map((name) => ownFields.find((f) => f.fieldName === name))
       .filter(Boolean);
   }, [solution?.fields, filledFields, ownFields]);
+  // The menu offers filled fields, plus any shown field left empty so it can be unticked.
+  const menuFields = useMemo(
+    () => ownFields.filter((f) => filledFields.includes(f) || shownFields.includes(f)),
+    [ownFields, filledFields, shownFields],
+  );
 
   const columns = useMemo(() => {
     return [
@@ -194,6 +256,14 @@ const SolutionTable = ({
     });
   }, []);
 
+  const toggleExpanded = useCallback((id) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+
   const handleCollection = (next) => {
     setSort({ column: null, direction: null });
     onChangeCollection(next);
@@ -219,6 +289,15 @@ const SolutionTable = ({
     <div className="results-table-container">
       <div className="results-tabs">
         <div className="results-tabs-left">
+          <LinkedColumnsMenu
+            options={linkOptions}
+            chosen={linkedColumns}
+            onChange={onChangeLinkedColumns}
+            fields={menuFields}
+            shownFields={shownFields.map((f) => f.fieldName)}
+            onChangeFields={onChangeFields}
+            loadNextHop={(prefix) => listLinkOptions(rowIds, adjacency, prefix)}
+          />
           {collections.length > 1 && (
             <select
               aria-label="Collection"
@@ -246,24 +325,61 @@ const SolutionTable = ({
         <table className="results-table solution-table">
           <thead>
             <tr>
+              <th className="expand-col" />
               <SortableHeaders columns={columns} sort={sort} onSort={handleSort} />
             </tr>
           </thead>
           <tbody>
-            {sorted.map((node) => (
-              <tr key={node._id}>
-                {columns.map((c) =>
-                  c.linked ? (
-                    <LinkedCell key={c.key} nodes={linkedNodes(node, c.linked)} />
-                  ) : (
-                    <FieldCell key={c.key} value={c.accessor(node)} />
-                  ),
-                )}
-              </tr>
-            ))}
+            {sorted.map((node) => {
+              const isExpanded = expanded.has(node._id);
+              return (
+                <Fragment key={node._id}>
+                  <tr className={isExpanded ? "expanded" : ""}>
+                    <td className="expand-col">
+                      {adjacency.get(node._id)?.length > 0 && (
+                        <button
+                          type="button"
+                          className="expand-btn"
+                          onClick={() => toggleExpanded(node._id)}
+                          aria-label={
+                            isExpanded ? "Collapse linked nodes" : "Expand to see linked nodes"
+                          }
+                          aria-expanded={isExpanded}
+                          title={
+                            isExpanded ? "Collapse linked nodes" : "Expand to see linked nodes"
+                          }
+                        >
+                          {isExpanded ? "−" : "+"}
+                        </button>
+                      )}
+                    </td>
+                    {columns.map((c) =>
+                      c.linked ? (
+                        <LinkedCell key={c.key} nodes={linkedNodes(node, c.linked)} />
+                      ) : (
+                        <FieldCell key={c.key} value={c.accessor(node)} />
+                      ),
+                    )}
+                  </tr>
+                  {isExpanded && (
+                    <tr className="expanded-row">
+                      <td colSpan={columns.length + 1}>
+                        <div className="expanded-content">
+                          <LinkedNodes
+                            nodeId={node._id}
+                            adjacency={adjacency}
+                            nodeIndex={nodeIndex}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="empty-message">
+                <td colSpan={columns.length + 1} className="empty-message">
                   The answer step returned no rows
                 </td>
               </tr>
