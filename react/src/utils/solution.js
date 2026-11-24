@@ -66,6 +66,8 @@ export function rankLinked(rowId, path, adjacency) {
     for (const [id, { routes }] of frontier) {
       for (const e of adjacency.get(id) || []) {
         if (e.label !== step.label || collectionOf(e.neighborId) !== step.collection) continue;
+        // A self-loop is listed both out and in; count it once.
+        if (e.direction === "in" && e.neighborId === id) continue;
         const reached = next.get(e.neighborId) || { routes: 0, score: null };
         reached.routes += routes;
         if (e.score !== undefined && (reached.score === null || e.score > reached.score)) {

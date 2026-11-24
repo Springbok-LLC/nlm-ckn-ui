@@ -97,6 +97,15 @@ describe("rankLinked and byStrength", () => {
     ]);
   });
 
+  it("counts a self-loop once per step", () => {
+    const a = adjOf([edge("e1", "A/1", "A/1", "X"), edge("e2", "A/1", "B/1", "Y")]);
+    const path = [
+      { label: "X", collection: "A" },
+      { label: "Y", collection: "B" },
+    ];
+    expect(rankLinked("A/1", path, a)).toEqual([{ id: "B/1", routes: 1, score: null }]);
+  });
+
   it("keeps the highest numeric last-hop score and ignores text", () => {
     const hasFeature = (id, mondo, Score) => ({
       ...edge(id, `MONDO/${mondo}`, "GS/CFTR", "HAS_FEATURE"),
